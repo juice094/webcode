@@ -23,7 +23,9 @@ function createRandomSecret(): string {
  * Owns the short-lived launch codes and the browser session token shared by the
  * current gateway lifecycle. Launch codes are safe to place in a URL because they
  * expire quickly and can be consumed only once. The API session token is returned
- * only by the redemption response and is revoked when the gateway stops or restarts.
+ * only by the redemption response. It is revoked when the gateway stops or
+ * cold-restarts, and preserved across hot configuration reloads so connected
+ * browser tabs keep working (see GatewayLifecycleOptions.preserveBridgeSession).
  */
 export class BridgeSessionManager {
     private readonly pendingCodes = new Map<string, PendingBridgeCode>();

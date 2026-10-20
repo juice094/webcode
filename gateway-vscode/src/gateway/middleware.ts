@@ -91,6 +91,32 @@ export function createGatewayActivityMiddleware(resetWatchdog: () => void): expr
     };
 }
 
+/**
+ * Tracks requests currently being processed so the idle watchdog can avoid
+ * shutting the gateway down mid-request. `onRequestEnd` fires exactly once
+ * per request, on both normal completion ('finish') and aborted connections
+ * ('close').
+ */
+export function createInFlightRequestMiddleware(
+    onRequestStart: () => void,
+    onRequestEnd: () => void
+): express.RequestHandler {
+    return (_req, res, next) => {
+        onRequestStart();
+        let ended = false;
+        const end = () => {
+            if (ended) {
+                return;
+            }
+            ended = true;
+            onRequestEnd();
+        };
+        res.on('finish', end);
+        res.on('close', end);
+        next();
+    };
+}
+
 export function createAuthMiddleware(
     isTokenValid: (token: string | undefined) => boolean,
     log: GatewayLogger

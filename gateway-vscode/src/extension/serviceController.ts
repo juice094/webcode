@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import type { GatewayManager } from '../gateway';
+import type { GatewayLifecycleOptions, GatewayManager } from '../gateway';
 import { t } from '../i18n';
 import { getConfiguredAiSites } from '../platforms';
 import { filterCustomServers, type BuiltinServerConfig } from './customServers';
@@ -18,7 +18,7 @@ export interface GatewayServiceSnapshot {
 }
 
 export interface GatewayServiceController {
-    start(): Promise<void>;
+    start(options?: GatewayLifecycleOptions): Promise<void>;
     stop(): Promise<void>;
     restart(): Promise<void>;
     issueBridgeCode(siteId: string, targetUrl: string): string;
@@ -49,7 +49,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
         updateGatewayStatusBar(options.statusBarItem, false);
     };
 
-    const start = async () => {
+    const start = async (startOptions?: GatewayLifecycleOptions) => {
         if (!hasWorkspaceFolder()) {
             if (isRunning || isStarting) {
                 await options.manager.stop();
@@ -77,7 +77,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
                 aiSites: startParams.aiSites,
                 skillDirectories: startParams.skillDirectories,
                 ...startParams.commandConfig
-            });
+            }, startOptions);
 
             currentPort = result.port;
             if (currentPort !== startParams.lastUsedPort) {

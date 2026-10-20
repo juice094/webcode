@@ -90,6 +90,7 @@ suite('Bridge route security', () => {
             assert.match(bridgeResponse.headers.get('cache-control') ?? '', /no-store/);
             assert.doesNotMatch(bridgeHtml, new RegExp(bridgeCode));
             assert.match(bridgeHtml, /bridge-upgrade-required/);
+            assert.match(bridgeHtml, /id="port-warning"/);
             assert.match(bridgeHtml, new RegExp(`"bridgeProtocolVersion":${BRIDGE_PROTOCOL_VERSION}`));
             assert.strictEqual(activityCount, 0);
 
@@ -143,6 +144,42 @@ suite('Bridge route security', () => {
             );
             assert.strictEqual(reusedResponse.status, 410);
             assert.strictEqual(activityCount, 1);
+        } finally {
+            await closeServer(server.httpServer);
+        }
+    });
+
+    test('accepts browser extensions at or above the shared minimum version', async () => {
+        const sessions = new BridgeSessionManager();
+        const server = await startBridgeServer(sessions, () => undefined);
+
+        try {
+            const newerExtensionCode = sessions.issueBridgeCode({
+                siteId: TEST_SITE.id,
+                targetUrl: TEST_SITE.address
+            });
+            const newerExtensionResponse = await redeemBridgeCode(
+                server.baseUrl,
+                newerExtensionCode,
+                '9.9.9',
+                BRIDGE_PROTOCOL_VERSION,
+                CHROME_WEB_STORE_BRIDGE_ORIGIN
+            );
+            assert.strictEqual(newerExtensionResponse.status, 200);
+
+            const belowMinimumCode = sessions.issueBridgeCode({
+                siteId: TEST_SITE.id,
+                targetUrl: TEST_SITE.address
+            });
+            const belowMinimumResponse = await redeemBridgeCode(
+                server.baseUrl,
+                belowMinimumCode,
+                '0.9.9',
+                BRIDGE_PROTOCOL_VERSION,
+                CHROME_WEB_STORE_BRIDGE_ORIGIN
+            );
+            assert.strictEqual(belowMinimumResponse.status, 409);
+            assert.ok(sessions.getBridgeLaunch(belowMinimumCode));
         } finally {
             await closeServer(server.httpServer);
         }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { GatewayManager } from '../gateway';
+import { classifyGatewayConfigurationChange } from './gatewayConfigurationPolicy';
 import type { GatewayServiceController } from './serviceController';
 import type { SkillWatcherController } from './skillWatchers';
 
@@ -14,7 +15,8 @@ interface RegisterGatewayConfigurationWatcherOptions {
 
 export function registerGatewayConfigurationWatcher(options: RegisterGatewayConfigurationWatcherOptions): void {
     options.context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (event) => {
-        if (!isGatewayServerConfigurationChange(event)) {
+        const changeKind = classifyGatewayConfigurationChange(key => event.affectsConfiguration(key));
+        if (changeKind === 'none') {
             return;
         }
 
@@ -24,18 +26,15 @@ export function registerGatewayConfigurationWatcher(options: RegisterGatewayConf
         }
 
         if (options.serviceController.getState().isRunning) {
-            options.outputChannel.appendLine("⚙️ Server configuration changed, restarting...");
-            await options.serviceController.start();
+            if (changeKind === 'hot') {
+                // Hot reload: restart the gateway but keep the bridge session
+                // token so already-connected browser tabs continue working.
+                options.outputChannel.appendLine("⚙️ Configuration changed, restarting gateway (preserving browser bridge session)...");
+                await options.serviceController.start({ preserveBridgeSession: true });
+            } else {
+                options.outputChannel.appendLine("⚙️ Server configuration changed, restarting...");
+                await options.serviceController.start();
+            }
         }
     }));
-}
-
-function isGatewayServerConfigurationChange(event: vscode.ConfigurationChangeEvent): boolean {
-    return event.affectsConfiguration('webcodeGateway.port') ||
-        event.affectsConfiguration('webcodeGateway.idleTimeoutMinutes') ||
-        event.affectsConfiguration('webcodeGateway.aiSites') ||
-        event.affectsConfiguration('webcodeGateway.servers') ||
-        event.affectsConfiguration('webcodeGateway.skillDirectories') ||
-        event.affectsConfiguration('webcodeGateway.commandShell.path') ||
-        event.affectsConfiguration('webcodeGateway.command.allowedRoots');
 }

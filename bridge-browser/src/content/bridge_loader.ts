@@ -1,4 +1,4 @@
-import { BRANDING, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
+import { BRANDING, BRIDGE_MIN_GATEWAY_VERSION, BRIDGE_PROTOCOL_VERSION, compareExtensionVersions } from '@webcode/shared';
 import { type HandshakeResponse } from '../types';
 
 type BridgeLoaderI18n = {
@@ -165,10 +165,10 @@ function readHandshakeParams(): ReadHandshakeParamsResult {
     };
   }
 
-  if (vscodeExtensionVersion !== browserExtensionVersion) {
+  if (!isGatewayVersionCompatible(vscodeExtensionVersion, browserExtensionVersion)) {
     return {
       status: "version-mismatch",
-      reason: compareVersions(vscodeExtensionVersion, browserExtensionVersion) > 0
+      reason: compareExtensionVersions(vscodeExtensionVersion, browserExtensionVersion) > 0
         ? "browser-outdated"
         : "vscode-outdated",
       vscodeExtensionVersion,
@@ -345,23 +345,19 @@ function getVersionMismatchBody(
   );
 }
 
-function compareVersions(left: string, right: string): number {
-  const leftParts = parseNumericVersion(left);
-  const rightParts = parseNumericVersion(right);
-  if (!leftParts || !rightParts) {
-    return 0;
+/**
+ * The gateway version is read from the `#mcp-data` payload embedded in the
+ * bridge page (`currentVscodeExtensionVersion`). Any gateway at or above
+ * BRIDGE_MIN_GATEWAY_VERSION is accepted (the bridge protocol version is
+ * checked separately and must match exactly). When the shared protocol
+ * config does not declare a minimum, fall back to the legacy exact match.
+ */
+function isGatewayVersionCompatible(gatewayVersion: string, browserExtensionVersion: string): boolean {
+  if (!BRIDGE_MIN_GATEWAY_VERSION) {
+    return gatewayVersion === browserExtensionVersion;
   }
-  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
-    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-    if (difference !== 0) {
-      return difference;
-    }
-  }
-  return 0;
-}
 
-function parseNumericVersion(version: string): number[] | null {
-  return /^\d+(?:\.\d+){1,3}$/.test(version) ? version.split(".").map(Number) : null;
+  return compareExtensionVersions(gatewayVersion, BRIDGE_MIN_GATEWAY_VERSION) >= 0;
 }
 
 function readBridgeData(): Partial<HandshakeParams> & { currentVscodeExtensionVersion?: string } {

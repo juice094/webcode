@@ -172,7 +172,9 @@
         "webcodeGateway.port": {
           "type": "number",
           "default": 34567,
-          "description": "The port the local gateway server will listen on."
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "The port the local gateway server will listen on. The browser bridge extension only supports ports 34567-34576."
         },
         "webcodeGateway.idleTimeoutMinutes": {
           "type": "integer",

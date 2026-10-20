@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Server as HttpServer } from 'http';
 import * as vscode from 'vscode';
+import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START } from '@webcode/shared';
 
 import { getErrorMessage } from './gateway/errorUtils';
 import { SkillManager } from './skillManager';
@@ -24,6 +25,7 @@ import {
     createAuthMiddleware,
     createCorsMiddleware,
     createGatewayActivityMiddleware,
+    createInFlightRequestMiddleware,
     createRequestLoggerMiddleware
 } from './gateway/middleware';
 import { connectToConfiguredServers } from './gateway/serverConnector';
@@ -43,6 +45,32 @@ import type {
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
 import { CommandApprovalManager } from './gateway/commandApproval';
 
+/**
+ * The browser bridge content scripts only match the loopback port window
+ * 34567-34576, so the gateway scans at most this many consecutive ports
+ * starting from the configured one. Landing outside the window leaves the
+ * bridge page without an injected extension.
+ */
+const MAX_PORT_RETRY_ATTEMPTS = BRIDGE_PORT_RANGE_END - BRIDGE_PORT_RANGE_START + 1;
+
+/**
+ * QA-calibrated value: covers the worst case of one long MCP tool call
+ * spanning 4 idle periods. Calibration method: once the Phase 1 timeout
+ * configuration lands, re-verify this bound against the default toolCallMs
+ * budget.
+ */
+const MAX_WATCHDOG_POSTPONEMENTS = 3;
+
+export interface GatewayLifecycleOptions {
+    /**
+     * Keep the browser bridge session token (and pending launch codes) across
+     * this stop/start cycle. Used by hot configuration reloads so connected
+     * browser tabs keep working with the token they already hold. Cold starts
+     * and cold configuration changes always revoke the token.
+     */
+    preserveBridgeSession?: boolean;
+}
+
 export class GatewayManager {
     private app: express.Express | null = null;
     private server: HttpServer | null = null;
@@ -54,6 +82,8 @@ export class GatewayManager {
     private context: vscode.ExtensionContext;
     private watchdogTimer: NodeJS.Timeout | null = null;
     private idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MINUTES * 60 * 1000;
+    private inFlightRequestCount = 0;
+    private watchdogPostponements = 0;
     private onAutoStop: ((idleTimeoutMs: number) => void) | null = null;
     private skillManager: SkillManager;
     private terminalSessionManager: TerminalSessionManager;
@@ -106,11 +136,26 @@ export class GatewayManager {
 
     private resetWatchdog() {
         if (this.watchdogTimer) {clearTimeout(this.watchdogTimer);}
-        this.watchdogTimer = setTimeout(() => {
-            this.log(`💤 No activity for ${formatIdleTimeoutMinutes(this.idleTimeoutMs)} minutes. Shutting down...`);
-            void this.stop();
-            if (this.onAutoStop) {this.onAutoStop(this.idleTimeoutMs);}
-        }, this.idleTimeoutMs);
+        // Genuine activity starts a fresh idle window, including the budget
+        // of in-flight postponements.
+        this.watchdogPostponements = 0;
+        this.watchdogTimer = setTimeout(() => this.handleWatchdogFired(), this.idleTimeoutMs);
+    }
+
+    private handleWatchdogFired() {
+        if (this.inFlightRequestCount > 0 && this.watchdogPostponements < MAX_WATCHDOG_POSTPONEMENTS) {
+            this.watchdogPostponements += 1;
+            this.log(`⏳ ${this.inFlightRequestCount} request(s) still in flight. Postponing idle shutdown (${this.watchdogPostponements}/${MAX_WATCHDOG_POSTPONEMENTS}).`);
+            this.watchdogTimer = setTimeout(() => this.handleWatchdogFired(), this.idleTimeoutMs);
+            return;
+        }
+
+        if (this.inFlightRequestCount > 0) {
+            this.log(`⚠️ Forcing idle shutdown with ${this.inFlightRequestCount} request(s) still in flight after ${MAX_WATCHDOG_POSTPONEMENTS} postponements.`);
+        }
+        this.log(`💤 No activity for ${formatIdleTimeoutMinutes(this.idleTimeoutMs)} minutes. Shutting down...`);
+        void this.stop();
+        if (this.onAutoStop) {this.onAutoStop(this.idleTimeoutMs);}
     }
 
     private log(message: string) {
@@ -183,6 +228,10 @@ export class GatewayManager {
     private registerRoutes(config: GatewayConfig): void {
         if (!this.app) {return;}
 
+        this.app.use(createInFlightRequestMiddleware(
+            () => { this.inFlightRequestCount += 1; },
+            () => { this.inFlightRequestCount = Math.max(0, this.inFlightRequestCount - 1); }
+        ));
         this.app.use(createCorsMiddleware(config, this.log.bind(this)));
         this.app.use(createRequestLoggerMiddleware(this.log.bind(this)));
         registerBridgeRoute(this.app, {
@@ -225,9 +274,10 @@ export class GatewayManager {
         return typeof version === 'string' && version.trim() ? version : 'unknown';
     }
 
-    async start(config: GatewayConfig): Promise<StartResult> {
+    async start(config: GatewayConfig, options?: GatewayLifecycleOptions): Promise<StartResult> {
+        const preserveBridgeSession = options?.preserveBridgeSession === true;
         if (this.server) {
-            await this.stop();
+            await this.stop({ preserveBridgeSession });
         }
         this.skillDirectories = config.skillDirectories ?? [];
         const commandShellPath = config.commandShellPath?.trim();
@@ -236,7 +286,15 @@ export class GatewayManager {
         this.currentAiSites = config.aiSites ?? [];
         this.idleTimeoutMs = config.idleTimeoutMs;
         this.commandApprovalManager.clear();
-        this.bridgeSessionManager.clear();
+        // Bridge session token lifecycle: the token is revoked on every cold
+        // start (fresh launch, manual stop/start, cold configuration keys such
+        // as port or idleTimeoutMinutes). Hot configuration reloads (servers,
+        // skillDirectories, commandShell.path, command.allowedRoots) pass
+        // preserveBridgeSession so connected browser tabs keep using the
+        // token they already hold instead of being logged out mid-session.
+        if (!preserveBridgeSession) {
+            this.bridgeSessionManager.clear();
+        }
         this.trace({
             event: 'gateway_starting',
             status: 'started',
@@ -257,8 +315,7 @@ export class GatewayManager {
     private listenOnAvailablePort(config: GatewayConfig): Promise<StartResult> {
         return new Promise<StartResult>((resolve, reject) => {
             const tryListen = (currentPort: number, attempt: number) => {
-                const maxRetries = 20;
-                if (attempt > maxRetries) {
+                if (attempt >= MAX_PORT_RETRY_ATTEMPTS) {
                     reject(new Error("No ports available"));
                     return;
                 }
@@ -266,6 +323,9 @@ export class GatewayManager {
                 if (!this.app) {return;}
                 this.server = this.app.listen(currentPort, '127.0.0.1', () => {
                     this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
+                    if (currentPort < BRIDGE_PORT_RANGE_START || currentPort > BRIDGE_PORT_RANGE_END) {
+                        this.log(`⚠️ Port ${currentPort} is outside the browser bridge supported range ${BRIDGE_PORT_RANGE_START}-${BRIDGE_PORT_RANGE_END}. The browser extension will not inject on this port; check the webcodeGateway.port setting.`);
+                    }
                     this.trace({
                         event: 'gateway_started',
                         status: 'success',
@@ -299,11 +359,12 @@ export class GatewayManager {
     }
 
     // eslint-disable-next-line @typescript-eslint/require-await
-    async stop() {
+    async stop(options?: GatewayLifecycleOptions) {
         if (this.watchdogTimer) {
             clearTimeout(this.watchdogTimer);
             this.watchdogTimer = null;
         }
+        this.watchdogPostponements = 0;
         if (this.server) {
             this.server.close();
             this.server = null;
@@ -317,7 +378,9 @@ export class GatewayManager {
         });
         this.connectedClients = [];
         this.commandApprovalManager.clear();
-        this.bridgeSessionManager.clear();
+        if (!options?.preserveBridgeSession) {
+            this.bridgeSessionManager.clear();
+        }
         this.currentAiSites = [];
     }
 }

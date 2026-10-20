@@ -1,3 +1,5 @@
 {
-  "version": 2
+  "version": 2,
+  "minExtensionVersion": "1.0.0",
+  "minGatewayVersion": "1.0.0"
 }

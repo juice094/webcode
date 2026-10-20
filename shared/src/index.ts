@@ -47,6 +47,57 @@ export const PROTOCOL = {
 
 export const BRIDGE_PROTOCOL_VERSION = bridgeProtocolConfig.version;
 
+function readOptionalVersion(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+/**
+ * Minimum browser extension version the gateway accepts during bridge redemption.
+ * When absent, the gateway falls back to requiring an exact version match.
+ */
+export const BRIDGE_MIN_EXTENSION_VERSION = readOptionalVersion(
+  (bridgeProtocolConfig as Record<string, unknown>).minExtensionVersion
+);
+
+/**
+ * Minimum gateway (VS Code extension) version the browser bridge accepts.
+ * When absent, the browser bridge falls back to requiring an exact version match.
+ */
+export const BRIDGE_MIN_GATEWAY_VERSION = readOptionalVersion(
+  (bridgeProtocolConfig as Record<string, unknown>).minGatewayVersion
+);
+
+/**
+ * Compares two dotted numeric versions (for example "1.2.1").
+ * Returns a negative number when left < right, 0 when equal or when either
+ * side is not a numeric version, and a positive number when left > right.
+ */
+export function compareExtensionVersions(left: string, right: string): number {
+  const leftParts = parseNumericVersion(left);
+  const rightParts = parseNumericVersion(right);
+  if (!leftParts || !rightParts) {
+    return 0;
+  }
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
+}
+
+function parseNumericVersion(version: string): number[] | null {
+  return /^\d+(?:\.\d+){1,3}$/.test(version) ? version.split('.').map(Number) : null;
+}
+
+/**
+ * Loopback port window the browser bridge content scripts match against.
+ * The gateway must stay inside this range or the bridge never injects.
+ */
+export const BRIDGE_PORT_RANGE_START = 34567;
+export const BRIDGE_PORT_RANGE_END = 34576;
+
 export const PLATFORM_PROMPT_KEY_PREFIX = 'platform_prompt_';
 
 export type PromptLanguage = 'zh' | 'en';
