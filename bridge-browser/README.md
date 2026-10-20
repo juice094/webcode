@@ -20,6 +20,13 @@
 4. **开始对话**: 打开新对话，先输入您的实际需求，再在同一条消息末尾添加 `/webcode` 或 `@webcode`。当 webcode 询问是否添加初始化上下文时，点击 **添加** 或按 Enter。webcode 会把触发词替换为完整初始化上下文，确认消息内容后由您手动发送。若内容超过当前站点输入框限制，webcode 会优先把完整上下文作为 txt 附件添加到消息中。
 5. **排查故障**: 如果图标显示红色或灰色，请点击插件图标查看详细的故障排查指引。
 
+## 相关文档
+
+- [项目快速开始与完整文档](../README.md)
+- [浏览器模式指南](../doc/BROWSER_MODE_GUIDE.md)
+- [常见问题](../doc/FAQ_GUIDE.md)
+- [English README](README_en.md)
+
 ## Session 状态
 
 浏览器插件后台会按当前 tab 的 session 和 URL 安全性区分以下状态：

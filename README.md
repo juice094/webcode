@@ -32,6 +32,27 @@
   <img src="doc/assets/webcode-usage-screenshot.png" width="960" alt="webcode 使用截图">
 </p>
 
+## 项目能力
+
+- 在网页 AI 对话中调用本地文件、搜索和命令工具，并在需要时请求用户审批。
+- 通过 VS Code 扩展和浏览器 bridge 建立本地 Gateway 连接。
+- 接入第三方 MCP server，并向网页 AI 提供工作区 Skills。
+- 支持多个内置 AI 站点，也可通过 VS Code 设置添加或覆盖站点。
+
+## 文档导航
+
+| 主题 | 文档 |
+| ------ | ------ |
+| 构建、开发和功能指南 | [文档目录](doc/README.md) |
+| 浏览器模式 | [浏览器模式指南](doc/BROWSER_MODE_GUIDE.md) |
+| 内置工具 | [内置工具说明](doc/BUILTIN_TOOLS.md) |
+| MCP 配置 | [MCP 服务配置指南](doc/MCP_GUIDE.md) |
+| 站点扩展 | [站点支持指南](doc/PLATFORM_GUIDE.md) |
+| 常见问题 | [FAQ](doc/FAQ_GUIDE.md) |
+| 开发与贡献 | [贡献指南](CONTRIBUTING.md) |
+
+语言版本：[English](README_en.md)。
+
 ## 使用示例
 
 ### DeepSeek 网页版：鹈鹕测试
@@ -54,7 +75,7 @@ https://github.com/user-attachments/assets/448873b4-922a-4cac-b421-70a189394576
 
 [查看 SVG 源文件](doc/assets/pelican-bicycle-deepseek.svg)
 
-## 快速开始
+## 安装与快速开始
 
 ### 1. 安装 VS Code 扩展
 
@@ -126,6 +147,10 @@ webcode 可以把当前 VS Code 工作区中的本地 Skills 暴露给网页 AI�
 
 如果 `AGENTS.md` 和 `CLAUDE.md` 同时存在，只发送 `AGENTS.md`。浏览器扩展不再提供单独的个性化指令设置页。
 
+## 配置
+
+VS Code 设置使用 `webcodeGateway.*` 命名空间。站点配置见[站点支持指南](doc/PLATFORM_GUIDE.md)，MCP server 配置见[MCP 指南](doc/MCP_GUIDE.md)，浏览器选择见[浏览器模式指南](doc/BROWSER_MODE_GUIDE.md)。
+
 ## 目前已内置支持的 AI 平台及其他平台支持
 
 webcode 目前已内置支持以下 AI 平台：
@@ -150,9 +175,32 @@ webcode 目前已内置支持以下 AI 平台：
 
 首次启动环境、触发词无反应、工具调用执行后页面没有变化、查看历史工具调用等问题见 [常见问题](doc/FAQ_GUIDE.md)。
 
+## 项目结构
+
+- `gateway-vscode/`：VS Code 扩展、Gateway、MCP 和本地工具。
+- `bridge-browser/`：浏览器扩展及页面桥接逻辑。
+- `shared/`：跨包共享类型和逻辑。
+- `evals/`：单元评测、端到端场景和 QA 脚本。
+- `doc/`：使用、构建和开发指南。
+
+## 开发与测试
+
+需要 Node.js 22 和 pnpm 10.25.0。克隆仓库后，在根目录运行：
+
+```bash
+pnpm install
+pnpm --filter @webcode/shared run build
+pnpm build
+pnpm test
+pnpm test:extension
+pnpm lint
+```
+
+各命令的范围及浏览器端到端测试说明见[构建指南](doc/BUILD_GUIDE.md)和[文档目录](doc/README.md)。
+
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。
+欢迎提交 Issue 和 Pull Request。提交前请阅读[贡献指南](CONTRIBUTING.md)；安全问题请参阅[安全策略](SECURITY.md)。行为准则目前仍待维护者确认，见[行为准则草案](CODE_OF_CONDUCT.md)。
 
 ## 致谢
 
@@ -160,4 +208,4 @@ webcode 目前已内置支持以下 AI 平台：
 
 ## 许可证
 
-[MIT License](LICENSE)
+本仓库采用 MIT License，详见 [LICENSE](LICENSE)。

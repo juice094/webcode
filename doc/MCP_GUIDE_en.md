@@ -14,6 +14,12 @@ Open the workspace `settings.json` in VS Code:
 
 You can also put this setting in your user-level `settings.json`. If the config contains tokens, account data, or private service URLs, prefer user-level settings and do not commit them to the repository.
 
+## Choosing an MCP Server
+
+Workspace file access, code search, and local commands are already provided by webcode built-ins; do not configure a duplicate MCP server for those tasks. Add an MCP server only when a task needs a specialized external service or a capability that webcode does not provide.
+
+webcode does not automatically import local Copilot MCP configuration or install/start third-party servers. Before adding one, verify its source, permissions, data flow, and runtime behavior. Prefer a configuration with a clear boundary that exposes only the capabilities needed for the task. Do not claim an MCP server is faster without measured data.
+
 ## Basic Format
 
 ```json

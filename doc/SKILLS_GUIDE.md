@@ -56,3 +56,7 @@ webcode 也可以随扩展提供内置 Skills。内置 Skills 会和工作区 Sk
 ```
 
 这个路径不会真实写入工作区，只能通过 `read_file` 读取。`write_file`、`edit_file`、命令执行和搜索工具不会把它当作可写或可执行文件。
+
+当前随扩展提供的开发 Skills 包括 `create-skills`、`debug`、`verify`、`code-review`、`security-review`、`frontend-design` 和 `mcp-tool-selection`。它们和工作区 Skills 一样出现在 `webcode Available Skills` 中。
+
+本机 Copilot 或其他 agent 的用户级 Skill 不会自动导入。确认来源、许可和内容安全后，可以将需要的 Skill 复制或改写到工作区 `.agents/skills`、`.codex/skills`，或配置 `webcodeGateway.skillDirectories` 指向工作区内的目录。不要把个人路径、凭据、内部地址或用户数据打包进官方内置 Skill。工作区同名 Skill 会覆盖内置 Skill。

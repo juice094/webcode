@@ -1,5 +1,7 @@
 # webcode Evals
 
+语言：中文 | [English](README_en.md)
+
 本目录承载 webcode 的产品链路 E2E、Agent 能力评测和真实站点验收资产，不进入发布产物。
 
 ## 当前进度
@@ -13,7 +15,7 @@
 - [x] 第 7 步：建立 DeepSeek 真实网页验收。
 - [ ] 第 8 步：接入 CI、基线比较和优化闭环。
 
-当前直接通过 DeepSeek 网页执行第 5 步的真实任务，不依赖模型 API。CI 基线仍保留为后续路线图。
+当前可通过 DeepSeek 网页执行真实任务，不依赖模型 API。GitHub Actions 会运行单元测试和扩展宿主测试；最小浏览器 E2E、Live-site Smoke 与基线比较尚未接入 CI。
 
 ## 评测分层
 

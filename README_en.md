@@ -32,6 +32,27 @@
   <img src="doc/assets/webcode-usage-screenshot.png" width="960" alt="webcode usage screenshot">
 </p>
 
+## What webcode does
+
+- Lets web AI use local file, search, and command tools, with user approval where required.
+- Connects a VS Code extension and browser bridge through a local Gateway.
+- Exposes third-party MCP servers and workspace Skills to web AI.
+- Supports built-in AI sites and user-defined site settings.
+
+## Documentation
+
+| Topic | Guide |
+| ------ | ------ |
+| Build, development, and feature guides | [Documentation index](doc/README_en.md) |
+| Browser modes | [Browser mode guide](doc/BROWSER_MODE_GUIDE_en.md) |
+| Built-in tools | [Built-in tools reference](doc/BUILTIN_TOOLS_en.md) |
+| MCP configuration | [MCP configuration guide](doc/MCP_GUIDE_en.md) |
+| Site support | [Site support guide](doc/PLATFORM_GUIDE_en.md) |
+| Troubleshooting | [FAQ](doc/FAQ_GUIDE_en.md) |
+| Development and contributions | [Contributing guide](CONTRIBUTING.md) |
+
+Language versions: [中文](README.md).
+
 ## Examples
 
 ### DeepSeek Web: The Pelican Test
@@ -54,7 +75,7 @@ https://github.com/user-attachments/assets/448873b4-922a-4cac-b421-70a189394576
 
 [View the SVG source file](doc/assets/pelican-bicycle-deepseek.svg)
 
-## Quick Start
+## Install and Quick Start
 
 ### 1. Install the VS Code Extension
 
@@ -126,6 +147,10 @@ During initialization, webcode reads project rule files from the root of the pri
 
 If both `AGENTS.md` and `CLAUDE.md` exist, only `AGENTS.md` is sent. The browser extension no longer has a separate custom-instructions settings page.
 
+## Configuration
+
+VS Code settings use the `webcodeGateway.*` namespace. See the [site support guide](doc/PLATFORM_GUIDE_en.md) for site settings, the [MCP guide](doc/MCP_GUIDE_en.md) for server configuration, and the [browser mode guide](doc/BROWSER_MODE_GUIDE_en.md) for browser selection.
+
 ## Currently Supported AI Platforms and Additional Platform Support
 
 webcode currently includes built-in support for the following AI platforms:
@@ -150,9 +175,32 @@ See the [build guide](doc/BUILD_GUIDE_en.md) for repository checkout, dependency
 
 See the [FAQ guide](doc/FAQ_GUIDE_en.md) for first-launch setup, trigger-word issues, tool calls that executed but did not update the page, and tool-call history logs.
 
+## Project Structure
+
+- `gateway-vscode/`: VS Code extension, Gateway, MCP, and local tools.
+- `bridge-browser/`: browser extension and page-bridge logic.
+- `shared/`: types and logic shared across workspace packages.
+- `evals/`: unit evaluations, end-to-end scenarios, and QA scripts.
+- `doc/`: user, build, and development guides.
+
+## Development and Tests
+
+Requires Node.js 22 and pnpm 10.25.0. From the repository root:
+
+```bash
+pnpm install
+pnpm --filter @webcode/shared run build
+pnpm build
+pnpm test
+pnpm test:extension
+pnpm lint
+```
+
+See the [build guide](doc/BUILD_GUIDE_en.md) and [documentation index](doc/README_en.md) for command scope and browser end-to-end testing.
+
 ## Contributing
 
-Issues and pull requests are welcome.
+Issues and pull requests are welcome. Read the [contributing guide](CONTRIBUTING.md) before opening a pull request. For security reports, see [SECURITY.md](SECURITY.md). The code of conduct is still a draft pending maintainer review: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Acknowledgments
 
@@ -160,4 +208,4 @@ Thanks to the [LINUX DO](https://linux.do/) community for providing a platform f
 
 ## License
 
-[MIT License](LICENSE)
+This repository is licensed under the MIT License. See [LICENSE](LICENSE).

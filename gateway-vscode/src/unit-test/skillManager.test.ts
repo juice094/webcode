@@ -25,6 +25,22 @@ suite('Skill Manager', () => {
         });
     });
 
+    test('includes the official developer skill pack', async () => {
+        await withTempWorkspace(async workspaceRoot => {
+            const manager = createSkillManager(workspaceRoot);
+            const builtinNames = new Set<string>();
+            for (const skill of await manager.listSkills()) {
+                if (skill.source === 'builtin') {
+                    builtinNames.add(skill.name);
+                }
+            }
+
+            for (const name of ['debug', 'verify', 'code-review', 'security-review', 'frontend-design', 'mcp-tool-selection']) {
+                assert.ok(builtinNames.has(name), `Expected built-in Skill ${name} to be listed.`);
+            }
+        });
+    });
+
     test('prefers workspace skills over built-ins with the same name', async () => {
         await withTempWorkspace(async workspaceRoot => {
             await writeWorkspaceSkill(
