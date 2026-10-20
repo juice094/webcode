@@ -169,7 +169,7 @@ Available terminal profiles:
 - POSIX/bash 语法使用 `git-bash`，例如：
 
 ```bash
-CI=true sh build_release.sh
+CI=true sh scripts/release/build-release.sh
 ```
 
 - PowerShell 语法使用 `pwsh` 或 `powershell`，例如：

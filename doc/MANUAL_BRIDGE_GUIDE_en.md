@@ -15,7 +15,7 @@ forbids self-updating unpacked extensions, so updates must follow this conventio
 ## Updating after each release
 
 1. Sync the new build into the fixed folder (either):
-   - One shot: `powershell -File update-manual-bridge.ps1` (picks the newest zip under `release\`);
+   - One shot: `pnpm bridge:sync` (picks the newest zip under `release\`; equivalent to `powershell -File scripts/release/update-manual-bridge.ps1`);
    - Manual: extract the new zip and overwrite everything in `dist/manual-bridge/`.
 2. `chrome://extensions` → webcode bridge card → click the **reload** icon.
 3. Reconnect from the VS Code status bar (launch codes are single-use and must be regenerated).

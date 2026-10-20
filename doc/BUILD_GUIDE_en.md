@@ -36,8 +36,8 @@ The build scripts run `pnpm install` automatically.
 Run the Bash script in the project root directory:
 
 ```bash
-chmod +x build_release.sh
-./build_release.sh
+chmod +x scripts/release/build-release.sh
+./scripts/release/build-release.sh
 ```
 
 ## Windows
@@ -46,7 +46,7 @@ You can use the PowerShell script for native packaging (no Bash or WSL required)
 
 ### Method A: Right-click Run (Easiest)
 
-1. Locate `build_release.ps1` in the folder.
+1. Locate `scripts/release/build-release.ps1` in the folder.
 2. Right-click the file.
 3. Select `"Run with PowerShell"`.
 
@@ -55,7 +55,7 @@ You can use the PowerShell script for native packaging (no Bash or WSL required)
 Execute in a PowerShell terminal:
 
 ```powershell
-.\build_release.ps1
+pnpm release  # or .\scripts\release\build-release.ps1
 ```
 
 If you see an error saying "running scripts is disabled on this system", open PowerShell as Administrator, run the following command to enable permissions, and try again:

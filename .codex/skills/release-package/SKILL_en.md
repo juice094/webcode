@@ -96,10 +96,10 @@ Follow this sequence end-to-end unless the user explicitly asks to stop earlier.
    - Run `pnpm --filter bridge-browser run build`.
    - When feasible for a release, run the platform release build to verify both `.vsix` and browser
      `.zip` artifacts are produced:
-     - On Windows/PowerShell, run `.\build_release.ps1`.
+     - On Windows/PowerShell, run `pnpm release`.
      - In non-interactive Windows shells, set `$env:CI='true'` before running
-       `.\build_release.ps1` so `pnpm install` will not require a TTY.
-     - On macOS/Linux, or Git Bash environments with `zip` available, run `./build_release.sh`.
+       `pnpm release` so `pnpm install` will not require a TTY.
+     - On macOS/Linux, or Git Bash environments with `zip` available, run `pnpm release`.
    - If any validation fails, fix it or report the blocker. Do not commit, tag, or push a failed
      release.
 

@@ -36,8 +36,8 @@ cd webcode
 在项目根目录下运行 Bash 脚本：
 
 ```bash
-chmod +x build_release.sh
-./build_release.sh
+chmod +x scripts/release/build-release.sh
+./scripts/release/build-release.sh
 ```
 
 ## Windows
@@ -46,7 +46,7 @@ chmod +x build_release.sh
 
 ### 方法 A：右键运行（最简单）
 
-1. 在文件夹中找到 `build_release.ps1`。
+1. 在文件夹中找到 `scripts/release/build-release.ps1`。
 2. 右键点击该文件。
 3. 选择 `"使用 PowerShell 运行" (Run with PowerShell)`。
 
@@ -55,7 +55,7 @@ chmod +x build_release.sh
 在 PowerShell 终端中执行：
 
 ```powershell
-.\build_release.ps1
+pnpm release  # 或 .\scripts\release\build-release.ps1
 ```
 
 如果运行报错提示“在此系统上禁止运行脚本”，请以管理员身份打开 PowerShell 并执行以下命令开启权限，然后重试：

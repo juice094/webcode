@@ -14,7 +14,7 @@
 ## 每次发版后的更新步骤
 
 1. 同步新构建到固定文件夹（二选一）：
-   - 一键：`powershell -File update-manual-bridge.ps1`（自动取 `release\` 下最新 zip）；
+   - 一键：`pnpm bridge:sync`（自动取 `release\` 下最新 zip；等价于 `powershell -File scripts/release/update-manual-bridge.ps1`）；
    - 手动：解压新 zip，覆盖 `dist/manual-bridge/` 全部内容。
 2. `chrome://extensions` → webcode bridge 卡片 → 点**刷新图标**（重新加载）。
 3. 回 VS Code 状态栏**重新发起连接**（启动码为一次性，必须重新生成）。

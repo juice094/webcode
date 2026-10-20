@@ -81,10 +81,10 @@ description: 自动执行 webcode 发版流程。适用于用户要求发布新�
    - 运行 `pnpm --filter bridge-browser run build`。
    - 如果发版条件允许，运行当前平台的发版构建，确认能够同时产出 `.vsix`
      和浏览器 `.zip` 产物：
-     - 在 Windows/PowerShell 上，运行 `.\build_release.ps1`。
+     - 在 Windows/PowerShell 上，运行 `pnpm release`。
      - 在非交互式 Windows shell 中，先设置 `$env:CI='true'`，再运行
-       `.\build_release.ps1`，避免 `pnpm install` 请求 TTY。
-     - 在 macOS/Linux 或提供 `zip` 的 Git Bash 环境中，运行 `./build_release.sh`。
+       `pnpm release`，避免 `pnpm install` 请求 TTY。
+     - 在 macOS/Linux 或提供 `zip` 的 Git Bash 环境中，运行 `pnpm release`。
    - 如果任何验证失败，修复问题或报告阻塞原因。不要提交、打标签或推送失败的发版。
 
 7. 提交发版改动。
