@@ -306,7 +306,7 @@
     "test:extension": "node scripts/run-extension-tests.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@webcode/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.18.2",
