@@ -8,6 +8,7 @@ import {
   getSiteNetworkCaptureConfig, getSyncedAiSites, isMessageRequest, isSiteSelectors, isStatusResponse,
   type StatusUpdateMessageRequest, type SyncedAiSite,
 } from "../types";
+import { applyApprovalModeRuntimeMessage, createApprovalModeConfig, resolveStatusApprovalMode } from "./approval_mode";
 import { AutoInitPromptController } from "./auto_init_prompt";
 import { createApprovalState, parseStoredApprovalEntries, type ApprovalState } from "./approval_policy";
 import { DomToolActivityController } from "./dom_tool_activity";
@@ -26,7 +27,7 @@ import { ToolRequestRegistry } from "./tool_request_registry";
 import { logVirtualizedHistorySkip } from "./virtualized_history_skip";
 
 // === 配置与状态 ===
-const CONFIG = { pollInterval: 1000, autoSend: true, autoApproveTools: false };
+const CONFIG = { pollInterval: 1000, autoSend: true, ...createApprovalModeConfig() };
 
 // [State] Connection Guard
 let isClientConnected = false;
@@ -81,10 +82,7 @@ function handleRuntimeMessage(request: unknown, sendResponse: RuntimeSendRespons
     }
     Logger.log(`Auto Send: ${CONFIG.autoSend}`, "info");
   }
-  if (request.type === "SET_AUTO_APPROVE_TOOLS") {
-    CONFIG.autoApproveTools = request.autoApproveTools === true;
-    Logger.log(`Auto-Approve Tools: ${CONFIG.autoApproveTools}`, "info");
-  }
+  applyApprovalModeRuntimeMessage(request, CONFIG);
   if (request.type === "STATUS_UPDATE") {
     handleStatusUpdate(request);
   }
@@ -119,7 +117,6 @@ function applyStatusUpdateFields(request: StatusUpdateMessageRequest): void {
   if (typeof request.workspaceId === "string") {currentWorkspaceId = request.workspaceId;}
   if (typeof request.siteId === "string") {currentSiteId = request.siteId;}
   if (typeof request.autoSend === "boolean") {CONFIG.autoSend = request.autoSend;}
-  if (typeof request.autoApproveTools === "boolean") {CONFIG.autoApproveTools = request.autoApproveTools;}
 }
 
 async function refreshConnectedState(): Promise<void> {
@@ -160,7 +157,7 @@ function initDOMConfig(): void {
 async function loadDOMConfig(): Promise<void> {
   const status = await getCurrentStatus();
   CONFIG.autoSend = status?.autoSend !== false;
-  CONFIG.autoApproveTools = status?.autoApproveTools === true;
+  CONFIG.approvalMode = resolveStatusApprovalMode(status);
 
   if (!status?.connected || typeof status.siteId !== "string") {
     resetCurrentSite();
@@ -261,7 +258,7 @@ const toolExecutor = new ToolExecutor({
   getSiteId: () => currentSiteId,
   getWorkspaceId: () => currentWorkspaceId,
   getApprovalState: () => approvalState,
-  getAutoApproveTools: () => CONFIG.autoApproveTools,
+  getApprovalMode: () => CONFIG.approvalMode,
   onActivityStatusChange: (identity, status, message) => {
     toolActivityTracker.updateStatus(identity, status, message);
   },

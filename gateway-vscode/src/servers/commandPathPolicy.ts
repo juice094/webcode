@@ -4,6 +4,7 @@ import type { CommandRiskContext, CommandRiskIssue } from './commandRiskTypes';
 import type { ParsedShellCommand, ParsedShellSegment } from './shellCommandParser';
 import { isNonFileSystemPowerShellProvider, isShellControlOption } from './powershellPathPolicy';
 import { assessRecursiveRemoveTargets } from './recursiveRemovalPolicy';
+import { isSensitiveFilePath } from './sensitivePathPolicy';
 import { getPathModule, isInsideDirectory, isUnverifiableMsysAbsolutePath } from './shellPathSemantics';
 
 const POSIX_PATH_COMMANDS = new Set([
@@ -57,11 +58,9 @@ const POWERSHELL_PATH_COMMANDS = new Set([
 const REMOVE_COMMANDS = new Set(['rm', 'remove-item', 'ri', 'rmdir', 'rd', 'del', 'erase']);
 const COMMON_PATH_OPTIONS = new Set(['--cwd', '--dir', '--directory', '--file', '--out-dir', '--output', '--path', '--prefix']);
 const EMPTY_PATH_OPTIONS = new Set<string>();
+// POSIX short options are case-sensitive; these commands use uppercase -C for directory paths.
 const POSIX_COMMAND_PATH_OPTIONS = new Map<string, ReadonlySet<string>>([
-    // POSIX short options are case-sensitive; these commands use uppercase -C for directory paths.
-    ['git', new Set(['-C'])],
-    ['make', new Set(['-C'])],
-    ['tar', new Set(['-C'])]
+    ['git', new Set(['-C'])], ['make', new Set(['-C'])], ['tar', new Set(['-C'])]
 ]);
 const POWERSHELL_PATH_OPTIONS = new Set([
     '-destination',
@@ -267,6 +266,7 @@ function assessPathToken(
     if (!candidate || shouldSkipPathCandidate(candidate, parsed, mode)) {
         return [];
     }
+    if (isSensitiveFilePath(candidate)) { return [requiresConfirmation(`Sensitive file "${candidate}" requires explicit approval.`)]; }
     if (isDynamicPathReference(candidate)) {
         return [requiresConfirmation(`Dynamic path argument "${candidate}" cannot be verified against the configured command roots.`)];
     }

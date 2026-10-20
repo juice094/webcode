@@ -4,6 +4,7 @@ import * as UI from "../modules/ui";
 import { i18n, t } from "../modules/i18n";
 import { Logger } from "../modules/logger";
 import { normalizeToolResultData, type ToolResultData } from "../modules/tool_result";
+import { type ApprovalMode } from "../approval_mode";
 import type { ToolExecutionPayload } from "../types";
 import { buildWebcodeInitPrompt } from "./init_context";
 import {
@@ -22,7 +23,7 @@ interface ToolExecutorOptions {
   getSiteId: () => string | null;
   getWorkspaceId: () => string;
   getApprovalState: () => ApprovalState;
-  getAutoApproveTools: () => boolean;
+  getApprovalMode: () => ApprovalMode;
   onActivityStatusChange: (
     identity: ToolRequestIdentity,
     status: ToolActivityStatus,
@@ -203,7 +204,9 @@ export class ToolExecutor {
 
   private needsApproval(payload: ToolExecutionPayload): boolean {
     if (payload.name === PROTOCOL.initToolName || isBootstrapOnlyToolName(payload.name)) {return false;}
-    if (this.options.getAutoApproveTools()) {return false;}
+    // In ask-when-needed and never-ask modes, routine calls run without a modal;
+    // risky calls are still gated by the mandatory preflight modal in runQueuedTool.
+    if (this.options.getApprovalMode() !== "always-ask") {return false;}
     return !isPayloadApproved(payload, this.options.getApprovalState());
   }
 

@@ -8,23 +8,27 @@ import {
   isSettingsRuntimeMessageRequest,
   type RequestUserAttentionMessageRequest,
   type SessionDisconnectReason,
-  type SetAutoApproveToolsMessageRequest,
   type SetAutoSendMessageRequest,
-  type SetDefaultAutoApproveToolsMessageRequest,
   type SetLogVisibleMessageRequest,
   type SettingsRuntimeMessageRequest,
 } from '../types';
+import { DEFAULT_APPROVAL_MODE, normalizeApprovalMode } from '../approval_mode';
 import { playAttentionSound } from './attention_sound';
+import {
+  handleSetApprovalMode,
+  handleSetAutoApproveTools,
+  handleSetDefaultApprovalMode,
+  handleSetDefaultAutoApproveTools,
+} from './approval_mode_settings';
 import { handleHandshake } from './connection';
 import { getErrorMessage } from './errors';
 import { approveTool, executeTool, preflightTool } from './gateway';
 import { showNotification, updateWindowAttention } from './notifications';
-import { getSessionPresetSettings, updateDefaultAutoApproveTools, type SessionPresetSettings } from './presets';
+import { getSessionPresetSettings, type SessionPresetSettings } from './presets';
 import { checkGatewayHealth, expireGatewaySession, type GatewayHealthStatus } from './session_health';
 import {
   getActiveProtocolSessionResult,
   getSessionDisconnectReason,
-  updateSessionAutoApproveTools,
   updateSessionAutoSend,
   updateSessionLog,
 } from './sessions';
@@ -144,8 +148,14 @@ function dispatchSettingsRuntimeMessage(
     case "SET_AUTO_APPROVE_TOOLS":
       handleSetAutoApproveTools(request, currentTabId, sendResponse);
       return true;
+    case "SET_APPROVAL_MODE":
+      handleSetApprovalMode(request, currentTabId, sendResponse);
+      return true;
     case "SET_DEFAULT_AUTO_APPROVE_TOOLS":
       handleSetDefaultAutoApproveTools(request, sendResponse);
+      return true;
+    case "SET_DEFAULT_APPROVAL_MODE":
+      handleSetDefaultApprovalMode(request, sendResponse);
       return true;
     default:
       return false;
@@ -200,7 +210,9 @@ async function getStatusResponse(targetTabId: number) {
     showLog: session.showLog ?? false,
     autoSend: session.autoSend ?? true,
     autoApproveTools: session.autoApproveTools ?? false,
+    approvalMode: normalizeApprovalMode(session.approvalMode) ?? DEFAULT_APPROVAL_MODE,
     defaultAutoApproveTools: presetSettings.defaultAutoApproveTools,
+    defaultApprovalMode: normalizeApprovalMode(presetSettings.defaultApprovalMode) ?? DEFAULT_APPROVAL_MODE,
     workspaceId: session.workspaceId ?? 'global',
     siteId: session.siteId,
   };
@@ -218,7 +230,9 @@ function createDisconnectedStatusResponse(
     showLog: false,
     autoSend: true,
     autoApproveTools: false,
+    approvalMode: normalizeApprovalMode(presetSettings.defaultApprovalMode) ?? DEFAULT_APPROVAL_MODE,
     defaultAutoApproveTools: presetSettings.defaultAutoApproveTools,
+    defaultApprovalMode: normalizeApprovalMode(presetSettings.defaultApprovalMode) ?? DEFAULT_APPROVAL_MODE,
     workspaceId: 'global',
     error,
   };
@@ -275,67 +289,6 @@ function handleSetAutoSend(
       chrome.runtime.sendMessage({ type: "AUTO_SEND_CHANGED", tabId: targetTabId, autoSend }, () => {
         void chrome.runtime.lastError;
       });
-      return { success: true };
-    }),
-    sendResponse
-  );
-}
-
-function handleSetAutoApproveTools(
-  request: SetAutoApproveToolsMessageRequest,
-  currentTabId: number | null | undefined,
-  sendResponse: SendResponse
-): void {
-  const targetTabId = request.tabId ?? currentTabId;
-  if (!targetTabId) {
-    sendResponse({ success: false, error: "Missing Tab ID" });
-    return;
-  }
-
-  if (typeof request.autoApproveTools !== "boolean") {
-    sendResponse({ success: false, error: "Missing auto-approve value" });
-    return;
-  }
-
-  const autoApproveTools = request.autoApproveTools;
-  respondAsync(
-    updateSessionAutoApproveTools(targetTabId, autoApproveTools).then(() => {
-      void chrome.tabs
-        .sendMessage(targetTabId, { type: "SET_AUTO_APPROVE_TOOLS", autoApproveTools })
-        .catch(ignoreRuntimeError);
-      chrome.runtime.sendMessage(
-        { type: "AUTO_APPROVE_TOOLS_CHANGED", tabId: targetTabId, autoApproveTools },
-        () => {
-          void chrome.runtime.lastError;
-        }
-      );
-      return { success: true };
-    }),
-    sendResponse
-  );
-}
-
-function handleSetDefaultAutoApproveTools(
-  request: SetDefaultAutoApproveToolsMessageRequest,
-  sendResponse: SendResponse
-): void {
-  if (typeof request.defaultAutoApproveTools !== "boolean") {
-    sendResponse({ success: false, error: "Missing default auto-approve value" });
-    return;
-  }
-
-  const defaultAutoApproveTools = request.defaultAutoApproveTools;
-  respondAsync(
-    updateDefaultAutoApproveTools(defaultAutoApproveTools).then((presetSettings) => {
-      chrome.runtime.sendMessage(
-        {
-          type: "DEFAULT_AUTO_APPROVE_TOOLS_CHANGED",
-          defaultAutoApproveTools: presetSettings.defaultAutoApproveTools,
-        },
-        () => {
-          void chrome.runtime.lastError;
-        }
-      );
       return { success: true };
     }),
     sendResponse

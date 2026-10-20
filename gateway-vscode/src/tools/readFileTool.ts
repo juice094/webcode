@@ -1,10 +1,12 @@
 import * as fs from 'fs/promises';
 import { BUILTIN_SKILL_VIRTUAL_ROOT, isBuiltinSkillVirtualPathCandidate } from '../builtinSkills';
 import type { LocalTool, ToolExecutionContext, ToolResult } from './types';
+import { errorResult } from './result';
 import { normalizeLineEndings } from './filesystemUtils';
 import { readFilePrefix } from './readFilePrefix';
 import { readSelectedFileLines, type LineSelectionOptions, type SelectedFileLines } from './readFileLineStream';
 import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 import {
     formatLimitedReadFileOutput,
     READ_FILE_OUTPUT_MAX_BYTES,
@@ -38,11 +40,15 @@ export const readFileTool: LocalTool = {
         },
         annotations: { readOnlyHint: true }
     },
+    assessRisk: (args) => Promise.resolve(assessSensitiveFileRisk('read_file', args)),
     async execute(args, context) {
         const builtinResult = await readBuiltinSkillVirtualContent(args, context);
         if (builtinResult) {
             return formatReadFileToolResult(builtinResult);
         }
+
+        const risk = assessSensitiveFileRisk('read_file', args);
+        if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
 
         const filePath = (await resolveWorkspaceRelativePath(context.workspaceRoot, args.path)).absolutePath;
         const fileStats = await fs.stat(filePath);

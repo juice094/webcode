@@ -5,6 +5,11 @@ import {
   type ToolExecutionPayload,
   type ToolExecutionTransportPayload,
 } from '@webcode/shared';
+import {
+  APPROVAL_MODE_VALIDATORS, type ApprovalMode, type ApprovalModeChangedMessageRequest,
+  DEFAULT_APPROVAL_MODE, type DefaultApprovalModeChangedMessageRequest, normalizeApprovalMode,
+  type SetApprovalModeMessageRequest, type SetDefaultApprovalModeMessageRequest,
+} from "./approval_mode";
 import { type SiteSelectors } from './modules/config';
 
 // Re-export shared types for convenience
@@ -102,6 +107,7 @@ export interface StatusUpdateMessageRequest {
   workspaceId?: string;
   autoSend?: boolean;
   autoApproveTools?: boolean;
+  approvalMode?: ApprovalMode;
 }
 
 export interface LogVisibleChangedMessageRequest {
@@ -140,6 +146,7 @@ export type MessageRequest =
   | SetLogVisibleMessageRequest
   | SetAutoSendMessageRequest
   | SetAutoApproveToolsMessageRequest
+  | SetApprovalModeMessageRequest | SetDefaultApprovalModeMessageRequest
   | SetDefaultAutoApproveToolsMessageRequest
   | ManualInitMessageRequest
   | ToggleLogMessageRequest
@@ -147,7 +154,9 @@ export type MessageRequest =
   | LogVisibleChangedMessageRequest
   | AutoSendChangedMessageRequest
   | AutoApproveToolsChangedMessageRequest
-  | DefaultAutoApproveToolsChangedMessageRequest;
+  | ApprovalModeChangedMessageRequest
+  | DefaultAutoApproveToolsChangedMessageRequest
+  | DefaultApprovalModeChangedMessageRequest;
 
 export type BackgroundActionRuntimeMessageRequest =
   | HandshakeMessageRequest
@@ -164,6 +173,7 @@ export type SettingsRuntimeMessageRequest =
   | SetLogVisibleMessageRequest
   | SetAutoSendMessageRequest
   | SetAutoApproveToolsMessageRequest
+  | SetApprovalModeMessageRequest | SetDefaultApprovalModeMessageRequest
   | SetDefaultAutoApproveToolsMessageRequest;
 
 export type BackgroundRuntimeMessageRequest =
@@ -186,7 +196,9 @@ export interface StatusResponse {
   showLog?: boolean;
   autoSend?: boolean;
   autoApproveTools?: boolean;
+  approvalMode?: ApprovalMode;
   defaultAutoApproveTools?: boolean;
+  defaultApprovalMode?: ApprovalMode;
   workspaceId?: string;
   siteId?: string;
 }
@@ -209,6 +221,7 @@ export interface StoredSession {
   showLog?: boolean;
   autoSend?: boolean;
   autoApproveTools?: boolean;
+  approvalMode?: ApprovalMode;
   workspaceId?: string;
   lastGatewayActivityAt?: number;
   gatewayIdleTimeoutMs?: number;
@@ -261,6 +274,7 @@ const MESSAGE_REQUEST_VALIDATORS = {
     isOptionalNumber(value.tabId) && typeof value.autoSend === "boolean",
   SET_AUTO_APPROVE_TOOLS: (value) =>
     isOptionalNumber(value.tabId) && typeof value.autoApproveTools === "boolean",
+  ...APPROVAL_MODE_VALIDATORS,
   SET_DEFAULT_AUTO_APPROVE_TOOLS: (value) =>
     typeof value.defaultAutoApproveTools === "boolean",
   MANUAL_INIT: () => true,
@@ -270,7 +284,8 @@ const MESSAGE_REQUEST_VALIDATORS = {
     isOptionalString(value.siteId) &&
     isOptionalString(value.workspaceId) &&
     isOptionalBoolean(value.autoSend) &&
-    isOptionalBoolean(value.autoApproveTools),
+    isOptionalBoolean(value.autoApproveTools) &&
+    (value.approvalMode === undefined || normalizeApprovalMode(value.approvalMode) !== undefined),
   LOG_VISIBLE_CHANGED: (value) =>
     typeof value.tabId === "number" && typeof value.show === "boolean",
   AUTO_SEND_CHANGED: (value) =>
@@ -294,14 +309,18 @@ const BACKGROUND_RUNTIME_MESSAGE_TYPES = new Set<MessageRequest["type"]>([
   "SET_LOG_VISIBLE",
   "SET_AUTO_SEND",
   "SET_AUTO_APPROVE_TOOLS",
+  "SET_APPROVAL_MODE",
   "SET_DEFAULT_AUTO_APPROVE_TOOLS",
+  "SET_DEFAULT_APPROVAL_MODE",
 ]);
 
 const SETTINGS_RUNTIME_MESSAGE_TYPES = new Set<MessageRequest["type"]>([
   "SET_LOG_VISIBLE",
   "SET_AUTO_SEND",
   "SET_AUTO_APPROVE_TOOLS",
+  "SET_APPROVAL_MODE",
   "SET_DEFAULT_AUTO_APPROVE_TOOLS",
+  "SET_DEFAULT_APPROVAL_MODE",
 ]);
 
 function isMessageRequestType(value: unknown): value is MessageRequest["type"] {
@@ -354,12 +373,17 @@ export function isStoredSession(value: unknown): value is StoredSession {
 export function normalizeSession(value: unknown): Session | null {
   if (!isStoredSession(value)) {return null;}
 
+  // Legacy sessions only stored the autoApproveTools boolean:
+  // true maps to never-ask; false or missing records adopt the new default.
+  const approvalMode = normalizeApprovalMode(value.approvalMode)
+    ?? (value.autoApproveTools === true ? "never-ask" : DEFAULT_APPROVAL_MODE);
   return {
     port: value.port,
     token: value.token,
     showLog: value.showLog ?? false,
     autoSend: value.autoSend ?? true,
-    autoApproveTools: value.autoApproveTools ?? false,
+    autoApproveTools: approvalMode === "never-ask",
+    approvalMode,
     workspaceId: value.workspaceId ?? "global",
     lastGatewayActivityAt: value.lastGatewayActivityAt,
     gatewayIdleTimeoutMs: value.gatewayIdleTimeoutMs,
@@ -431,6 +455,7 @@ function isToolExecutionTransportPayload(value: unknown): value is ToolExecution
 
 function hasValidStoredSessionOptions(value: Record<string, unknown>): boolean {
   return [value.showLog, value.autoSend, value.autoApproveTools].every(isOptionalBoolean) &&
+    isOptionalString(value.approvalMode) &&
     [value.workspaceId, value.siteId, value.targetOrigin, value.targetUrl].every(isOptionalString) &&
     [value.lastGatewayActivityAt, value.gatewayIdleTimeoutMs].every(isOptionalNumber) &&
     isOptionalStringArray(value.allowedOrigins);
