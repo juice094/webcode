@@ -2,6 +2,8 @@ import { isRecord } from "../types";
 
 export interface RedeemedBridgeSession {
   bridgeProtocolVersion: number;
+  /** Absent or 0 means the browser waits for as long as the request takes. */
+  bridgeRequestMs?: number;
   idleTimeoutMs: number;
   siteId: string;
   targetOrigin: string;
@@ -13,6 +15,7 @@ export interface RedeemedBridgeSession {
 
 interface BridgeSessionPayload extends Record<string, unknown> {
   bridgeProtocolVersion: number;
+  bridgeRequestMs?: number;
   idleTimeoutMs: number;
   siteId: string;
   success: true;
@@ -52,6 +55,7 @@ export function normalizeRedeemedBridgeSession(value: unknown): RedeemedBridgeSe
 
   return {
     bridgeProtocolVersion: value.bridgeProtocolVersion,
+    bridgeRequestMs: normalizeOptionalTimeout(value.bridgeRequestMs),
     idleTimeoutMs: value.idleTimeoutMs,
     siteId: value.siteId,
     targetOrigin: value.targetOrigin,
@@ -66,6 +70,12 @@ export function getBridgeRedemptionError(value: unknown): string {
   return isRecord(value) && typeof value.error === "string" && value.error.trim()
     ? value.error
     : "Bridge code expired or already used. Launch the site again from VS Code.";
+}
+
+function normalizeOptionalTimeout(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : undefined;
 }
 
 function isNonEmptyString(value: unknown): value is string {

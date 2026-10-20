@@ -11,6 +11,13 @@ export interface ServerConfig {
     headers?: Record<string, string>;
     env?: Record<string, string>;
     disabled?: boolean;
+    /**
+     * Per-request deadline in milliseconds for tools/call on this server. The
+     * MCP SDK applies its own DEFAULT_REQUEST_TIMEOUT_MSEC (60000 ms) when a
+     * request carries no timeout, so 60000 keeps the existing behavior while
+     * allowing long-running servers to opt out of that implicit cap.
+     */
+    toolTimeoutMs?: number;
 }
 
 export interface GatewayConfig {
@@ -23,6 +30,16 @@ export interface GatewayConfig {
     skillDirectories?: string[];
     commandShellPath?: string;
     commandAllowedRoots?: string[];
+    /** Deadline for one gateway-handled tool call in milliseconds; 0 disables it. */
+    toolCallMs?: number;
+    /** Default deadline for `execute_command` in milliseconds. */
+    commandExecutionMs?: number;
+    /** Lifetime of a single-use bridge code in milliseconds. */
+    bridgeCodeTtlMs?: number;
+    /** Lifetime of a command approval challenge and grant in milliseconds. */
+    approvalTtlMs?: number;
+    /** Browser-side request deadline in milliseconds; 0 disables it. */
+    bridgeRequestMs?: number;
 }
 
 export interface StartResult {
@@ -39,6 +56,8 @@ export type RemoteToolRoute = {
     definition: ToolDefinition;
     serverId: string;
     toolName: string;
+    /** Deadline passed to tools/call; undefined keeps the MCP SDK default. */
+    toolTimeoutMs?: number;
 };
 
 export type GatewayLogger = (message: string) => void;

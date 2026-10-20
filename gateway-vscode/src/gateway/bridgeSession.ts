@@ -26,16 +26,29 @@ function createRandomSecret(): string {
  * only by the redemption response. It is revoked when the gateway stops or
  * cold-restarts, and preserved across hot configuration reloads so connected
  * browser tabs keep working (see GatewayLifecycleOptions.preserveBridgeSession).
+ *
+ * The code TTL is retargetable so a hot reload can apply
+ * webcodeGateway.timeouts.bridgeCodeTtlSeconds without recreating the manager
+ * (recreating it would revoke the session token being preserved).
  */
 export class BridgeSessionManager {
     private readonly pendingCodes = new Map<string, PendingBridgeCode>();
     private activeSessionToken: string | null = null;
 
     constructor(
-        private readonly bridgeCodeTtlMs = DEFAULT_BRIDGE_CODE_TTL_MS,
+        private bridgeCodeTtlMs = DEFAULT_BRIDGE_CODE_TTL_MS,
         private readonly now: () => number = Date.now,
         private readonly createSecret: RandomSecretFactory = createRandomSecret
     ) { }
+
+    /**
+     * Applies a new TTL to codes issued from now on. Codes already issued keep
+     * the expiry they were created with, so a configuration reload never extends
+     * a launch code that is already in flight.
+     */
+    setBridgeCodeTtlMs(ttlMs: number): void {
+        this.bridgeCodeTtlMs = ttlMs;
+    }
 
     issueBridgeCode(launch: PendingBridgeLaunch): string {
         this.cleanupExpiredCodes();

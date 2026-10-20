@@ -3,12 +3,13 @@ import * as assert from 'assert';
 import { classifyGatewayConfigurationChange } from '../extension/gatewayConfigurationPolicy';
 
 suite('Gateway configuration change policy', () => {
-    test('classifies tooling-surface keys as hot reloads', () => {
+    test('classifies tooling and deadline keys as hot reloads', () => {
         const hotKeys = [
             'webcodeGateway.servers',
             'webcodeGateway.skillDirectories',
             'webcodeGateway.commandShell.path',
-            'webcodeGateway.command.allowedRoots'
+            'webcodeGateway.command.allowedRoots',
+            'webcodeGateway.timeouts'
         ];
 
         for (const key of hotKeys) {

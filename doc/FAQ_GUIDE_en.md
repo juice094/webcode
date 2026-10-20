@@ -53,3 +53,28 @@ Troubleshooting order for a disconnect:
 2. Click webcode in the VS Code status bar to restart the service, then reconnect from VS Code
    (launch codes are single-use and short-lived, so an "invalid link" error on an old link is expected).
 3. If it still fails, check the `ERROR`/`WARN` entries in the persisted log file above.
+
+## What should I do about long-running tasks or commands?
+
+`execute_command` has a deadline, and hitting it only stops the shell process itself: child processes
+the script started may keep running. For builds, test suites, and long-running dev servers, use
+`run_in_terminal` instead. It opens a real terminal and returns a `session_id` immediately; read the
+output or interrupt the run later with `terminal_session` (`read` / `stop` / `close`).
+
+## How do I tune the timeouts?
+
+They all live under the VS Code setting `webcodeGateway.timeouts` (milliseconds unless noted), and
+changing them restarts the gateway automatically:
+
+| Setting | Default | Purpose |
+|:---|:---|:---|
+| `timeouts.commandExecutionMs` | 60000 | Default deadline for `execute_command` |
+| `timeouts.toolCallMs` | 0 | Gateway-side deadline for one tool call; `0` means no deadline |
+| `timeouts.bridgeCodeTtlSeconds` | 120 | Lifetime of a single-use launch code (seconds) |
+| `timeouts.approvalTtlSeconds` | 120 | Lifetime of a command approval challenge and token (seconds) |
+| `timeouts.browserLaunchWaitMs` | 10000 | How long to wait for an isolated browser to expose its bridge process |
+| `timeouts.bridgeRequestMs` | 0 | Browser-to-gateway request deadline; `0` means no deadline |
+
+The `0` = no-deadline meaning applies only to `toolCallMs` and `bridgeRequestMs`; the other settings
+have their own minimums. Per-tool deadlines for third-party MCP servers are configured separately with
+`webcodeGateway.servers.<id>.toolTimeoutMs` (default 60000).

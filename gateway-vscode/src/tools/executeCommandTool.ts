@@ -11,6 +11,12 @@ import {
     type BackgroundShellExecutionPlan
 } from '../servers/backgroundShell';
 import { assessCommandToolRisk } from '../servers/commandToolRisk';
+import {
+    DEFAULT_COMMAND_EXECUTION_MS,
+    MAX_COMMAND_EXECUTION_MS,
+    MIN_COMMAND_EXECUTION_MS,
+    resolveCommandExecutionMs
+} from '../gateway/timeouts';
 
 export const executeCommandTool: LocalTool = {
     serverId: 'internal',
@@ -23,13 +29,19 @@ export const executeCommandTool: LocalTool = {
                 command: { type: 'string', minLength: 1, description: 'Command to execute using the selected shell profile syntax, for example "git status" or "pnpm test". Use dedicated file/search tools for ordinary workspace inspection.' },
                 path: { type: 'string', description: WORKSPACE_COMMAND_PATH_DESCRIPTION },
                 profile: { type: 'string', description: 'Optional shell profile id. Omit to preserve the default POSIX/Git Bash behavior.' },
-                timeout: { type: 'integer', minimum: 1000, maximum: 120000, description: 'Timeout in milliseconds. Default: 60000.', default: 60000 }
+                timeout: {
+                    type: 'integer',
+                    minimum: MIN_COMMAND_EXECUTION_MS,
+                    maximum: MAX_COMMAND_EXECUTION_MS,
+                    description: `Timeout in milliseconds. Default: ${DEFAULT_COMMAND_EXECUTION_MS}.`,
+                    default: DEFAULT_COMMAND_EXECUTION_MS
+                }
             },
             required: ['command']
         }
     },
     getDefinition(context) {
-        return createExecuteCommandDefinition(context.commandShellPath);
+        return createExecuteCommandDefinition(context.commandShellPath, context.commandExecutionMs);
     },
     async assessRisk(args, context) {
         return (await resolveExecuteCommandRequest(args, context)).risk;
@@ -49,7 +61,9 @@ export const executeCommandTool: LocalTool = {
                 return errorResult(`Approval Required: ${formatCommandRiskAssessment(request.risk.assessment)}`);
             }
 
-            const timeout = typeof args.timeout === 'number' ? args.timeout : 60000;
+            const timeout = typeof args.timeout === 'number'
+                ? args.timeout
+                : resolveCommandExecutionMs(context.commandExecutionMs);
             const result = await runCommand(
                 request.execution.file,
                 request.execution.args,
@@ -67,12 +81,15 @@ export const executeCommandTool: LocalTool = {
                     stderr,
                     exitCode: result.exitCode,
                     signal: result.signal,
-                    status
+                    status,
+                    timedOut: result.timedOut,
+                    timeoutMs: timeout
                 }),
                 stdout,
                 stderr,
                 exitCode: result.exitCode,
                 signal: result.signal,
+                timedOut: result.timedOut,
                 shell: {
                     id: request.execution.profile.id,
                     path: request.execution.profile.path,
@@ -131,7 +148,17 @@ async function resolveExecuteCommandRequest(
     };
 }
 
-function createExecuteCommandDefinition(commandShellPath?: string): ToolDefinition {
+type ExecuteCommandInputSchema = {
+    properties: Record<string, Record<string, unknown>>;
+    [key: string]: unknown;
+};
+
+const EXECUTE_COMMAND_INPUT_SCHEMA = executeCommandTool.definition.inputSchema as ExecuteCommandInputSchema;
+
+function createExecuteCommandDefinition(
+    commandShellPath?: string,
+    commandExecutionMs: number = DEFAULT_COMMAND_EXECUTION_MS
+): ToolDefinition {
     const profiles = describeBackgroundShellProfiles({
         platform: process.platform,
         env: process.env,
@@ -148,7 +175,17 @@ function createExecuteCommandDefinition(commandShellPath?: string): ToolDefiniti
             'Available background shell profiles:',
             profiles
         ].join('\n'),
-        inputSchema: executeCommandTool.definition.inputSchema
+        inputSchema: {
+            ...EXECUTE_COMMAND_INPUT_SCHEMA,
+            properties: {
+                ...EXECUTE_COMMAND_INPUT_SCHEMA.properties,
+                timeout: {
+                    ...EXECUTE_COMMAND_INPUT_SCHEMA.properties.timeout,
+                    default: commandExecutionMs,
+                    description: `Timeout in milliseconds. Default: ${commandExecutionMs}.`
+                }
+            }
+        }
     };
 }
 
@@ -158,7 +195,13 @@ function summarizeCommandResult(result: {
     exitCode: number;
     signal: NodeJS.Signals | null;
     status: 'success' | 'completed_with_stderr' | 'error';
+    timedOut: boolean;
+    timeoutMs: number;
 }): string {
+    if (result.timedOut) {
+        return `Command timed out after ${result.timeoutMs} ms. Only the shell process is stopped; the process may still be running.`;
+    }
+
     if (result.status === 'success') {
         return result.stdout
             ? 'Command completed successfully.'
@@ -183,7 +226,7 @@ async function runCommand(
     args: string[],
     cwd: string,
     timeout: number
-): Promise<{ stdout: string; stderr: string; exitCode: number; signal: NodeJS.Signals | null }> {
+): Promise<{ stdout: string; stderr: string; exitCode: number; signal: NodeJS.Signals | null; timedOut: boolean }> {
     return new Promise((resolve, reject) => {
         execFile(file, args, {
             cwd,
@@ -192,11 +235,15 @@ async function runCommand(
             windowsHide: true
         }, (error, stdout, stderr) => {
             if (!error) {
-                resolve({ stdout, stderr, exitCode: 0, signal: null });
+                resolve({ stdout, stderr, exitCode: 0, signal: null, timedOut: false });
                 return;
             }
 
-            const execError = error as NodeJS.ErrnoException & { code?: number | string; signal?: NodeJS.Signals | null };
+            const execError = error as NodeJS.ErrnoException & {
+                code?: number | string;
+                signal?: NodeJS.Signals | null;
+                killed?: boolean;
+            };
             if (execError.code === 'ENOENT') {
                 reject(new Error(`Command shell not found: ${file}`));
                 return;
@@ -206,7 +253,11 @@ async function runCommand(
                 stdout: stdout || '',
                 stderr: stderr || execError.message,
                 exitCode: typeof execError.code === 'number' ? execError.code : 1,
-                signal: execError.signal ?? null
+                signal: execError.signal ?? null,
+                // The only kill source in this tool is the execFile timeout, so a
+                // reported kill identifies an overrun. Only the shell process is
+                // stopped; children it spawned may keep running.
+                timedOut: execError.killed === true && execError.signal != null
             });
         });
     });

@@ -9,6 +9,8 @@ import { BridgeSessionManager } from '../gateway/bridgeSession';
 import type { ResolvedAiSiteConfig } from '../platforms';
 
 const CHROME_WEB_STORE_BRIDGE_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
+// Fixture only: the redemption route forwards whatever the gateway resolved.
+const BROWSER_REQUEST_DEADLINE_MS = 300 * 1000;
 
 const TEST_SITE: ResolvedAiSiteConfig = {
     id: 'chatgpt',
@@ -184,11 +186,40 @@ suite('Bridge route security', () => {
             await closeServer(server.httpServer);
         }
     });
+
+    test('sends the browser request deadline when one is configured', async () => {
+        const sessions = new BridgeSessionManager();
+        const server = await startBridgeServer(sessions, () => undefined, BROWSER_REQUEST_DEADLINE_MS);
+
+        try {
+            const redemption = await redeemOnce(server.baseUrl, sessions);
+            assert.strictEqual(redemption.bridgeRequestMs, BROWSER_REQUEST_DEADLINE_MS);
+        } finally {
+            await closeServer(server.httpServer);
+        }
+    });
+
+    test('omits the browser request deadline when it is disabled', async () => {
+        const sessions = new BridgeSessionManager();
+        const server = await startBridgeServer(sessions, () => undefined, 0);
+
+        try {
+            const redemption = await redeemOnce(server.baseUrl, sessions);
+            assert.strictEqual(
+                'bridgeRequestMs' in redemption,
+                false,
+                'a disabled deadline must not appear in the redemption payload'
+            );
+        } finally {
+            await closeServer(server.httpServer);
+        }
+    });
 });
 
 async function startBridgeServer(
     sessions: BridgeSessionManager,
-    recordActivity: () => void
+    recordActivity: () => void,
+    bridgeRequestMs: number = 0
 ): Promise<{ baseUrl: string; httpServer: HttpServer }> {
     const app = express();
     app.use(express.json());
@@ -199,6 +230,7 @@ async function startBridgeServer(
         getAiSites: () => [TEST_SITE],
         getExtensionVersion: () => '1.0.1',
         getIdleTimeoutMs: () => 30 * 60 * 1000,
+        getBridgeRequestMs: () => bridgeRequestMs,
         getWorkspaceRoot: () => null,
         log: () => undefined,
         recordActivity
@@ -212,6 +244,22 @@ async function startBridgeServer(
         baseUrl: `http://127.0.0.1:${address.port}`,
         httpServer
     };
+}
+
+async function redeemOnce(baseUrl: string, sessions: BridgeSessionManager): Promise<Record<string, unknown>> {
+    const bridgeCode = sessions.issueBridgeCode({
+        siteId: TEST_SITE.id,
+        targetUrl: TEST_SITE.address
+    });
+    const response = await redeemBridgeCode(
+        baseUrl,
+        bridgeCode,
+        '1.0.1',
+        BRIDGE_PROTOCOL_VERSION,
+        CHROME_WEB_STORE_BRIDGE_ORIGIN
+    );
+    assert.strictEqual(response.status, 200);
+    return await response.json() as Record<string, unknown>;
 }
 
 function redeemBridgeCode(

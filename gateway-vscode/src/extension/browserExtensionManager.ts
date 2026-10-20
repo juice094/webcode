@@ -12,6 +12,7 @@ import {
     type PrepareBrowserExtensionResult
 } from './browserExtensionInstall';
 import { getErrorMessage } from './errorUtils';
+import { resolveBrowserLaunchWaitMs } from '../gateway/timeouts';
 import type { BrowserFamily } from './isolatedBrowserProfiles';
 import {
     getBrowserBridgeProcesses,
@@ -45,6 +46,17 @@ interface BrowserRestartPlan {
 
 const PREPARATION_PROGRESS_DELAY_MS = 300;
 const COORDINATION_LOCK_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Reads how long to wait for a freshly launched isolated browser to expose its
+ * bridge process. Read per launch so a settings change applies to the next
+ * launch without restarting the extension host.
+ */
+export function readBrowserLaunchWaitMs(): number {
+    return resolveBrowserLaunchWaitMs(
+        vscode.workspace.getConfiguration('webcodeGateway').get<number>('timeouts.browserLaunchWaitMs')
+    );
+}
 
 export function createBrowserExtensionManager(
     context: vscode.ExtensionContext,
@@ -116,7 +128,8 @@ class DefaultBrowserExtensionManager implements BrowserExtensionManager {
                 if (!await waitForBrowserProfileBridgeProcess(
                     options.browserFamily,
                     options.profileDir,
-                    prepared.extensionPath
+                    prepared.extensionPath,
+                    readBrowserLaunchWaitMs()
                 )) {
                     throw new Error('The isolated browser did not expose its WebCode bridge process in time.');
                 }

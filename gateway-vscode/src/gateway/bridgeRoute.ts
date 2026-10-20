@@ -22,6 +22,11 @@ type BridgeRouteOptions = {
     getAiSites: () => readonly ResolvedAiSiteConfig[];
     getExtensionVersion: () => string;
     getIdleTimeoutMs: () => number;
+    /**
+     * Browser-side request deadline in milliseconds. 0 disables it and keeps
+     * the field out of the redemption response entirely.
+     */
+    getBridgeRequestMs: () => number;
     getWorkspaceRoot: () => string | null;
     log: GatewayLogger;
     recordActivity: () => void;
@@ -116,22 +121,38 @@ export function registerBridgeRoute(app: express.Express, options: BridgeRouteOp
         options.recordActivity();
         options.log(`🔐 Bridge code redeemed for ${resolvedLaunch.site.id} in workspace [${workspaceId}].`);
 
-        res.json({
-            success: true,
-            token,
-            siteId: resolvedLaunch.site.id,
-            targetOrigin: new URL(resolvedLaunch.targetUrl).origin,
-            targetUrl: resolvedLaunch.targetUrl,
-            vscodeExtensionVersion: options.getExtensionVersion(),
-            bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
-            workspaceId,
-            idleTimeoutMs: options.getIdleTimeoutMs()
-        });
+        res.json(createRedemptionPayload(options, resolvedLaunch, token, workspaceId));
     });
 
     app.get('/favicon.ico', (_req, res) => {
         res.status(204).end();
     });
+}
+
+/**
+ * Optional field: the bridge protocol version stays unchanged so an older
+ * browser extension simply stops reading at the known fields, and a disabled
+ * deadline is left out instead of sending a meaningless 0.
+ */
+function createRedemptionPayload(
+    options: BridgeRouteOptions,
+    launch: { site: ResolvedAiSiteConfig; targetUrl: string },
+    token: string,
+    workspaceId: string
+): Record<string, unknown> {
+    const bridgeRequestMs = options.getBridgeRequestMs();
+    return {
+        success: true,
+        token,
+        siteId: launch.site.id,
+        targetOrigin: new URL(launch.targetUrl).origin,
+        targetUrl: launch.targetUrl,
+        vscodeExtensionVersion: options.getExtensionVersion(),
+        bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
+        workspaceId,
+        idleTimeoutMs: options.getIdleTimeoutMs(),
+        ...(bridgeRequestMs > 0 ? { bridgeRequestMs } : {})
+    };
 }
 
 export function resolveAllowedBridgeTarget(

@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { formatGatewayToolResultData, parseGatewayToolResult } from '../modules/tool_result';
 import { getErrorMessage } from './errors';
+import { createRequestDeadline, formatRequestTimeout } from './request_deadline';
 import { expireGatewaySession, recordGatewayActivity } from './session_health';
 import { getActiveProtocolSessionResult, type ActiveProtocolSessionResult } from './sessions';
 
@@ -44,6 +45,7 @@ export async function executeTool(
     return { success: false, error: "Invalid tool payload." };
   }
 
+  const deadline = createRequestDeadline(session.bridgeRequestMs);
   try {
     const response = await fetch(apiEndpoint, {
       method: "POST",
@@ -57,6 +59,7 @@ export async function executeTool(
         internal_call_id: payload.internal_call_id,
         approval_token: request.approvalToken,
       }),
+      signal: deadline.signal,
     });
     await recordGatewayActivity(tabId);
     if (response.ok) {
@@ -72,8 +75,18 @@ export async function executeTool(
       error: errorText || `${response.status} - ${response.statusText}`,
     };
   } catch (err: unknown) {
+    // A browser-side deadline only abandons this request; the gateway keeps
+    // working, so the session stays connected and the model can retry.
+    if (deadline.timedOut()) {
+      return {
+        success: false,
+        error: formatRequestTimeout(deadline.timeoutMs, "The gateway may still be running the tool."),
+      };
+    }
     await expireGatewaySession(tabId, "gateway_unavailable");
     return { success: false, error: `Connection Failed: ${getErrorMessage(err)}` };
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -87,6 +100,7 @@ export async function preflightTool(
   const payload = getToolPayload(request);
   if (!payload) {return { success: false, error: "Invalid tool payload." };}
 
+  const deadline = createRequestDeadline(connection.bridgeRequestMs);
   try {
     const response = await fetch(`${connection.endpoint}/v1/tools/preflight`, {
       method: "POST",
@@ -95,6 +109,7 @@ export async function preflightTool(
         name: payload.name,
         arguments: payload.arguments ?? {},
       }),
+      signal: deadline.signal,
     });
     await recordGatewayActivity(connection.tabId);
     if (response.status === 403) {
@@ -118,8 +133,13 @@ export async function preflightTool(
       challengeId: challenge,
     };
   } catch (error: unknown) {
+    if (deadline.timedOut()) {
+      return { success: false, error: formatRequestTimeout(deadline.timeoutMs) };
+    }
     await expireGatewaySession(connection.tabId, "gateway_unavailable");
     return { success: false, error: `Connection Failed: ${getErrorMessage(error)}` };
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -134,11 +154,13 @@ export async function approveTool(
     return { success: false, error: "Missing command approval challenge." };
   }
 
+  const deadline = createRequestDeadline(connection.bridgeRequestMs);
   try {
     const response = await fetch(`${connection.endpoint}/v1/tools/approve`, {
       method: "POST",
       headers: gatewayHeaders(connection.token),
       body: JSON.stringify({ challenge_id: request.challengeId }),
+      signal: deadline.signal,
     });
     await recordGatewayActivity(connection.tabId);
     if (response.status === 403) {
@@ -155,8 +177,13 @@ export async function approveTool(
     }
     return { success: true, approvalToken: result.approval_token };
   } catch (error: unknown) {
+    if (deadline.timedOut()) {
+      return { success: false, error: formatRequestTimeout(deadline.timeoutMs) };
+    }
     await expireGatewaySession(connection.tabId, "gateway_unavailable");
     return { success: false, error: `Connection Failed: ${getErrorMessage(error)}` };
+  } finally {
+    deadline.dispose();
   }
 }
 
@@ -183,6 +210,7 @@ function getInactiveSessionToolResponse(status: InactiveProtocolSessionStatus): 
 
 type GatewayConnectionResult = {
   success: true;
+  bridgeRequestMs?: number;
   endpoint: string;
   tabId: number;
   token: string;
@@ -202,6 +230,7 @@ async function getGatewayConnection(
   }
   return {
     success: true,
+    bridgeRequestMs: sessionResult.session.bridgeRequestMs,
     endpoint: `http://127.0.0.1:${sessionResult.session.port}`,
     tabId,
     token: sessionResult.session.token,

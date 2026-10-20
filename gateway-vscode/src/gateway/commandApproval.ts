@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 
-const DEFAULT_TTL_MS = 2 * 60 * 1000;
+export const DEFAULT_APPROVAL_TTL_MS = 2 * 60 * 1000;
 const MAX_PENDING_RECORDS = 256;
 
 type ChallengeRecord = {
@@ -23,9 +23,18 @@ export class CommandApprovalManager {
     private readonly grants = new Map<string, ChallengeRecord>();
 
     constructor(
-        private readonly ttlMs = DEFAULT_TTL_MS,
+        private ttlMs = DEFAULT_APPROVAL_TTL_MS,
         private readonly now: () => number = Date.now
     ) { }
+
+    /**
+     * Applies a new TTL to challenges and grants issued from now on. Records
+     * already issued keep the expiry they were created with. The gateway clears
+     * both maps on every start, so a reload also drops any pending approval.
+     */
+    setTtlMs(ttlMs: number): void {
+        this.ttlMs = ttlMs;
+    }
 
     issueChallenge(fingerprint: string): CommandApprovalChallenge {
         this.cleanup();

@@ -52,3 +52,25 @@
 2. 在 VS Code 状态栏点击 webcode 重启服务，然后从 VS Code 重新发起连接
    （连接码为一次性短时凭证，旧链接报错“链接无效”属正常现象）。
 3. 仍无法连接时，查看上述持久化日志文件中的 `ERROR`/`WARN` 条目。
+
+## 长任务或命令跑很久怎么办？
+
+`execute_command` 有截止时间，超时只会停掉 shell 本体，脚本派生的子进程可能仍在运行。构建、测试、
+长时间运行的开发服务器这类任务请改用 `run_in_terminal`，它会打开真实终端并立即返回 `session_id`，
+之后用 `terminal_session` 的 `read` / `stop` / `close` 读取输出或中断。
+
+## 各类超时怎么调？
+
+全部集中在 VS Code 设置 `webcodeGateway.timeouts`（毫秒，除注明秒的项目），改完会自动重启网关：
+
+| 设置项 | 默认 | 作用 |
+|:---|:---|:---|
+| `timeouts.commandExecutionMs` | 60000 | `execute_command` 的默认截止时间 |
+| `timeouts.toolCallMs` | 0 | 网关侧单次工具调用的截止时间，`0` 表示不限 |
+| `timeouts.bridgeCodeTtlSeconds` | 120 | 一次性连接码的有效期（秒） |
+| `timeouts.approvalTtlSeconds` | 120 | 命令审批挑战与令牌的有效期（秒） |
+| `timeouts.browserLaunchWaitMs` | 10000 | 等待独立浏览器暴露桥进程的时间 |
+| `timeouts.bridgeRequestMs` | 0 | 浏览器→网关请求的截止时间，`0` 表示不限 |
+
+`0` 表示不限的语义只对 `toolCallMs` 与 `bridgeRequestMs` 有效，其余项有各自的最小值。
+第三方 MCP server 的单个工具截止时间另由 `webcodeGateway.servers.<id>.toolTimeoutMs`（默认 60000）控制。

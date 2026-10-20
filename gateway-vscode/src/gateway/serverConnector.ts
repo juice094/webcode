@@ -13,6 +13,29 @@ import type {
     ServerConfig
 } from './types';
 
+/**
+ * Default per-request deadline for tools/call. The MCP SDK falls back to its
+ * own DEFAULT_REQUEST_TIMEOUT_MSEC (60000 ms) whenever a request carries no
+ * timeout, so 60000 preserves the behavior that existed before servers could
+ * configure this. Connect and listTools keep the SDK default on purpose: this
+ * setting is about tool execution, not server startup.
+ */
+export const DEFAULT_MCP_TOOL_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolves the per-server tool deadline. Invalid values fall back to the SDK
+ * default instead of failing the server connection.
+ */
+export function resolveServerToolTimeoutMs(config: Pick<ServerConfig, 'toolTimeoutMs'>): number {
+    const configured = config.toolTimeoutMs;
+    if (typeof configured !== 'number' || !Number.isFinite(configured)) {
+        return DEFAULT_MCP_TOOL_TIMEOUT_MS;
+    }
+
+    const truncated = Math.trunc(configured);
+    return truncated > 0 ? truncated : DEFAULT_MCP_TOOL_TIMEOUT_MS;
+}
+
 type ConnectToConfiguredServersOptions = {
     connectedClients: ConnectedClient[];
     extensionPath: string;
@@ -125,6 +148,7 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
             const list = await client.listTools();
             log(`   ✅ [${serverId}] Connected. Loaded ${list.tools.length} tools.`);
 
+            const toolTimeoutMs = resolveServerToolTimeoutMs(config);
             list.tools.forEach((tool) => {
                 const toolName = tool.name;
                 const publicName = getRemoteToolPublicName(serverId, toolName);
@@ -135,7 +159,8 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
                     client,
                     definition: { ...tool, name: publicName } as ToolDefinition,
                     serverId,
-                    toolName
+                    toolName,
+                    toolTimeoutMs
                 });
             });
 

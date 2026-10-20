@@ -18,9 +18,10 @@ import {
     resolveAllowedBridgeTarget,
     resolveBridgeSite
 } from './gateway/bridgeRoute';
-import { BridgeSessionManager } from './gateway/bridgeSession';
+import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/bridgeSession';
 import { registerConfigRoutes } from './gateway/initRoutes';
 import { DEFAULT_IDLE_TIMEOUT_MINUTES, formatIdleTimeoutMinutes } from './gateway/idleTimeout';
+import * as timeouts from './gateway/timeouts';
 import {
     createAuthMiddleware,
     createCorsMiddleware,
@@ -43,7 +44,7 @@ import type {
     StartResult
 } from './gateway/types';
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
-import { CommandApprovalManager } from './gateway/commandApproval';
+import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/commandApproval';
 
 /**
  * The browser bridge content scripts only match the loopback port window
@@ -91,6 +92,9 @@ export class GatewayManager {
     private currentAiSites: NonNullable<GatewayConfig['aiSites']> = [];
     private commandShellPath: string | undefined;
     private commandAllowedRoots: string[] = [];
+    private toolCallMs = timeouts.DEFAULT_TOOL_CALL_MS;
+    private commandExecutionMs = timeouts.DEFAULT_COMMAND_EXECUTION_MS;
+    private bridgeRequestMs = timeouts.DEFAULT_BRIDGE_REQUEST_MS;
     private readonly commandApprovalManager = new CommandApprovalManager();
     private readonly bridgeSessionManager = new BridgeSessionManager();
     private readonly traceSink: GatewayRuntimeTraceSink | undefined;
@@ -130,7 +134,8 @@ export class GatewayManager {
 
     private createToolDefinitionContext(): ToolDefinitionContext {
         return {
-            commandShellPath: this.commandShellPath
+            commandShellPath: this.commandShellPath,
+            commandExecutionMs: this.commandExecutionMs
         };
     }
 
@@ -191,6 +196,7 @@ export class GatewayManager {
             skillDirectories: this.skillDirectories,
             commandShellPath: this.commandShellPath,
             commandAllowedRoots: this.commandAllowedRoots,
+            commandExecutionMs: this.commandExecutionMs,
             listTools: () => this._generateGroupedTools(),
             getToolDefinition: (name: string) => this.getToolDefinition(name)
         };
@@ -241,6 +247,7 @@ export class GatewayManager {
             getAiSites: () => config.aiSites ?? [],
             getExtensionVersion: () => this.getExtensionVersion(),
             getIdleTimeoutMs: () => this.idleTimeoutMs,
+            getBridgeRequestMs: () => this.bridgeRequestMs,
             getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
             recordActivity: () => this.resetWatchdog()
@@ -257,6 +264,7 @@ export class GatewayManager {
             commandApprovalManager: this.commandApprovalManager,
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
+            getToolCallTimeoutMs: () => this.toolCallMs,
             getToolDefinition: (name: string) => this.getToolDefinition(name),
             getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
             localTools: this.localTools,
@@ -285,6 +293,18 @@ export class GatewayManager {
         this.commandAllowedRoots = config.commandAllowedRoots ?? [];
         this.currentAiSites = config.aiSites ?? [];
         this.idleTimeoutMs = config.idleTimeoutMs;
+        // Resolved here as well so a direct GatewayManager caller cannot bypass
+        // the documented ranges, even though the extension already resolves
+        // these values from the webcodeGateway.timeouts settings.
+        this.toolCallMs = timeouts.resolveToolCallMs(config.toolCallMs);
+        this.commandExecutionMs = timeouts.resolveCommandExecutionMs(config.commandExecutionMs);
+        this.bridgeRequestMs = timeouts.resolveBridgeRequestMs(config.bridgeRequestMs);
+        // TTLs arrive already clamped in milliseconds (the extension resolves
+        // seconds-native settings), and are retargeted instead of recreating the
+        // managers: a hot reload must keep the bridge session token that
+        // connected tabs already hold.
+        this.bridgeSessionManager.setBridgeCodeTtlMs(config.bridgeCodeTtlMs ?? DEFAULT_BRIDGE_CODE_TTL_MS);
+        this.commandApprovalManager.setTtlMs(config.approvalTtlMs ?? DEFAULT_APPROVAL_TTL_MS);
         this.commandApprovalManager.clear();
         // Bridge session token lifecycle: the token is revoked on every cold
         // start (fresh launch, manual stop/start, cold configuration keys such

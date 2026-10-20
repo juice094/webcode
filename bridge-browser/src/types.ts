@@ -225,6 +225,7 @@ export interface StoredSession {
   workspaceId?: string;
   lastGatewayActivityAt?: number;
   gatewayIdleTimeoutMs?: number;
+  bridgeRequestMs?: number;
   siteId?: string;
   targetOrigin?: string;
   targetUrl?: string;
@@ -363,9 +364,7 @@ export function isSession(value: unknown): value is Session {
 }
 
 export function isStoredSession(value: unknown): value is StoredSession {
-  if (!isRecord(value)) {return false;}
-
-  return typeof value.port === "number" &&
+  return isRecord(value) && typeof value.port === "number" &&
     typeof value.token === "string" &&
     hasValidStoredSessionOptions(value);
 }
@@ -387,6 +386,7 @@ export function normalizeSession(value: unknown): Session | null {
     workspaceId: value.workspaceId ?? "global",
     lastGatewayActivityAt: value.lastGatewayActivityAt,
     gatewayIdleTimeoutMs: value.gatewayIdleTimeoutMs,
+    bridgeRequestMs: value.bridgeRequestMs,
     siteId: value.siteId,
     targetOrigin: value.targetOrigin ?? value.allowedOrigins?.[0],
     targetUrl: value.targetUrl,
@@ -457,6 +457,6 @@ function hasValidStoredSessionOptions(value: Record<string, unknown>): boolean {
   return [value.showLog, value.autoSend, value.autoApproveTools].every(isOptionalBoolean) &&
     isOptionalString(value.approvalMode) &&
     [value.workspaceId, value.siteId, value.targetOrigin, value.targetUrl].every(isOptionalString) &&
-    [value.lastGatewayActivityAt, value.gatewayIdleTimeoutMs].every(isOptionalNumber) &&
+    [value.lastGatewayActivityAt, value.gatewayIdleTimeoutMs, value.bridgeRequestMs].every(isOptionalNumber) &&
     isOptionalStringArray(value.allowedOrigins);
 }

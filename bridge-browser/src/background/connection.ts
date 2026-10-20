@@ -79,6 +79,7 @@ export async function handleHandshake(
     targetOrigin: session.targetOrigin,
     targetUrl: session.targetUrl,
     idleTimeoutMs: session.idleTimeoutMs,
+    bridgeRequestMs: session.bridgeRequestMs,
   });
   return { success: true, targetUrl: session.targetUrl };
 }
@@ -91,6 +92,7 @@ interface BindSessionOptions {
   targetOrigin: string;
   targetUrl: string;
   idleTimeoutMs: number;
+  bridgeRequestMs?: number;
 }
 
 export async function bindSession(tabId: number, options: BindSessionOptions) {
@@ -106,6 +108,7 @@ export async function bindSession(tabId: number, options: BindSessionOptions) {
     workspaceId: options.workspaceId,
     lastGatewayActivityAt,
     gatewayIdleTimeoutMs: options.idleTimeoutMs,
+    bridgeRequestMs: options.bridgeRequestMs,
     siteId: options.siteId,
     targetOrigin: options.targetOrigin,
     targetUrl: options.targetUrl,
@@ -125,7 +128,7 @@ export async function bindSession(tabId: number, options: BindSessionOptions) {
     approvalMode: session.approvalMode,
   }).catch(ignoreRuntimeError);
   // 不再 await，避免网关初始化请求阻塞握手响应
-  void fetchInitDataFromGateway(options.port, options.token);
+  void fetchInitDataFromGateway(options.port, options.token, options.bridgeRequestMs);
 }
 
 function ignoreRuntimeError(_error: unknown): void {

@@ -177,6 +177,12 @@ export interface Session {
   workspaceId: string;
   lastGatewayActivityAt?: number;
   gatewayIdleTimeoutMs?: number;
+  /**
+   * Deadline in milliseconds for browser-to-gateway requests, pushed by the
+   * gateway during bridge redemption. Absent or 0 means the browser waits for
+   * as long as the request takes.
+   */
+  bridgeRequestMs?: number;
   siteId?: string;
   targetOrigin?: string;
   targetUrl?: string;

@@ -50,6 +50,27 @@ function main(): void {
     getBridgeRedemptionError({ error: "expired" }) === "expired",
     "gateway redemption error was not preserved"
   );
+
+  const withDeadline = normalizeRedeemedBridgeSession({
+    ...valid,
+    success: true,
+    bridgeRequestMs: 120000,
+  });
+  assert(withDeadline?.bridgeRequestMs === 120000, "browser request deadline was not retained");
+
+  const disabledDeadline = normalizeRedeemedBridgeSession({
+    ...valid,
+    success: true,
+    bridgeRequestMs: 0,
+  });
+  assert(disabledDeadline?.bridgeRequestMs === undefined, "0 must mean no browser request deadline");
+
+  const storedDeadline = normalizeSession({
+    port: 34567,
+    token: valid.token,
+    bridgeRequestMs: 120000,
+  });
+  assert(storedDeadline?.bridgeRequestMs === 120000, "browser request deadline was not persisted");
   console.log("PASS validates bridge redemption sessions and idle timeout metadata");
 }
 

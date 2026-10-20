@@ -29,6 +29,7 @@ export type ToolExecutionContext = {
     skillDirectories: string[];
     commandShellPath?: string;
     commandAllowedRoots?: string[];
+    commandExecutionMs?: number;
     approvedCommandFingerprint?: string;
     listTools: () => unknown;
     getToolDefinition: (name: string) => ToolDefinition | null;
@@ -36,6 +37,7 @@ export type ToolExecutionContext = {
 
 export type ToolDefinitionContext = {
     commandShellPath?: string;
+    commandExecutionMs?: number;
 };
 
 export type LocalTool = {

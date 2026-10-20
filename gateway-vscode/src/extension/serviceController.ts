@@ -10,6 +10,13 @@ import { updateGatewayStatusBar } from './statusBar';
 import type { AISiteConfig, ResolvedAiSiteConfig } from './types';
 import { resolveCommandAllowedRoots } from './commandAllowedRoots';
 import { resolveIdleTimeoutMs } from '../gateway/idleTimeout';
+import {
+    resolveApprovalTtlSeconds,
+    resolveBridgeCodeTtlSeconds,
+    resolveBridgeRequestMs,
+    resolveCommandExecutionMs,
+    resolveToolCallMs
+} from '../gateway/timeouts';
 
 export interface GatewayServiceSnapshot {
     currentPort: number | null;
@@ -76,7 +83,8 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
                 allowedOrigins: startParams.allowedOrigins,
                 aiSites: startParams.aiSites,
                 skillDirectories: startParams.skillDirectories,
-                ...startParams.commandConfig
+                ...startParams.commandConfig,
+                ...startParams.timeoutConfig
             }, startOptions);
 
             currentPort = result.port;
@@ -151,6 +159,13 @@ function createBridgeCodeIssuer(
 interface GatewayStartParams {
     idleTimeoutMs: number;
     commandConfig: { commandAllowedRoots: string[]; commandShellPath?: string };
+    timeoutConfig: {
+        approvalTtlMs: number;
+        bridgeCodeTtlMs: number;
+        bridgeRequestMs: number;
+        commandExecutionMs: number;
+        toolCallMs: number;
+    };
     customServers: ReturnType<typeof filterCustomServers>;
     skillDirectories: string[];
     lastUsedPort: number | undefined;
@@ -166,6 +181,13 @@ function buildStartParams(
     return {
         idleTimeoutMs: resolveIdleTimeoutMs(config.get<number>('idleTimeoutMinutes')),
         commandConfig: getCommandExecutionConfig(config, options.outputChannel),
+        timeoutConfig: {
+            approvalTtlMs: resolveApprovalTtlSeconds(config.get<number>('timeouts.approvalTtlSeconds')) * 1000,
+            bridgeCodeTtlMs: resolveBridgeCodeTtlSeconds(config.get<number>('timeouts.bridgeCodeTtlSeconds')) * 1000,
+            bridgeRequestMs: resolveBridgeRequestMs(config.get<number>('timeouts.bridgeRequestMs')),
+            commandExecutionMs: resolveCommandExecutionMs(config.get<number>('timeouts.commandExecutionMs')),
+            toolCallMs: resolveToolCallMs(config.get<number>('timeouts.toolCallMs'))
+        },
         customServers: filterCustomServers(
             config.get<Record<string, BuiltinServerConfig>>('servers') ?? {},
             options.outputChannel

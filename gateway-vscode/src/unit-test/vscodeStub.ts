@@ -2,7 +2,9 @@
  * Minimal module-loader stub so unit tests can exercise GatewayManager
  * outside the extension host and outside webpack:
  * - `vscode` resolves to a stub implementing only the surface the gateway
- *   touches during start/stop (workspace folders, status bar message).
+ *   touches during start/stop, while building tool definitions, and while
+ *   resolving UI strings (workspace folders and configuration reads, status bar
+ *   message, UI language).
  * - `*.md` prompt imports (webpack asset modules in production builds)
  *   resolve to the raw file content.
  * Import this module for its side effect BEFORE importing any module that
@@ -22,10 +24,19 @@ import Module = require('node:module');
 
 const vscodeStub = {
     workspace: {
-        workspaceFolders: [] as unknown[]
+        workspaceFolders: [] as unknown[],
+        // Terminal profile discovery reads terminal.integrated settings; outside
+        // the extension host there are no configured profiles to report.
+        getConfiguration: () => ({ get: () => undefined })
     },
     window: {
         setStatusBarMessage: () => ({ dispose: () => undefined })
+    },
+    env: {
+        // Outside the extension host there is no VS Code default shell to report.
+        shell: undefined,
+        // Only used to pick the UI language for translated strings.
+        language: 'en'
     }
 };
 

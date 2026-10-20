@@ -183,6 +183,58 @@
           "maximum": 240,
           "description": "Minutes without authenticated gateway activity before automatic shutdown. Health checks, rejected requests, and invalid bridge codes do not extend the timeout."
         },
+        "webcodeGateway.timeouts": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": false,
+          "markdownDescription": "Deadlines for gateway tooling and bridge handshakes. Out-of-range values are clamped into the documented range, non-numeric values fall back to the default, and a value of 0 on an item whose minimum is 0 disables that deadline.",
+          "properties": {
+            "commandExecutionMs": {
+              "type": "integer",
+              "default": 60000,
+              "minimum": 1000,
+              "maximum": 1800000,
+              "markdownDescription": "Deadline in milliseconds for `execute_command`; the command is stopped when it overruns. Raise this for long builds, or use `run_in_terminal` for commands that must keep running in a visible terminal."
+            },
+            "toolCallMs": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 1800000,
+              "markdownDescription": "Deadline in milliseconds for one tool call handled by the gateway, including third-party MCP tools. `0` disables the deadline and leaves long calls bounded only by the idle shutdown watchdog."
+            },
+            "bridgeCodeTtlSeconds": {
+              "type": "integer",
+              "default": 120,
+              "minimum": 30,
+              "maximum": 600,
+              "scope": "machine",
+              "markdownDescription": "Lifetime in seconds of the single-use bridge code that links a browser tab to this gateway. Raise it when installing or reloading the browser extension takes longer than the code stays valid."
+            },
+            "approvalTtlSeconds": {
+              "type": "integer",
+              "default": 120,
+              "minimum": 30,
+              "maximum": 900,
+              "scope": "machine",
+              "markdownDescription": "Lifetime in seconds of a command approval challenge, and of the approval token issued from it. Raise it when approvals are reviewed slowly."
+            },
+            "browserLaunchWaitMs": {
+              "type": "integer",
+              "default": 10000,
+              "minimum": 3000,
+              "maximum": 60000,
+              "markdownDescription": "How long in milliseconds to wait for an isolated browser to expose its WebCode bridge process after launch. Raise it on slow disks or when antivirus scanning delays browser start."
+            },
+            "bridgeRequestMs": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 1800000,
+              "markdownDescription": "Deadline in milliseconds for browser-to-gateway tool requests issued by the bridge extension. `0` disables the deadline."
+            }
+          }
+        },
         "webcodeGateway.browser": {
           "type": "string",
           "default": "isolated-edge",
@@ -281,6 +333,12 @@
                 "type": "boolean",
                 "default": false,
                 "description": "Disable this server. If true, the server will not be started."
+              },
+              "toolTimeoutMs": {
+                "type": "integer",
+                "default": 60000,
+                "minimum": 1,
+                "markdownDescription": "Per-request deadline in milliseconds for tool calls on this server. Raise it for MCP tools that legitimately run longer than a minute. Leave the default to keep the MCP SDK's own 60 second request timeout."
               }
             }
           },
