@@ -131,6 +131,15 @@ export async function updateSessionAutoApproveTools(tabId: number, autoApproveTo
   }
 }
 
+export async function updateSessionApprovalMode(tabId: number, approvalMode: Session["approvalMode"]) {
+  const session = await getSession(tabId);
+  if (session) {
+    session.approvalMode = approvalMode;
+    session.autoApproveTools = approvalMode === "never-ask";
+    await saveSession(tabId, session);
+  }
+}
+
 export function suspendSession(tabId: number) {
   void chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(ignoreRuntimeError);
 }

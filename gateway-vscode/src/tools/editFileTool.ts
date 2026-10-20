@@ -1,12 +1,13 @@
 import * as fs from 'fs/promises';
 import type { LocalTool } from './types';
-import { textResult } from './result';
+import { errorResult, textResult } from './result';
 import {
     atomicWriteFile,
     createUnifiedDiff,
     normalizeLineEndings
 } from './filesystemUtils';
 import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 
 type FileEdit = {
     oldText: string;
@@ -93,7 +94,11 @@ export const editFileTool: LocalTool = {
         },
         annotations: { readOnlyHint: false, idempotentHint: false, destructiveHint: true }
     },
+    assessRisk: (args) => Promise.resolve(assessSensitiveFileRisk('edit_file', args)),
     async execute(args, context) {
+        const risk = assessSensitiveFileRisk('edit_file', args);
+        if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
+
         const filePath = (await resolveWorkspaceRelativePath(context.workspaceRoot, args.path)).absolutePath;
         const dryRun = args.dryRun === true;
         const rawContent = await fs.readFile(filePath, 'utf8');

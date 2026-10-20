@@ -1,4 +1,4 @@
-import { isMessageRequest, isStatusResponse, isSuccessResponse } from '../types';
+import { isMessageRequest, isStatusResponse, isSuccessResponse, type MessageRequest } from '../types';
 import { createPopupTranslator, renderInstalledDescription, type PopupTranslator } from './i18n';
 
 type PopupElements = {
@@ -13,11 +13,12 @@ type PopupElements = {
   portDisplay: HTMLElement;
   manualInitBtn: HTMLButtonElement;
   autoSendInput: HTMLInputElement;
-  autoApproveToolsInput: HTMLInputElement;
+  approvalModeSelect: HTMLSelectElement;
+  approvalModeHint: HTMLElement;
   showLogInput: HTMLInputElement;
   sessionPresetToggle: HTMLButtonElement;
   sessionPresetPanel: HTMLElement;
-  defaultAutoApproveToolsInput: HTMLInputElement;
+  defaultApprovalModeSelect: HTMLSelectElement;
   title: HTMLElement;
   connectedText: HTMLElement;
   portLabel: HTMLElement;
@@ -88,11 +89,12 @@ function getPopupElements(): PopupElements {
     portDisplay: document.getElementById("portDisplay") as HTMLElement,
     manualInitBtn: document.getElementById("manualInitBtn") as HTMLButtonElement,
     autoSendInput: document.getElementById("autoSend") as HTMLInputElement,
-    autoApproveToolsInput: document.getElementById("autoApproveTools") as HTMLInputElement,
+    approvalModeSelect: document.getElementById("approvalMode") as HTMLSelectElement,
+    approvalModeHint: document.getElementById("approvalModeHint") as HTMLElement,
     showLogInput: document.getElementById("showLog") as HTMLInputElement,
     sessionPresetToggle: document.getElementById("sessionPresetToggle") as HTMLButtonElement,
     sessionPresetPanel: document.getElementById("sessionPresetPanel") as HTMLElement,
-    defaultAutoApproveToolsInput: document.getElementById("defaultAutoApproveTools") as HTMLInputElement,
+    defaultApprovalModeSelect: document.getElementById("defaultApprovalMode") as HTMLSelectElement,
     title: document.getElementById("title") as HTMLElement,
     connectedText: document.getElementById("connectedText") as HTMLElement,
     portLabel: document.getElementById("portLabel") as HTMLElement,
@@ -121,12 +123,15 @@ function initializeLabels(context: PopupContext): void {
   elements.manualInitBtn.textContent = t("manual_init");
   elements.manualInitBtn.title = t("manual_init_title");
   elements.autoSendLabel.textContent = t("auto_send");
-  elements.autoApproveToolsLabel.textContent = t("auto_approve_tools");
+  elements.autoApproveToolsLabel.textContent = t("approval_mode_label");
+  localizeApprovalModeOptions(elements.approvalModeSelect, t);
+  localizeApprovalModeOptions(elements.defaultApprovalModeSelect, t);
+  elements.approvalModeHint.textContent = t("approval_mode_hint");
   elements.showLogLabel.textContent = t("show_log");
   elements.sessionPresetToggleLabel.textContent = t("session_preset");
   elements.sessionPresetToggle.title = t("session_preset_title");
   elements.sessionPresetHint.textContent = t("session_preset_hint");
-  elements.defaultAutoApproveToolsLabel.textContent = t("default_auto_approve_tools");
+  elements.defaultAutoApproveToolsLabel.textContent = t("approval_mode_label");
   elements.checkingTitle.textContent = t("checking_connection");
   elements.disconnectedTitle.textContent = t("disconnected");
   elements.suspendedHint.textContent = t("suspended_hint");
@@ -138,6 +143,17 @@ function initializeLabels(context: PopupContext): void {
   elements.marketplaceHint.textContent = t("marketplace_hint");
 }
 
+function localizeApprovalModeOptions(select: HTMLSelectElement, t: PopupTranslator): void {
+  const labels: Record<string, string> = {
+    "always-ask": t("approval_mode_always_ask"),
+    "ask-when-needed": t("approval_mode_ask_when_needed"),
+    "never-ask": t("approval_mode_never_ask"),
+  };
+  for (const option of Array.from(select.options)) {
+    option.textContent = labels[option.value] ?? option.value;
+  }
+}
+
 function listenForSessionSettingChanges(currentTabId: number, elements: PopupElements): void {
   chrome.runtime.onMessage.addListener((request: unknown) => {
     if (isMessageRequest(request) && request.type === "LOG_VISIBLE_CHANGED" && request.tabId === currentTabId) {
@@ -146,17 +162,28 @@ function listenForSessionSettingChanges(currentTabId: number, elements: PopupEle
     if (isMessageRequest(request) && request.type === "AUTO_SEND_CHANGED" && request.tabId === currentTabId) {
       elements.autoSendInput.checked = request.autoSend !== false;
     }
-    if (
-      isMessageRequest(request) &&
-      request.type === "AUTO_APPROVE_TOOLS_CHANGED" &&
-      request.tabId === currentTabId
-    ) {
-      elements.autoApproveToolsInput.checked = request.autoApproveTools === true;
-    }
-    if (isMessageRequest(request) && request.type === "DEFAULT_AUTO_APPROVE_TOOLS_CHANGED") {
-      elements.defaultAutoApproveToolsInput.checked = request.defaultAutoApproveTools === true;
-    }
+    if (!isMessageRequest(request)) {return;}
+    syncApprovalModeControls(request, currentTabId, elements);
   });
+}
+
+function syncApprovalModeControls(
+  request: MessageRequest,
+  currentTabId: number,
+  elements: PopupElements
+): void {
+  if (request.type === "AUTO_APPROVE_TOOLS_CHANGED" && request.tabId === currentTabId) {
+    elements.approvalModeSelect.value = request.autoApproveTools === true ? "never-ask" : "always-ask";
+  }
+  if (request.type === "APPROVAL_MODE_CHANGED" && request.tabId === currentTabId) {
+    elements.approvalModeSelect.value = request.approvalMode;
+  }
+  if (request.type === "DEFAULT_AUTO_APPROVE_TOOLS_CHANGED") {
+    elements.defaultApprovalModeSelect.value = request.defaultAutoApproveTools === true ? "never-ask" : "ask-when-needed";
+  }
+  if (request.type === "DEFAULT_APPROVAL_MODE_CHANGED") {
+    elements.defaultApprovalModeSelect.value = request.defaultApprovalMode;
+  }
 }
 
 function requestCurrentStatus(currentTabId: number, context: PopupContext): void {
@@ -182,7 +209,9 @@ function showConnectedStatus(
     showLog?: boolean;
     autoSend?: boolean;
     autoApproveTools?: boolean;
+    approvalMode?: string;
     defaultAutoApproveTools?: boolean;
+    defaultApprovalMode?: string;
   },
   elements: PopupElements
 ): void {
@@ -193,8 +222,10 @@ function showConnectedStatus(
   elements.statusDot.classList.remove("suspended", "expired");
   elements.portDisplay.innerText = String(response.port ?? "");
   elements.autoSendInput.checked = response.autoSend !== false;
-  elements.autoApproveToolsInput.checked = response.autoApproveTools === true;
-  elements.defaultAutoApproveToolsInput.checked = response.defaultAutoApproveTools === true;
+  elements.approvalModeSelect.value = response.approvalMode
+    ?? (response.autoApproveTools === true ? "never-ask" : "ask-when-needed");
+  elements.defaultApprovalModeSelect.value = response.defaultApprovalMode
+    ?? (response.defaultAutoApproveTools === true ? "never-ask" : "ask-when-needed");
   elements.showLogInput.checked = response.showLog === true;
 }
 
@@ -258,8 +289,8 @@ function bindPopupControls(currentTabId: number, context: PopupContext): void {
   bindManualInitButton(currentTabId, context);
   bindSessionPresetToggle(context.elements);
   bindAutoSendToggle(currentTabId, context.elements.autoSendInput);
-  bindAutoApproveToolsToggle(currentTabId, context.elements.autoApproveToolsInput);
-  bindDefaultAutoApproveToolsToggle(context.elements.defaultAutoApproveToolsInput);
+  bindApprovalModeSelect(currentTabId, context.elements.approvalModeSelect);
+  bindDefaultApprovalModeSelect(context.elements.defaultApprovalModeSelect);
   bindLogToggle(currentTabId, context.elements.showLogInput);
 }
 
@@ -359,24 +390,24 @@ function bindAutoSendToggle(currentTabId: number, autoSendInput: HTMLInputElemen
   });
 }
 
-function bindAutoApproveToolsToggle(
+function bindApprovalModeSelect(
   currentTabId: number,
-  autoApproveToolsInput: HTMLInputElement
+  approvalModeSelect: HTMLSelectElement
 ): void {
-  autoApproveToolsInput.addEventListener("change", () => {
+  approvalModeSelect.addEventListener("change", () => {
     void chrome.runtime.sendMessage({
-      type: "SET_AUTO_APPROVE_TOOLS",
+      type: "SET_APPROVAL_MODE",
       tabId: currentTabId,
-      autoApproveTools: autoApproveToolsInput.checked,
+      approvalMode: approvalModeSelect.value,
     });
   });
 }
 
-function bindDefaultAutoApproveToolsToggle(defaultAutoApproveToolsInput: HTMLInputElement): void {
-  defaultAutoApproveToolsInput.addEventListener("change", () => {
+function bindDefaultApprovalModeSelect(defaultApprovalModeSelect: HTMLSelectElement): void {
+  defaultApprovalModeSelect.addEventListener("change", () => {
     void chrome.runtime.sendMessage({
-      type: "SET_DEFAULT_AUTO_APPROVE_TOOLS",
-      defaultAutoApproveTools: defaultAutoApproveToolsInput.checked,
+      type: "SET_DEFAULT_APPROVAL_MODE",
+      defaultApprovalMode: defaultApprovalModeSelect.value,
     });
   });
 }

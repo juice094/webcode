@@ -1,5 +1,17 @@
 import type { ToolExecutionPayload } from "../types";
 
+// Tools whose risk is assessed by the gateway preflight route. Command tools
+// keep their existing mandatory-approval flow; file tools join so sensitive
+// paths (.env, private keys, credentials) also force a confirmation modal.
+const PREFLIGHT_RISK_TOOLS = new Set([
+  "execute_command",
+  "run_in_terminal",
+  "read_file",
+  "write_file",
+  "edit_file",
+  "attach_file",
+]);
+
 interface ToolPreflightResponse {
   success: boolean;
   error?: string;
@@ -17,7 +29,7 @@ interface ToolApprovalResponse {
 }
 
 export function preflightCommand(payload: ToolExecutionPayload): Promise<ToolPreflightResponse | null> {
-  if (payload.name !== "execute_command" && payload.name !== "run_in_terminal") {
+  if (!PREFLIGHT_RISK_TOOLS.has(payload.name)) {
     return Promise.resolve(null);
   }
 

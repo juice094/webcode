@@ -1,7 +1,8 @@
 import type { LocalTool } from './types';
-import { textResult } from './result';
+import { errorResult, textResult } from './result';
 import { atomicWriteFile } from './filesystemUtils';
 import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 
 export const writeFileTool: LocalTool = {
     serverId: 'internal',
@@ -23,7 +24,11 @@ export const writeFileTool: LocalTool = {
         },
         annotations: { readOnlyHint: false, idempotentHint: true, destructiveHint: true }
     },
+    assessRisk: (args) => Promise.resolve(assessSensitiveFileRisk('write_file', args)),
     async execute(args, context) {
+        const risk = assessSensitiveFileRisk('write_file', args);
+        if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
+
         const filePath = (await resolveWorkspaceRelativePath(context.workspaceRoot, args.path, {
             forWrite: true,
             createParentDirectories: true

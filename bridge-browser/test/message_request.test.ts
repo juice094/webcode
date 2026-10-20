@@ -45,9 +45,18 @@ const validMessages = {
     tabId: 42,
     autoApproveTools: true,
   },
+  SET_APPROVAL_MODE: {
+    type: "SET_APPROVAL_MODE",
+    tabId: 42,
+    approvalMode: "ask-when-needed",
+  },
   SET_DEFAULT_AUTO_APPROVE_TOOLS: {
     type: "SET_DEFAULT_AUTO_APPROVE_TOOLS",
     defaultAutoApproveTools: true,
+  },
+  SET_DEFAULT_APPROVAL_MODE: {
+    type: "SET_DEFAULT_APPROVAL_MODE",
+    defaultApprovalMode: "never-ask",
   },
   MANUAL_INIT: { type: "MANUAL_INIT" },
   TOGGLE_LOG: { type: "TOGGLE_LOG", show: true },
@@ -66,9 +75,18 @@ const validMessages = {
     tabId: 42,
     autoApproveTools: true,
   },
+  APPROVAL_MODE_CHANGED: {
+    type: "APPROVAL_MODE_CHANGED",
+    tabId: 42,
+    approvalMode: "always-ask",
+  },
   DEFAULT_AUTO_APPROVE_TOOLS_CHANGED: {
     type: "DEFAULT_AUTO_APPROVE_TOOLS_CHANGED",
     defaultAutoApproveTools: true,
+  },
+  DEFAULT_APPROVAL_MODE_CHANGED: {
+    type: "DEFAULT_APPROVAL_MODE_CHANGED",
+    defaultApprovalMode: "always-ask",
   },
 } satisfies MessageByType;
 
@@ -85,7 +103,9 @@ const backgroundMessageTypes = new Set<MessageRequest["type"]>([
   "SET_LOG_VISIBLE",
   "SET_AUTO_SEND",
   "SET_AUTO_APPROVE_TOOLS",
+  "SET_APPROVAL_MODE",
   "SET_DEFAULT_AUTO_APPROVE_TOOLS",
+  "SET_DEFAULT_APPROVAL_MODE",
 ]);
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -112,6 +132,8 @@ function main(): void {
     { type: "APPROVE_TOOL" },
     { type: "SHOW_NOTIFICATION", onlyWhenWindowInBackground: "yes" },
     { type: "SET_AUTO_SEND", tabId: 42 },
+    { type: "SET_APPROVAL_MODE", tabId: 42, approvalMode: "sometimes" },
+    { type: "SET_DEFAULT_APPROVAL_MODE", defaultApprovalMode: true },
     { type: "STATUS_UPDATE", connected: "yes" },
     { type: "LOG_VISIBLE_CHANGED", tabId: 42, show: "yes" },
   ];

@@ -122,6 +122,7 @@ export interface Session {
   showLog: boolean;
   autoSend: boolean;
   autoApproveTools: boolean;
+  approvalMode?: string;
   workspaceId: string;
   lastGatewayActivityAt?: number;
   gatewayIdleTimeoutMs?: number;

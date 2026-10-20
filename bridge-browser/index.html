@@ -271,6 +271,23 @@
         flex: none;
         cursor: pointer;
       }
+      select.mode-select {
+        flex: none;
+        cursor: pointer;
+        background: #3c3c3c;
+        color: #eee;
+        border: 1px solid #555;
+        border-radius: 4px;
+        padding: 3px 6px;
+        font-size: 12px;
+        max-width: 150px;
+      }
+      .mode-hint {
+        margin: 4px 0 0;
+        color: #969696;
+        font-size: 10px;
+        line-height: 1.35;
+      }
     </style>
   </head>
   <body>
@@ -301,9 +318,14 @@
             <input type="checkbox" id="autoSend" checked />
           </label>
           <label class="checkbox-row">
-            <span id="autoApproveToolsLabel">Auto-Approve All Tools</span>
-            <input type="checkbox" id="autoApproveTools" />
+            <span id="autoApproveToolsLabel">Tool Approval</span>
+            <select id="approvalMode" class="mode-select">
+              <option value="always-ask">Always Ask</option>
+              <option value="ask-when-needed">Ask When Needed</option>
+              <option value="never-ask">Never Ask</option>
+            </select>
           </label>
+          <p id="approvalModeHint" class="mode-hint"></p>
           <label class="checkbox-row session-setting-last">
             <span id="showLogLabel">Show Floating Log</span>
             <input type="checkbox" id="showLog" />
@@ -323,8 +345,12 @@
               Applies only to new sessions. The current session setting stays unchanged.
             </p>
             <label class="checkbox-row preset-row">
-              <span id="defaultAutoApproveToolsLabel">Auto-Approve All Tools</span>
-              <input type="checkbox" id="defaultAutoApproveTools" />
+              <span id="defaultAutoApproveToolsLabel">Tool Approval</span>
+              <select id="defaultApprovalMode" class="mode-select">
+                <option value="always-ask">Always Ask</option>
+                <option value="ask-when-needed">Ask When Needed</option>
+                <option value="never-ask">Never Ask</option>
+              </select>
             </label>
           </div>
         </div>

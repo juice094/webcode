@@ -101,7 +101,8 @@ export async function bindSession(tabId: number, options: BindSessionOptions) {
     token: options.token,
     showLog: false,
     autoSend: true,
-    autoApproveTools: presetSettings.defaultAutoApproveTools,
+    autoApproveTools: presetSettings.defaultApprovalMode === "never-ask",
+    approvalMode: presetSettings.defaultApprovalMode,
     workspaceId: options.workspaceId,
     lastGatewayActivityAt,
     gatewayIdleTimeoutMs: options.idleTimeoutMs,
@@ -121,6 +122,7 @@ export async function bindSession(tabId: number, options: BindSessionOptions) {
     siteId: options.siteId,
     autoSend: session.autoSend,
     autoApproveTools: session.autoApproveTools,
+    approvalMode: session.approvalMode,
   }).catch(ignoreRuntimeError);
   // 不再 await，避免网关初始化请求阻塞握手响应
   void fetchInitDataFromGateway(options.port, options.token);
