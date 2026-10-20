@@ -45,6 +45,7 @@ import type {
 } from './gateway/types';
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
 import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/commandApproval';
+import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pairingRoutes';
 
 /**
  * The browser bridge content scripts only match the loopback port window
@@ -98,6 +99,9 @@ export class GatewayManager {
     private readonly commandApprovalManager = new CommandApprovalManager();
     private readonly bridgeSessionManager = new BridgeSessionManager();
     private readonly traceSink: GatewayRuntimeTraceSink | undefined;
+    private onBridgeSessionActivated: (() => void) | null = null;
+    private onSessionRequestConfirmation: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null = null;
+    private currentPort: number | null = null;
 
     constructor(
         outputChannel: vscode.OutputChannel,
@@ -113,6 +117,26 @@ export class GatewayManager {
         this.traceSink = traceSink;
         this.skillManager = new SkillManager(outputChannel, extensionPath, () => vscode.workspace.workspaceFolders);
         this.terminalSessionManager = new TerminalSessionManager(outputChannel);
+    }
+
+    /** Extension hook: a browser tab redeemed a launch code and is now live. */
+    setBridgeSessionActivatedHandler(handler: (() => void) | null): void {
+        this.onBridgeSessionActivated = handler;
+    }
+
+    /** True while a browser tab holds a session token (the token is the truth). */
+    hasActiveBridgeSession(): boolean {
+        return this.bridgeSessionManager.hasActiveSession();
+    }
+
+    /**
+     * Extension hook: asks the user to approve a pairing request. With no handler
+     * registered the pairing route declines, so an unwired gateway cannot pair.
+     */
+    setSessionRequestConfirmationHandler(
+        handler: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null
+    ): void {
+        this.onSessionRequestConfirmation = handler;
     }
 
     private _generateGroupedTools() {
@@ -250,7 +274,24 @@ export class GatewayManager {
             getBridgeRequestMs: () => this.bridgeRequestMs,
             getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
-            recordActivity: () => this.resetWatchdog()
+            recordActivity: () => this.resetWatchdog(),
+            onSessionActivated: () => this.onBridgeSessionActivated?.()
+        });
+        // Discovery and pairing are the only unauthenticated surface: a browser
+        // without a session cannot present a token yet. Their own guard rails
+        // (origin allowlist, JSON-only, rate window, modal approval) live in
+        // pairingRoutes.ts.
+        registerPairingRoutes(this.app, {
+            getAiSites: () => this.currentAiSites,
+            getBridgeCodeTtlMs: () => this.bridgeSessionManager.getBridgeCodeTtlMs(),
+            getPort: () => this.currentPort,
+            getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+            hasActiveSession: () => this.bridgeSessionManager.hasActiveSession(),
+            issueBridgeCode: (siteId, targetUrl) => this.issueBridgeCode(siteId, targetUrl),
+            requestUserConfirmation: prompt => this.onSessionRequestConfirmation
+                ? this.onSessionRequestConfirmation(prompt)
+                : Promise.resolve(false),
+            log: this.log.bind(this)
         });
         this.app.use(createAuthMiddleware(
             token => this.bridgeSessionManager.isSessionTokenValid(token),
@@ -342,6 +383,7 @@ export class GatewayManager {
 
                 if (!this.app) {return;}
                 this.server = this.app.listen(currentPort, '127.0.0.1', () => {
+                    this.currentPort = currentPort;
                     this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
                     if (currentPort < BRIDGE_PORT_RANGE_START || currentPort > BRIDGE_PORT_RANGE_END) {
                         this.log(`⚠️ Port ${currentPort} is outside the browser bridge supported range ${BRIDGE_PORT_RANGE_START}-${BRIDGE_PORT_RANGE_END}. The browser extension will not inject on this port; check the webcodeGateway.port setting.`);
@@ -388,6 +430,7 @@ export class GatewayManager {
         if (this.server) {
             this.server.close();
             this.server = null;
+            this.currentPort = null;
             this.log('🛑 Gateway server stopped.');
             this.trace({ event: 'gateway_stopped', status: 'success' });
         }

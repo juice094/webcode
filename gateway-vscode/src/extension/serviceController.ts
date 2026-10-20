@@ -30,6 +30,7 @@ export interface GatewayServiceController {
     restart(): Promise<void>;
     issueBridgeCode(siteId: string, targetUrl: string): string;
     markAutoStopped(idleTimeoutMs: number): void;
+    markBridgeConnected(): void;
     markOffline(): void;
     getState(): GatewayServiceSnapshot;
 }
@@ -47,13 +48,17 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
     let isStarting = false;
     let isRunning = false;
     const getState = () => ({ currentPort, isStarting, isRunning });
+    // The bridge session token is the single source of truth for whether a tab
+    // is connected; hot restarts keep it, cold restarts and stop revoke it.
+    const updateStatus = () =>
+        updateGatewayStatusBar(options.statusBarItem, isRunning, currentPort ?? undefined, false, options.manager.hasActiveBridgeSession());
     const issueBridgeCode = createBridgeCodeIssuer(options.manager, getState);
 
     const resetToOffline = () => {
         isStarting = false;
         isRunning = false;
         currentPort = null;
-        updateGatewayStatusBar(options.statusBarItem, false);
+        updateStatus();
     };
 
     const start = async (startOptions?: GatewayLifecycleOptions) => {
@@ -94,7 +99,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
 
             isStarting = false;
             isRunning = true;
-            updateGatewayStatusBar(options.statusBarItem, true, currentPort);
+            updateStatus();
             options.persistentLogger.info(`Gateway started on port ${currentPort}.`);
         } catch (error: unknown) {
             void vscode.window.showErrorMessage(t('start_failed', { message: getErrorMessage(error) }));
@@ -103,11 +108,9 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
         }
     };
 
-    const markOffline = () => {
-        isRunning = false;
-        currentPort = null;
-        updateGatewayStatusBar(options.statusBarItem, false);
-    };
+    const markOffline = () => resetToOffline();
+
+    const markBridgeConnected = () => updateStatus();
 
     const stop = async () => {
         await options.manager.stop();
@@ -138,6 +141,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
         restart,
         issueBridgeCode,
         markAutoStopped,
+        markBridgeConnected,
         markOffline,
         getState
     };

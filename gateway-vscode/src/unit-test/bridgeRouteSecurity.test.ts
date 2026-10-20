@@ -187,6 +187,37 @@ suite('Bridge route security', () => {
         }
     });
 
+    test('reports a live browser session only after a successful redemption', async () => {
+        const sessions = new BridgeSessionManager();
+        let activated = 0;
+        const server = await startBridgeServer(sessions, () => undefined, 0, () => {
+            activated += 1;
+        });
+
+        try {
+            const bridgeCode = sessions.issueBridgeCode({
+                siteId: TEST_SITE.id,
+                targetUrl: TEST_SITE.address
+            });
+
+            const rejected = await redeemBridgeCode(server.baseUrl, bridgeCode, '1.0.1', BRIDGE_PROTOCOL_VERSION, null);
+            assert.strictEqual(rejected.status, 403);
+            assert.strictEqual(activated, 0, 'a rejected redemption must not report a connection');
+
+            const accepted = await redeemBridgeCode(
+                server.baseUrl,
+                bridgeCode,
+                '1.0.1',
+                BRIDGE_PROTOCOL_VERSION,
+                CHROME_WEB_STORE_BRIDGE_ORIGIN
+            );
+            assert.strictEqual(accepted.status, 200);
+            assert.strictEqual(activated, 1);
+        } finally {
+            await closeServer(server.httpServer);
+        }
+    });
+
     test('sends the browser request deadline when one is configured', async () => {
         const sessions = new BridgeSessionManager();
         const server = await startBridgeServer(sessions, () => undefined, BROWSER_REQUEST_DEADLINE_MS);
@@ -219,7 +250,8 @@ suite('Bridge route security', () => {
 async function startBridgeServer(
     sessions: BridgeSessionManager,
     recordActivity: () => void,
-    bridgeRequestMs: number = 0
+    bridgeRequestMs: number = 0,
+    onSessionActivated?: () => void
 ): Promise<{ baseUrl: string; httpServer: HttpServer }> {
     const app = express();
     app.use(express.json());
@@ -233,7 +265,8 @@ async function startBridgeServer(
         getBridgeRequestMs: () => bridgeRequestMs,
         getWorkspaceRoot: () => null,
         log: () => undefined,
-        recordActivity
+        recordActivity,
+        onSessionActivated
     });
 
     const httpServer = await new Promise<HttpServer>((resolve) => {

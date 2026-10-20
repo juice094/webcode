@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 
+import { shouldAutoStart } from './extension/autoStart';
 import { registerGatewayConfigurationWatcher } from './extension/configurationWatcher';
 import { buildBridgeUrl } from './extension/bridgeUrl';
 import { createBrowserExtensionManager } from './extension/browserExtensionManager';
@@ -12,6 +13,8 @@ import {
     type GatewayServiceController
 } from './extension/serviceController';
 import { createSkillWatcherController } from './extension/skillWatchers';
+import { registerGatewayConnectDeepLink } from './extension/uriHandler';
+import type { SessionRequestPrompt } from './gateway/pairingRoutes';
 import { updateGatewayStatusBar } from './extension/statusBar';
 import { GatewayManager } from './gateway';
 import { createGatewayRuntimeTraceSinkFromEnvironment } from './gateway/runtimeTrace';
@@ -25,6 +28,49 @@ import {
 
 interface RuntimeHolder {
     serviceController?: GatewayServiceController;
+}
+
+/**
+ * 激活期行为：初始化状态栏、挂接“浏览器已连接”钩子、按需自动启动。
+ * 单独抽出，让 activate() 保持为一份可读的装配清单。
+ */
+function applyActivationBehavior(options: {
+    manager: GatewayManager;
+    serviceController: GatewayServiceController;
+    statusBarItem: vscode.StatusBarItem;
+}): void {
+    updateGatewayStatusBar(options.statusBarItem, false, undefined, false);
+    // 浏览器标签页兑换连接码后刷新状态栏；token 被撤销时状态栏自动回落到未连接。
+    options.manager.setBridgeSessionActivatedHandler(() => options.serviceController.markBridgeConnected());
+
+    // 配对请求必须由用户在这里当面确认；未注册处理器时网关默认拒绝。
+    options.manager.setSessionRequestConfirmationHandler(confirmSessionRequest);
+
+    // 自动启动是显式开关（webcodeGateway.autoStart，默认 false）：默认不在激活时
+    // 占用端口；开启后也只启动网关，不会自动打开浏览器，且无工作区时不启动。
+    const autoStart = vscode.workspace.getConfiguration('webcodeGateway').get<boolean>('autoStart');
+    if (shouldAutoStart(autoStart, (vscode.workspace.workspaceFolders?.length ?? 0) > 0)) {
+        void options.serviceController.start();
+    }
+}
+
+/**
+ * 配对确认弹窗。文案带上请求来源 origin 与工作区名，让用户能判断是谁在请求；
+ * 关闭弹窗（Esc / 点叉）返回 undefined，按拒绝处理。
+ */
+async function confirmSessionRequest(request: SessionRequestPrompt): Promise<boolean> {
+    const allow = t('session_request_allow');
+    const choice = await vscode.window.showInformationMessage(
+        t('session_request_prompt', {
+            origin: request.requestOrigin,
+            site: request.siteName,
+            workspace: request.workspaceName
+        }),
+        { modal: true },
+        allow,
+        t('session_request_deny')
+    );
+    return choice === allow;
 }
 
 // 异常兜底：扩展宿主进程由多个扩展共享，这里只负责把现场落盘，不改变默认行为。
@@ -150,6 +196,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
         browserExtensionManager
     });
 
+    // vscode:// 深链入口。它只打开上面的连接菜单，不启动服务、不发连接码；
+    // 威胁模型与白名单规则见 extension/uriHandler.ts。
+    registerGatewayConnectDeepLink(context, message => outputChannel.appendLine(message));
+
     // 注册 webcodeGateway 配置监听。端口、MCP server、技能目录变化时，
     // 如果服务正在运行就走 serviceController 重启；技能目录变化还会刷新 watcher
     // 并失效技能缓存，保证后续工具列表能反映最新配置。
@@ -161,11 +211,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
         skillWatcherController
     });
 
-    // 激活完成后只把状态栏初始化为离线状态，不自动启动本地网关。
-    // 这样 VS Code 启动扩展时不会立刻占用端口或拉起 MCP server；
-    // 用户点击状态栏选择启动后，才由 serviceController.start() 真正启动服务。
-    updateGatewayStatusBar(statusBarItem, false, undefined, false);
-    // Do not auto-start
+    applyActivationBehavior({ manager, serviceController, statusBarItem });
 
     const api: GatewayExtensionApi = {
         getGatewayState() {

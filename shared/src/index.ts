@@ -31,6 +31,7 @@ export const BRANDING = {
   slashCommand: `/${brandConfig.slug}`,
   mentionCommand: `@${brandConfig.slug}`,
   repositoryUrl: brandConfig.repositoryUrl,
+  vscodeConnectUri: brandConfig.vscodeConnectUri,
 } as const;
 
 const headerToken = toHeaderToken(brandConfig.productName);

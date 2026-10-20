@@ -1,5 +1,6 @@
 {
   "productName": "webcode",
   "slug": "webcode",
-  "repositoryUrl": "https://github.com/three-water666/webcode"
+  "repositoryUrl": "https://github.com/three-water666/webcode",
+  "vscodeConnectUri": "vscode://three-water666.gateway-vscode/connect"
 }

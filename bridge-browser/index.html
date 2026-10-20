@@ -193,6 +193,44 @@
       .btn.secondary:hover {
         background: #555;
       }
+      .discovered-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .discovered-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .discovered-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        background: #2d2d2d;
+        border: 1px solid #3a3a3a;
+        border-radius: 4px;
+      }
+      .discovered-name {
+        min-width: 0;
+        font-size: 12px;
+        color: #eee;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .discovered-meta {
+        font-size: 10px;
+        color: #9a9a9a;
+      }
+      .discovered-connect {
+        flex: none;
+        width: auto;
+        padding: 4px 10px;
+        font-size: 11px;
+      }
 
       .hidden {
         display: none;
@@ -373,6 +411,18 @@
           <p id="disconnectedTitle" class="connection-label disconnected">
             🔴 Disconnected from VS Code
           </p>
+        </div>
+
+        <div id="openInVsCodeCard" class="card">
+          <a id="openInVsCodeLink" class="btn"></a>
+        </div>
+
+        <div id="discoveredCard" class="card discovered-card">
+          <p class="section-title"><span id="discoveredTitle">Workspaces</span></p>
+          <p id="discoveredHint" class="preset-hint">Pick a running VS Code workspace.</p>
+          <div id="discoveredList" class="discovered-list"></div>
+          <button id="rescanGatewaysBtn" class="btn secondary" type="button">Rescan</button>
+          <p id="discoveredStatus" class="preset-hint" role="status"></p>
         </div>
 
         <p id="suspendedHint" class="card suspended-hint hidden">

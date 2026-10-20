@@ -95,6 +95,16 @@ export class BridgeSessionManager {
         return Boolean(token && this.activeSessionToken && token === this.activeSessionToken);
     }
 
+    /** True while a browser tab holds a session token for this lifecycle. */
+    hasActiveSession(): boolean {
+        return this.activeSessionToken !== null;
+    }
+
+    /** TTL applied to codes issued from now on. */
+    getBridgeCodeTtlMs(): number {
+        return this.bridgeCodeTtlMs;
+    }
+
     clear(): void {
         this.pendingCodes.clear();
         this.activeSessionToken = null;

@@ -7,15 +7,17 @@ export function updateGatewayStatusBar(
     statusBarItem: vscode.StatusBarItem,
     online: boolean,
     port?: number,
-    isLoading: boolean = false
+    isLoading: boolean = false,
+    bridgeConnected: boolean = false
 ): void {
     if (isLoading) {
         statusBarItem.text = t('status_starting');
         statusBarItem.tooltip = t('status_starting_tooltip');
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     } else if (online && port) {
-        statusBarItem.text = `$(rocket) ${BRANDING.productName}: ${port}`;
-        statusBarItem.tooltip = t('status_online_tooltip');
+        const suffix = bridgeConnected ? ` · ${t('status_connected')}` : '';
+        statusBarItem.text = `$(rocket) ${BRANDING.productName}: ${port}${suffix}`;
+        statusBarItem.tooltip = t(bridgeConnected ? 'status_connected_tooltip' : 'status_online_tooltip');
         statusBarItem.backgroundColor = undefined;
     } else {
         // Default OFF state

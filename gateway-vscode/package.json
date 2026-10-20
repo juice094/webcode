@@ -17,7 +17,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -34,6 +35,10 @@
       {
         "command": "gateway-vscode.restart",
         "title": "MCP: Restart Gateway Server"
+      },
+      {
+        "command": "webcode-gateway.connect",
+        "title": "webcode: Connect"
       },
       {
         "command": "webcode-gateway.copyContext",
@@ -181,7 +186,7 @@
           "default": 30,
           "minimum": 5,
           "maximum": 240,
-          "description": "Minutes without authenticated gateway activity before automatic shutdown. Health checks, rejected requests, and invalid bridge codes do not extend the timeout."
+          "description": "Minutes without authenticated gateway activity before automatic shutdown. Authenticated health checks from a connected browser tab count as activity; anonymous requests, rejected requests, and invalid bridge codes do not extend the timeout."
         },
         "webcodeGateway.timeouts": {
           "type": "object",
@@ -234,6 +239,11 @@
               "markdownDescription": "Deadline in milliseconds for browser-to-gateway tool requests issued by the bridge extension. `0` disables the deadline."
             }
           }
+        },
+        "webcodeGateway.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the gateway automatically after VS Code activates the extension. Off by default, which keeps activation free of side effects. Auto-start never opens a browser; it only brings the gateway and its MCP servers up. Skipped when no workspace folder is open."
         },
         "webcodeGateway.browser": {
           "type": "string",

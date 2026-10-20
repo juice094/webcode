@@ -13,6 +13,7 @@ import {
 import type { GatewayServiceController } from './serviceController';
 import type { AISiteConfig, CustomActionItem, ResolvedAiSiteConfig } from './types';
 import type { BrowserExtensionManager } from './browserExtensionManager';
+import { GATEWAY_CONNECT_COMMAND, GATEWAY_RESTART_COMMAND } from './commandIds';
 
 interface RegisterGatewayConnectCommandOptions {
     context: vscode.ExtensionContext;
@@ -34,8 +35,7 @@ const OPEN_PROFILE_FOLDER_BUTTON: vscode.QuickInputButton = {
     tooltip: t('isolated_profiles_open_folder_button')
 };
 
-export const GATEWAY_CONNECT_COMMAND = 'webcode-gateway.connect';
-export const GATEWAY_RESTART_COMMAND = 'gateway-vscode.restart';
+export { GATEWAY_CONNECT_COMMAND, GATEWAY_RESTART_COMMAND } from './commandIds';
 
 export function registerGatewayConnectCommand(options: RegisterGatewayConnectCommandOptions): void {
     options.context.subscriptions.push(

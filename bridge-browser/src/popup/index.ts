@@ -1,11 +1,16 @@
+import { BRANDING } from '@webcode/shared';
+
 import { isMessageRequest, isStatusResponse, isSuccessResponse, type MessageRequest } from '../types';
 import { createPopupTranslator, renderInstalledDescription, type PopupTranslator } from './i18n';
+import { createWorkspaceSection, type WorkspaceSection } from './workspaces';
 
 type PopupElements = {
   loadingView: HTMLElement;
   connectedView: HTMLElement;
   disconnectedView: HTMLElement;
   disconnectedStatusCard: HTMLElement;
+  openInVsCodeCard: HTMLElement;
+  openInVsCodeLink: HTMLAnchorElement;
   installCard: HTMLElement;
   suspendedHint: HTMLElement;
   expiredCard: HTMLElement;
@@ -42,6 +47,8 @@ type PopupContext = {
   elements: PopupElements;
   t: PopupTranslator;
 };
+
+const workspaceSection: WorkspaceSection = createWorkspaceSection(createPopupTranslator());
 
 type ManualInitStatusState = {
   resetTimer: ReturnType<typeof setTimeout> | null;
@@ -82,6 +89,8 @@ function getPopupElements(): PopupElements {
     connectedView: document.getElementById("connectedView") as HTMLElement,
     disconnectedView: document.getElementById("disconnectedView") as HTMLElement,
     disconnectedStatusCard: document.getElementById("disconnectedStatusCard") as HTMLElement,
+    openInVsCodeCard: document.getElementById("openInVsCodeCard") as HTMLElement,
+    openInVsCodeLink: document.getElementById("openInVsCodeLink") as HTMLAnchorElement,
     installCard: document.getElementById("installCard") as HTMLElement,
     suspendedHint: document.getElementById("suspendedHint") as HTMLElement,
     expiredCard: document.getElementById("expiredCard") as HTMLElement,
@@ -134,6 +143,11 @@ function initializeLabels(context: PopupContext): void {
   elements.defaultAutoApproveToolsLabel.textContent = t("approval_mode_label");
   elements.checkingTitle.textContent = t("checking_connection");
   elements.disconnectedTitle.textContent = t("disconnected");
+  // A plain anchor keeps the deep link a user-gesture navigation; creating a tab
+  // for a custom scheme from the extension page is blocked by Chrome.
+  elements.openInVsCodeLink.textContent = t("open_in_vscode");
+  elements.openInVsCodeLink.title = t("open_in_vscode_title");
+  elements.openInVsCodeLink.href = BRANDING.vscodeConnectUri;
   elements.suspendedHint.textContent = t("suspended_hint");
   elements.expiredActionTitle.textContent = t("expired_action_title");
   elements.expiredActionDesc.textContent = t("expired_action_desc");
@@ -231,6 +245,7 @@ function showConnectedStatus(
 
 function showSuspendedStatus(context: PopupContext): void {
   const { elements, t } = context;
+  workspaceSection.hide();
   elements.loadingView.classList.add("hidden");
   elements.connectedView.classList.add("hidden");
   elements.disconnectedView.classList.remove("hidden");
@@ -242,12 +257,14 @@ function showSuspendedStatus(context: PopupContext): void {
   elements.disconnectedTitle.classList.add("suspended");
   elements.disconnectedTitle.textContent = t("suspended");
   elements.suspendedHint.classList.remove("hidden");
+  elements.openInVsCodeCard.classList.add("hidden");
   elements.expiredCard.classList.add("hidden");
   elements.installCard.classList.add("hidden");
 }
 
 function showExpiredStatus(context: PopupContext): void {
   const { elements, t } = context;
+  workspaceSection.show();
   elements.loadingView.classList.add("hidden");
   elements.connectedView.classList.add("hidden");
   elements.disconnectedView.classList.remove("hidden");
@@ -259,12 +276,14 @@ function showExpiredStatus(context: PopupContext): void {
   elements.disconnectedTitle.classList.add("expired");
   elements.disconnectedTitle.textContent = t("connection_expired");
   elements.suspendedHint.classList.add("hidden");
+  elements.openInVsCodeCard.classList.remove("hidden");
   elements.expiredCard.classList.remove("hidden");
   elements.installCard.classList.add("hidden");
 }
 
 function showDisconnectedStatus(context: PopupContext): void {
   const { elements, t } = context;
+  workspaceSection.show();
   elements.loadingView.classList.add("hidden");
   elements.connectedView.classList.add("hidden");
   elements.statusDot.classList.remove("online", "suspended", "expired");
@@ -274,6 +293,7 @@ function showDisconnectedStatus(context: PopupContext): void {
   elements.disconnectedTitle.classList.add("disconnected");
   elements.disconnectedTitle.textContent = t("disconnected");
   elements.suspendedHint.classList.add("hidden");
+  elements.openInVsCodeCard.classList.remove("hidden");
   elements.expiredCard.classList.add("hidden");
   elements.installCard.classList.remove("hidden");
   elements.disconnectedView.classList.remove("hidden");

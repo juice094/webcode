@@ -69,8 +69,20 @@ export function createRequestLoggerMiddleware(
     };
 }
 
+/**
+ * Routes that prove the browser bridge is still in use. `/v1/status` is the
+ * bridge health probe, so an active connection keeps resetting the idle
+ * watchdog instead of letting the gateway shut down under a working tab.
+ *
+ * This middleware is mounted AFTER `createAuthMiddleware`, so only requests that
+ * presented a valid session token reach it. An anonymous `/v1/status` (for
+ * example a local process polling the port) is rejected with 403 before the
+ * watchdog is touched, which keeps the exemption from becoming a way for any
+ * local process to keep the gateway alive.
+ */
 const GATEWAY_ACTIVITY_ROUTES = new Set([
     'GET /v1/init',
+    'GET /v1/status',
     'GET /v1/config',
     'POST /v1/config',
     'POST /v1/tools/preflight',

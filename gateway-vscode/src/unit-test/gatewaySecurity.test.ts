@@ -35,7 +35,10 @@ suite('Gateway security helpers', () => {
     test('counts only known authenticated API routes as gateway activity', () => {
         assert.strictEqual(isGatewayActivityRequest('POST', '/v1/tools/call'), true);
         assert.strictEqual(isGatewayActivityRequest('GET', '/v1/init'), true);
-        assert.strictEqual(isGatewayActivityRequest('GET', '/v1/status'), false);
+        // The bridge health probe counts as activity, so a connected tab keeps the
+        // gateway alive. Only authenticated probes count: the activity middleware
+        // runs after the auth middleware (see gatewayActivity.test.ts).
+        assert.strictEqual(isGatewayActivityRequest('GET', '/v1/status'), true);
         assert.strictEqual(isGatewayActivityRequest('OPTIONS', '/v1/tools/call'), false);
         assert.strictEqual(isGatewayActivityRequest('GET', '/unknown'), false);
     });

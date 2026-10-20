@@ -1,6 +1,8 @@
 import { BRANDING, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { type HandshakeMessageRequest, type HandshakeResponse, isStoredSession } from '../types';
+import type { PairingErrorCode } from '../pairing_protocol';
+import { describePairingError, readPairingErrorCode } from './pairing_errors';
 import { updateBadge } from './badge';
 import {
   getBridgeRedemptionError,
@@ -224,4 +226,97 @@ function isConflictingSession(key: string, value: unknown, port: number, tabId: 
     isStoredSession(value) &&
     value.port === port &&
     key !== `session_${tabId}`;
+}
+
+export type RequestConnectionParams = {
+  tabId: number;
+  port: number;
+  requestOrigin: string;
+  siteId?: string;
+};
+
+export type RequestConnectionResult =
+  | { success: true; targetUrl: string }
+  | { success: false; error: string; code: PairingErrorCode };
+
+/**
+ * Pairing without the /bridge page: ask the gateway for a launch code, redeem it
+ * and bind this tab directly. The gateway shows a modal in VS Code, so this call
+ * deliberately has no client deadline: the user may take a while to answer.
+ */
+export async function requestBridgeConnection(
+  params: RequestConnectionParams
+): Promise<RequestConnectionResult> {
+  let response: Response;
+  try {
+    response = await fetch(`http://127.0.0.1:${params.port}/v1/session/request`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestOrigin: params.requestOrigin,
+        ...(params.siteId ? { siteId: params.siteId } : {}),
+      }),
+    });
+  } catch {
+    return { success: false, error: "Could not reach the VS Code gateway.", code: "unreachable" };
+  }
+
+  if (!response.ok) {
+    const code = await readPairingErrorCode(response);
+    return { success: false, error: describePairingError(code), code };
+  }
+
+  const payload = await readPairingPayload(response);
+  if (!payload) {
+    return { success: false, error: "The gateway returned an invalid pairing response.", code: "invalid-response" };
+  }
+
+  const redemption = await redeemBridgeCode(
+    params.port,
+    payload.bridgeCode,
+    chrome.runtime.getManifest().version,
+    BRIDGE_PROTOCOL_VERSION
+  );
+  if (!redemption.success) {
+    return { success: false, error: redemption.error, code: "invalid-response" };
+  }
+
+  const session = redemption.session;
+  if (session.bridgeProtocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+    return {
+      success: false,
+      error: "VS Code and browser bridge protocol versions do not match.",
+      code: "version-mismatch",
+    };
+  }
+
+  await bindSession(params.tabId, {
+    port: params.port,
+    token: session.token,
+    workspaceId: session.workspaceId,
+    siteId: session.siteId,
+    targetOrigin: session.targetOrigin,
+    targetUrl: session.targetUrl,
+    idleTimeoutMs: session.idleTimeoutMs,
+    bridgeRequestMs: session.bridgeRequestMs,
+  });
+
+  return { success: true, targetUrl: session.targetUrl };
+}
+
+async function readPairingPayload(response: Response): Promise<{ bridgeCode: string } | null> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null) {
+      return null;
+    }
+    const bridgeCode = (body as Record<string, unknown>).bridgeCode;
+    const targetUrl = (body as Record<string, unknown>).targetUrl;
+    return typeof bridgeCode === "string" && bridgeCode && typeof targetUrl === "string"
+      ? { bridgeCode }
+      : null;
+  } catch {
+    return null;
+  }
 }

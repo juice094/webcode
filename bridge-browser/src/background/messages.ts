@@ -1,3 +1,5 @@
+import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START } from '@webcode/shared';
+
 import {
   type BackgroundActionRuntimeMessageRequest,
   type BackgroundRuntimeMessageRequest,
@@ -13,6 +15,7 @@ import {
   type SettingsRuntimeMessageRequest,
 } from '../types';
 import { DEFAULT_APPROVAL_MODE, normalizeApprovalMode } from '../approval_mode';
+import { isPairingMessageRequest, type PairingMessageRequest, type RequestConnectResponse } from '../pairing_protocol';
 import { playAttentionSound } from './attention_sound';
 import {
   handleSetApprovalMode,
@@ -20,7 +23,8 @@ import {
   handleSetDefaultApprovalMode,
   handleSetDefaultAutoApproveTools,
 } from './approval_mode_settings';
-import { handleHandshake } from './connection';
+import { handleHandshake, requestBridgeConnection } from './connection';
+import { discoverGateways } from './discovery';
 import { getErrorMessage } from './errors';
 import { approveTool, executeTool, preflightTool } from './gateway';
 import { showNotification, updateWindowAttention } from './notifications';
@@ -40,11 +44,89 @@ export function handleRuntimeMessage(
   sender: chrome.runtime.MessageSender,
   sendResponse: SendResponse
 ): boolean {
+  // Pairing messages are checked first: they are only legal from extension pages
+  // and are not part of the content-script message union.
+  if (isPairingMessageRequest(request)) {
+    return dispatchPairingMessage(request, sender, sendResponse);
+  }
+
   if (!isMessageRequest(request) || !isBackgroundRuntimeMessageRequest(request)) {
     return false;
   }
 
   return dispatchRuntimeMessage(request, sender, sendResponse);
+}
+
+function dispatchPairingMessage(
+  request: PairingMessageRequest,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: SendResponse
+): boolean {
+  if (!isExtensionPageSender(sender)) {
+    sendResponse({ success: false, error: "Invalid sender", code: "invalid-sender" });
+    return true;
+  }
+
+  if (request.type === "DISCOVER_GATEWAYS") {
+    respondAsync(discoverGateways().then(gateways => ({ success: true, gateways })), sendResponse);
+    return true;
+  }
+
+  respondAsync(handleRequestConnect(request, sender), sendResponse);
+  return true;
+}
+
+/**
+ * Popup or service worker only: our own extension id and no tab attached. A
+ * content script always carries `sender.tab`, so no web page can reach pairing.
+ * The /bridge handshake rule above stays untouched and is not relaxed by this.
+ */
+function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && !sender.tab;
+}
+
+async function handleRequestConnect(
+  request: Extract<PairingMessageRequest, { type: "REQUEST_CONNECT" }>,
+  sender: chrome.runtime.MessageSender
+): Promise<RequestConnectResponse> {
+  const tabId = request.tabId ?? sender.tab?.id;
+  if (!tabId) {
+    return { success: false, error: "No Tab ID", code: "no-tab" };
+  }
+  if (request.port < BRIDGE_PORT_RANGE_START || request.port > BRIDGE_PORT_RANGE_END) {
+    return { success: false, error: "Unsupported gateway port.", code: "invalid-port" };
+  }
+
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const requestOrigin = readTabOrigin(tab?.url);
+  if (!requestOrigin) {
+    return { success: false, error: "The active tab has no usable URL.", code: "invalid-request" };
+  }
+
+  const result = await requestBridgeConnection({
+    tabId,
+    port: request.port,
+    requestOrigin,
+    siteId: request.siteId,
+  });
+  if (!result.success) {
+    return { success: false, error: result.error, code: result.code };
+  }
+
+  await chrome.tabs.update(tabId, { url: result.targetUrl });
+  return { success: true, targetUrl: result.targetUrl };
+}
+
+function readTabOrigin(url: string | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 function dispatchRuntimeMessage(

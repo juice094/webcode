@@ -12,8 +12,12 @@ import { renderBridgePage, renderInvalidBridgePage } from './bridgePage';
 import type { PendingBridgeLaunch } from './bridgeSession';
 import type { GatewayLogger } from './types';
 
-const BRIDGE_EXTENSION_ID = 'kghhldphcmpiimophipabdhldfipgiio';
-const BRIDGE_EXTENSION_ORIGIN = `chrome-extension://${BRIDGE_EXTENSION_ID}`;
+export const BRIDGE_EXTENSION_ID = 'kghhldphcmpiimophipabdhldfipgiio';
+/**
+ * The only extension origin allowed to redeem launch codes. Shared with the
+ * pairing route, which accepts the same origin as a pairing caller.
+ */
+export const BRIDGE_EXTENSION_ORIGIN = `chrome-extension://${BRIDGE_EXTENSION_ID}`;
 
 type BridgeRouteOptions = {
     activateSession: () => string;
@@ -30,9 +34,11 @@ type BridgeRouteOptions = {
     getWorkspaceRoot: () => string | null;
     log: GatewayLogger;
     recordActivity: () => void;
+    /** Fired only after a launch code was successfully redeemed. */
+    onSessionActivated?: () => void;
 };
 
-function createWorkspaceId(workspaceRoot: string | null): string {
+export function createWorkspaceId(workspaceRoot: string | null): string {
     if (!workspaceRoot) {
         return 'global';
     }
@@ -119,6 +125,7 @@ export function registerBridgeRoute(app: express.Express, options: BridgeRouteOp
         const token = options.activateSession();
         const workspaceId = createWorkspaceId(options.getWorkspaceRoot());
         options.recordActivity();
+        options.onSessionActivated?.();
         options.log(`🔐 Bridge code redeemed for ${resolvedLaunch.site.id} in workspace [${workspaceId}].`);
 
         res.json(createRedemptionPayload(options, resolvedLaunch, token, workspaceId));
