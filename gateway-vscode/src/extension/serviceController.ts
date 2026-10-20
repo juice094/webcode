@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { getConfiguredAiSites } from '../platforms';
 import { filterCustomServers, type BuiltinServerConfig } from './customServers';
 import { getErrorMessage } from './errorUtils';
+import type { PersistentLogger } from './persistentLog';
 import { updateGatewayStatusBar } from './statusBar';
 import type { AISiteConfig, ResolvedAiSiteConfig } from './types';
 import { resolveCommandAllowedRoots } from './commandAllowedRoots';
@@ -31,6 +32,7 @@ interface CreateGatewayServiceControllerOptions {
     context: vscode.ExtensionContext;
     outputChannel: vscode.OutputChannel;
     statusBarItem: vscode.StatusBarItem;
+    persistentLogger: PersistentLogger;
 }
 
 export function createGatewayServiceController(options: CreateGatewayServiceControllerOptions): GatewayServiceController {
@@ -40,15 +42,19 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
     const getState = () => ({ currentPort, isStarting, isRunning });
     const issueBridgeCode = createBridgeCodeIssuer(options.manager, getState);
 
+    const resetToOffline = () => {
+        isStarting = false;
+        isRunning = false;
+        currentPort = null;
+        updateGatewayStatusBar(options.statusBarItem, false);
+    };
+
     const start = async () => {
         if (!hasWorkspaceFolder()) {
             if (isRunning || isStarting) {
                 await options.manager.stop();
             }
-            currentPort = null;
-            isStarting = false;
-            isRunning = false;
-            updateGatewayStatusBar(options.statusBarItem, false);
+            resetToOffline();
             void vscode.window.showErrorMessage(t('start_requires_workspace'));
             return;
         }
@@ -59,45 +65,33 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
 
         const config = vscode.workspace.getConfiguration('webcodeGateway');
         const portConfig = config.get<number>('port') ?? 34567;
-        const idleTimeoutMs = resolveIdleTimeoutMs(config.get<number>('idleTimeoutMinutes'));
-        const commandConfig = getCommandExecutionConfig(config, options.outputChannel);
-        const customServers = filterCustomServers(
-            config.get<Record<string, BuiltinServerConfig>>('servers') ?? {},
-            options.outputChannel
-        );
-        const skillDirectories = config.get<string[]>('skillDirectories') ?? [];
-        const lastUsedPort = options.context.workspaceState.get<number>('mcp.lastPort');
-
-        // [Security] Extract Allowed Origins from AI Sites config
-        const aiSites = getConfiguredAiSites(config.get<AISiteConfig[]>('aiSites'));
-        const allowedOrigins = buildAllowedOrigins(aiSites);
+        const startParams = buildStartParams(config, options);
 
         try {
             const result = await options.manager.start({
                 port: portConfig,
-                idleTimeoutMs,
-                preferredPort: lastUsedPort,
-                mcpServers: customServers,
-                allowedOrigins,
-                aiSites,
-                skillDirectories,
-                ...commandConfig
+                idleTimeoutMs: startParams.idleTimeoutMs,
+                preferredPort: startParams.lastUsedPort,
+                mcpServers: startParams.customServers,
+                allowedOrigins: startParams.allowedOrigins,
+                aiSites: startParams.aiSites,
+                skillDirectories: startParams.skillDirectories,
+                ...startParams.commandConfig
             });
 
             currentPort = result.port;
-            if (currentPort !== lastUsedPort) {
+            if (currentPort !== startParams.lastUsedPort) {
                 await options.context.workspaceState.update('mcp.lastPort', currentPort);
             }
 
             isStarting = false;
             isRunning = true;
             updateGatewayStatusBar(options.statusBarItem, true, currentPort);
+            options.persistentLogger.info(`Gateway started on port ${currentPort}.`);
         } catch (error: unknown) {
             void vscode.window.showErrorMessage(t('start_failed', { message: getErrorMessage(error) }));
-            isStarting = false;
-            isRunning = false;
-            currentPort = null;
-            updateGatewayStatusBar(options.statusBarItem, false);
+            options.persistentLogger.error('Gateway start failed', error);
+            resetToOffline();
         }
     };
 
@@ -110,11 +104,13 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
     const stop = async () => {
         await options.manager.stop();
         markOffline();
+        options.persistentLogger.info('Gateway stopped by user.');
         void vscode.window.showInformationMessage(t('server_stopped'));
     };
 
     const restart = async () => {
         options.outputChannel.appendLine("🔄 Manual restart triggered.");
+        options.persistentLogger.info('Gateway restart requested by user.');
         await options.manager.stop();
         await start();
         void vscode.window.showInformationMessage(t('server_restarted'));
@@ -125,6 +121,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
         const minutes = Math.round(idleTimeoutMs / (60 * 1000));
         void vscode.window.showInformationMessage(t('auto_stop_message', { minutes }));
         options.outputChannel.appendLine("💤 Auto-shutdown triggered due to inactivity.");
+        options.persistentLogger.warn(`Gateway auto-stopped after ${minutes} minutes of inactivity.`);
     };
 
     return {
@@ -151,8 +148,36 @@ function createBridgeCodeIssuer(
     };
 }
 
-function getCommandShellPath(config: vscode.WorkspaceConfiguration): string | undefined {
-    const configuredCommandShellPath = config.get<string>('commandShell.path')?.trim();
+interface GatewayStartParams {
+    idleTimeoutMs: number;
+    commandConfig: { commandAllowedRoots: string[]; commandShellPath?: string };
+    customServers: ReturnType<typeof filterCustomServers>;
+    skillDirectories: string[];
+    lastUsedPort: number | undefined;
+    aiSites: ReturnType<typeof getConfiguredAiSites>;
+    allowedOrigins: string[];
+}
+
+function buildStartParams(
+    config: vscode.WorkspaceConfiguration,
+    options: CreateGatewayServiceControllerOptions
+): GatewayStartParams {
+    const aiSites = getConfiguredAiSites(config.get<AISiteConfig[]>('aiSites'));
+    return {
+        idleTimeoutMs: resolveIdleTimeoutMs(config.get<number>('idleTimeoutMinutes')),
+        commandConfig: getCommandExecutionConfig(config, options.outputChannel),
+        customServers: filterCustomServers(
+            config.get<Record<string, BuiltinServerConfig>>('servers') ?? {},
+            options.outputChannel
+        ),
+        skillDirectories: config.get<string[]>('skillDirectories') ?? [],
+        lastUsedPort: options.context.workspaceState.get<number>('mcp.lastPort'),
+        aiSites,
+        allowedOrigins: buildAllowedOrigins(aiSites)
+    };
+}
+
+function getCommandShellPath(config: vscode.WorkspaceConfiguration): string | undefined {    const configuredCommandShellPath = config.get<string>('commandShell.path')?.trim();
     return configuredCommandShellPath === '' ? undefined : configuredCommandShellPath;
 }
 

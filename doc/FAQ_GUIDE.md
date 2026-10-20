@@ -35,3 +35,20 @@
 ## 想看历史上 AI 调用了哪些工具怎么办？
 
 点击浏览器插件 popup，开启日志。日志里的“摘要”一栏会记录每次工具调用，方便回看 AI 调用了哪些工具以及调用顺序。
+
+## 网关日志保存在哪里？连接断开后如何排查？
+
+网关日志现在会同步落盘，方便窗口关闭或异常退出后复盘：
+
+- VS Code 输出面板：命令面板 → `Output: Show Output Channels...` → 选择 `MCP Gateway`（实时查看）。
+- 持久化日志文件：`globalStorage/three-water666.gateway-vscode/logs/gateway-YYYYMMDD.log`
+  （Windows 路径为 `%APPDATA%\Code\User\globalStorage\three-water666.gateway-vscode\logs\`），
+  按天滚动，默认保留最近 7 天。启动、停止、空闲自动关停、启动失败以及扩展宿主未捕获异常都会记录。
+
+连接断开时的排查顺序：
+
+1. 浏览器悬浮日志/系统通知会提示断连原因（网关可能因 30 分钟无活动自动关停，
+   可通过 `webcodeGateway.idleTimeoutMinutes` 调整，最长 240 分钟）。
+2. 在 VS Code 状态栏点击 webcode 重启服务，然后从 VS Code 重新发起连接
+   （连接码为一次性短时凭证，旧链接报错“链接无效”属正常现象）。
+3. 仍无法连接时，查看上述持久化日志文件中的 `ERROR`/`WARN` 条目。

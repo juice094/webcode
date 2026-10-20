@@ -35,3 +35,21 @@ If the extra new tab still appears, check whether "When Edge starts" is set to "
 ## How can I see which tools the AI called before?
 
 Click the browser extension popup and enable logs. The summary column records each tool call, so you can review which tools the AI called and in what order.
+
+## Where are the gateway logs? How do I troubleshoot a disconnect?
+
+Gateway logs are persisted so they survive window closes and abnormal exits:
+
+- VS Code Output panel: Command Palette → `Output: Show Output Channels...` → pick `MCP Gateway` (live view).
+- Persisted log file: `globalStorage/three-water666.gateway-vscode/logs/gateway-YYYYMMDD.log`
+  (on Windows: `%APPDATA%\Code\User\globalStorage\three-water666.gateway-vscode\logs\`),
+  rotated daily and kept for 7 days by default. Startup, shutdown, idle auto-stop, start
+  failures, and uncaught extension-host exceptions are all recorded.
+
+Troubleshooting order for a disconnect:
+
+1. The floating browser log / system notification explains the cause (the gateway may have
+   stopped after 30 minutes of inactivity; adjust `webcodeGateway.idleTimeoutMinutes`, up to 240).
+2. Click webcode in the VS Code status bar to restart the service, then reconnect from VS Code
+   (launch codes are single-use and short-lived, so an "invalid link" error on an old link is expected).
+3. If it still fails, check the `ERROR`/`WARN` entries in the persisted log file above.

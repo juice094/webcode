@@ -3,6 +3,7 @@ import { type HandshakeResponse } from '../types';
 
 type BridgeLoaderI18n = {
   invalidLinkParameters: string;
+  invalidLinkParametersBody: string;
   extensionNotDetectedTitle: string;
   extensionNotDetectedDesc: string;
   connectedRedirecting: string;
@@ -52,6 +53,7 @@ type ReadHandshakeParamsResult =
 const I18N: Record<"en" | "zh", BridgeLoaderI18n> = {
   en: {
     invalidLinkParameters: "Invalid Link Parameters",
+    invalidLinkParametersBody: "This bridge link is no longer valid (launch codes are single-use and short-lived; the link may have been used or expired). Go back to VS Code, click webcode in the status bar, and connect again.",
     extensionNotDetectedTitle: "❌ Extension Not Detected",
     extensionNotDetectedDesc: `Please ensure '${BRANDING.bridgeName}' extension is installed and enabled.`,
     connectedRedirecting: "✅ Connected! Redirecting...",
@@ -72,6 +74,7 @@ const I18N: Record<"en" | "zh", BridgeLoaderI18n> = {
   },
   zh: {
     invalidLinkParameters: "链接参数无效",
+    invalidLinkParametersBody: "此连接链接已失效（启动码为一次性且短时有效，可能已被使用或过期）。请回到 VS Code，点击状态栏中的 webcode 重新发起连接。",
     extensionNotDetectedTitle: "❌ 未检测到扩展",
     extensionNotDetectedDesc: `请确认已安装并启用 “${BRANDING.bridgeName}” 浏览器扩展。`,
     connectedRedirecting: "✅ 已连接，正在跳转...",
@@ -107,7 +110,7 @@ function startHandshake(): void {
   const elements = getHandshakeElements();
   const paramsResult = readHandshakeParams();
   if (paramsResult.status === "invalid") {
-    showInvalidLinkParameters(elements.statusText);
+    showInvalidLinkParameters(elements);
     return;
   }
   if (paramsResult.status === "version-mismatch") {
@@ -249,13 +252,19 @@ function handleHandshakeResponse(
   }
 }
 
-function showInvalidLinkParameters(statusText: HTMLElement | null): void {
-  if (!statusText) {
+function showInvalidLinkParameters(elements: HandshakeElements): void {
+  if (!elements.statusText) {
     return;
   }
 
-  statusText.innerText = i18n.invalidLinkParameters;
-  statusText.style.color = "#ff6b6b";
+  document.body.dataset.bridgeState = "error";
+  if (elements.loader) {
+    elements.loader.style.display = "none";
+  }
+  elements.statusText.innerHTML = `
+                            <span style="color:#ff6b6b">${i18n.invalidLinkParameters}</span><br>
+                            <span style="font-size:0.8em; opacity:0.8">${i18n.invalidLinkParametersBody}</span>
+                        `;
 }
 
 function showExtensionNotDetected(elements: HandshakeElements): void {

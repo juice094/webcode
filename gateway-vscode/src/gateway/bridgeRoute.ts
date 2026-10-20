@@ -419,7 +419,11 @@ function renderInvalidBridgePage(): string {
                 <body>
                     <div class="card" id="main-card">
                         <h2 id="bridge-title">Invalid bridge target</h2>
-                        <p id="bridge-status">This bridge link does not match a configured AI site.</p>
+                        <p id="bridge-status">This bridge link is no longer valid. Launch codes are single-use and short-lived; the link may have been used or expired.</p>
+                        <p class="warn">Go back to VS Code, click ${escapeHtmlText(BRANDING.productName)} in the status bar, and connect again.</p>
+                        <hr style="border: none; border-top: 1px solid #333; margin: 18px 0;">
+                        <h2 style="font-size: 1.1em; color: #3498db;">链接无效</h2>
+                        <p>此连接链接已失效（启动码为一次性且短时有效，可能已被使用或过期）。请回到 VS Code，点击状态栏中的 ${escapeHtmlText(BRANDING.productName)} 重新发起连接。</p>
                     </div>
                 </body>
                 </html>`;

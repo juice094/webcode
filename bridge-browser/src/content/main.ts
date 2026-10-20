@@ -9,6 +9,7 @@ import {
   type StatusUpdateMessageRequest, type SyncedAiSite,
 } from "../types";
 import { applyApprovalModeRuntimeMessage, createApprovalModeConfig, resolveStatusApprovalMode } from "./approval_mode";
+import { notifyGatewayDisconnected } from "./disconnect_notice";
 import { AutoInitPromptController } from "./auto_init_prompt";
 import { createApprovalState, parseStoredApprovalEntries, type ApprovalState } from "./approval_policy";
 import { DomToolActivityController } from "./dom_tool_activity";
@@ -101,6 +102,9 @@ function handleStatusUpdate(request: StatusUpdateMessageRequest): void {
 
   if (isClientConnected !== wasConnected) {
     Logger.log(`[MCP] Connection Status: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
+    if (!isClientConnected && wasConnected) {
+      notifyGatewayDisconnected();
+    }
   }
 
   if (isClientConnected && currentSiteId !== wasSiteId) {
@@ -257,8 +261,7 @@ const toolExecutor = new ToolExecutor({
   getSelectors: () => DOM,
   getSiteId: () => currentSiteId,
   getWorkspaceId: () => currentWorkspaceId,
-  getApprovalState: () => approvalState,
-  getApprovalMode: () => CONFIG.approvalMode,
+  getApprovalState: () => approvalState, getApprovalMode: () => CONFIG.approvalMode,
   onActivityStatusChange: (identity, status, message) => {
     toolActivityTracker.updateStatus(identity, status, message);
   },

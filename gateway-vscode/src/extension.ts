@@ -6,6 +6,7 @@ import { createBrowserExtensionManager } from './extension/browserExtensionManag
 import { registerGatewayConnectCommand } from './extension/connectCommand';
 import { registerCopyContextCommand } from './extension/copyContextCommand';
 import { registerIsolatedProfileCleanupCommand } from './extension/isolatedProfileCleanupCommand';
+import { createPersistentLogger, TeeOutputChannel, type PersistentLogger } from './extension/persistentLog';
 import {
     createGatewayServiceController,
     type GatewayServiceController
@@ -24,6 +25,16 @@ import {
 
 interface RuntimeHolder {
     serviceController?: GatewayServiceController;
+}
+
+// 异常兜底：扩展宿主进程由多个扩展共享，这里只负责把现场落盘，不改变默认行为。
+function registerCrashHandlers(logger: PersistentLogger): void {
+    process.on('uncaughtException', (error: unknown) => {
+        logger.error('Uncaught exception in extension host', error);
+    });
+    process.on('unhandledRejection', (reason: unknown) => {
+        logger.error('Unhandled promise rejection in extension host', reason);
+    });
 }
 
 export interface GatewayExtensionState {
@@ -56,7 +67,14 @@ export interface GatewayExtensionApi {
 export async function activate(context: vscode.ExtensionContext): Promise<GatewayExtensionApi> {
     // 创建扩展专用输出通道。GatewayManager、服务控制器和命令菜单都会复用它，
     // 这样启动日志、重启日志、错误信息都集中显示在同一个 VS Code Output 面板里。
-    const outputChannel = vscode.window.createOutputChannel(t('output_channel_name'));
+    // 同时把内容 tee 一份到 globalStorage/logs 下的按天滚动日志文件，窗口关闭后仍可复盘。
+    const persistentLogger = createPersistentLogger(context.globalStorageUri.fsPath);
+    const outputChannel = new TeeOutputChannel(
+        vscode.window.createOutputChannel(t('output_channel_name')),
+        persistentLogger
+    );
+    persistentLogger.info('MCP Gateway extension activating.');
+    registerCrashHandlers(persistentLogger);
     // outputChannel.show(true); // 静默启动，不自动弹出面板
     outputChannel.appendLine("🚀 MCP Gateway Extension Activating...");
 
@@ -104,7 +122,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
         manager,
         context,
         outputChannel,
-        statusBarItem
+        statusBarItem,
+        persistentLogger
     });
 
     // 把 controller 写回 holder，补上 GatewayManager 自动停止回调需要的引用。

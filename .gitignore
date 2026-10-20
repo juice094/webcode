@@ -7,7 +7,7 @@ dist
 bridge-browser.zip
 gateway-vscode/browser-extension/
 .DS_Store
-release
+/release
 .claude
 out/
 .agents
