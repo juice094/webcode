@@ -15,6 +15,7 @@ import {
   type ApprovalState,
 } from "./approval_policy";
 import { grantCommandApproval, preflightCommand } from "./command_preflight";
+import { rulesMetaStorageKey, rulesStorageKey, withRuleTimestamps } from "../approved_rules";
 import type { ToolActivityStatus } from "./tool_activity";
 import { type ToolRequestIdentity, type ToolRequestRegistry } from "./tool_request_registry";
 
@@ -349,8 +350,14 @@ export class ToolExecutor {
 
           if (scope && !modalOptions.mandatory) {
             persistApprovalRule(request.payload, scope, this.options.getApprovalState());
-            void chrome.storage.local.set({
-              [`allowed_tools_${this.options.getWorkspaceId()}`]: buildStoredApprovalEntries(this.options.getApprovalState()),
+            const workspaceId = this.options.getWorkspaceId();
+            const entries = buildStoredApprovalEntries(this.options.getApprovalState());
+            const metaKey = rulesMetaStorageKey(workspaceId);
+            chrome.storage.local.get([metaKey], (items) => {
+              void chrome.storage.local.set({
+                [rulesStorageKey(workspaceId)]: entries,
+                [metaKey]: withRuleTimestamps(items[metaKey], entries, Date.now()),
+              });
             });
             Logger.log(`⚡ Approval saved for '${getApprovalLabel(request.payload, scope)}' in this workspace`, "action");
           }

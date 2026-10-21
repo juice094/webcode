@@ -2,6 +2,13 @@ import { BRANDING } from '@webcode/shared';
 
 import { isMessageRequest, isStatusResponse, isSuccessResponse, type MessageRequest } from '../types';
 import { createPopupTranslator, renderInstalledDescription, type PopupTranslator } from './i18n';
+import { bindApprovalModeSelect, localizeApprovalModeOptions } from './approval_mode_view';
+import {
+  getApprovedRulesElements,
+  mountApprovedRules,
+  refreshApprovedRules,
+  type ApprovedRulesElements,
+} from './approved_rules_view';
 import { createWorkspaceSection, type WorkspaceSection } from './workspaces';
 
 type PopupElements = {
@@ -24,6 +31,7 @@ type PopupElements = {
   sessionPresetToggle: HTMLButtonElement;
   sessionPresetPanel: HTMLElement;
   defaultApprovalModeSelect: HTMLSelectElement;
+  approvedRules: ApprovedRulesElements;
   title: HTMLElement;
   connectedText: HTMLElement;
   portLabel: HTMLElement;
@@ -104,6 +112,7 @@ function getPopupElements(): PopupElements {
     sessionPresetToggle: document.getElementById("sessionPresetToggle") as HTMLButtonElement,
     sessionPresetPanel: document.getElementById("sessionPresetPanel") as HTMLElement,
     defaultApprovalModeSelect: document.getElementById("defaultApprovalMode") as HTMLSelectElement,
+    approvedRules: getApprovedRulesElements(),
     title: document.getElementById("title") as HTMLElement,
     connectedText: document.getElementById("connectedText") as HTMLElement,
     portLabel: document.getElementById("portLabel") as HTMLElement,
@@ -157,17 +166,6 @@ function initializeLabels(context: PopupContext): void {
   elements.marketplaceHint.textContent = t("marketplace_hint");
 }
 
-function localizeApprovalModeOptions(select: HTMLSelectElement, t: PopupTranslator): void {
-  const labels: Record<string, string> = {
-    "always-ask": t("approval_mode_always_ask"),
-    "ask-when-needed": t("approval_mode_ask_when_needed"),
-    "never-ask": t("approval_mode_never_ask"),
-  };
-  for (const option of Array.from(select.options)) {
-    option.textContent = labels[option.value] ?? option.value;
-  }
-}
-
 function listenForSessionSettingChanges(currentTabId: number, elements: PopupElements): void {
   chrome.runtime.onMessage.addListener((request: unknown) => {
     if (isMessageRequest(request) && request.type === "LOG_VISIBLE_CHANGED" && request.tabId === currentTabId) {
@@ -206,6 +204,7 @@ function requestCurrentStatus(currentTabId: number, context: PopupContext): void
     (response: unknown) => {
       if (isStatusResponse(response) && response.connected) {
         showConnectedStatus(response, context.elements);
+        refreshApprovedRules(context.elements.approvedRules, response.workspaceId ?? null, context.t);
       } else if (isStatusResponse(response) && isExpiredDisconnectReason(response.disconnectReason)) {
         showExpiredStatus(context);
       } else if (isStatusResponse(response) && response.suspended === true) {
@@ -311,6 +310,7 @@ function bindPopupControls(currentTabId: number, context: PopupContext): void {
   bindAutoSendToggle(currentTabId, context.elements.autoSendInput);
   bindApprovalModeSelect(currentTabId, context.elements.approvalModeSelect);
   bindDefaultApprovalModeSelect(context.elements.defaultApprovalModeSelect);
+  mountApprovedRules(context.elements.approvedRules, context.t);
   bindLogToggle(currentTabId, context.elements.showLogInput);
 }
 
@@ -406,19 +406,6 @@ function bindAutoSendToggle(currentTabId: number, autoSendInput: HTMLInputElemen
       type: "SET_AUTO_SEND",
       tabId: currentTabId,
       autoSend: autoSendInput.checked,
-    });
-  });
-}
-
-function bindApprovalModeSelect(
-  currentTabId: number,
-  approvalModeSelect: HTMLSelectElement
-): void {
-  approvalModeSelect.addEventListener("change", () => {
-    void chrome.runtime.sendMessage({
-      type: "SET_APPROVAL_MODE",
-      tabId: currentTabId,
-      approvalMode: approvalModeSelect.value,
     });
   });
 }
