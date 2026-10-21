@@ -8,6 +8,7 @@ import { registerGatewayConnectCommand } from './extension/connectCommand';
 import { registerCopyContextCommand } from './extension/copyContextCommand';
 import { registerIsolatedProfileCleanupCommand } from './extension/isolatedProfileCleanupCommand';
 import { createPersistentLogger, TeeOutputChannel, type PersistentLogger } from './extension/persistentLog';
+import { createApprovalAuditLog } from './extension/approvalAuditLog';
 import {
     createGatewayServiceController,
     type GatewayServiceController
@@ -148,15 +149,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
     // 创建本地网关管理器。它持有 Express 服务、MCP server 连接、本地工具、
     // 技能缓存、终端会话等核心运行时能力；extension.ts 只保留它的实例引用，
     // 具体启动参数由 serviceController 在用户点击启动或配置变更重启时组装。
-    const manager = new GatewayManager(
-        outputChannel,
-        context.extensionPath,
-        context,
-        idleTimeoutMs => {
-            runtime.serviceController?.markAutoStopped(idleTimeoutMs);
-        },
-        createGatewayRuntimeTraceSinkFromEnvironment()
-    );
+    const manager = createGatewayManager(context, outputChannel, runtime);
 
     // 创建技能目录监听控制器，并在激活时立即按当前 workspace/config 扫一遍。
     // watcher 只负责在 SKILL.md 或技能目录内容变化时通知 manager 失效缓存，
@@ -264,4 +257,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
     }
 
     return api;
+}
+
+/**
+ * Creates the gateway manager and attaches the approval audit sink. Approval
+ * decisions land next to the human log, so "who approved this command" stays
+ * answerable after the output channel is gone.
+ */
+function createGatewayManager(
+    context: vscode.ExtensionContext,
+    outputChannel: vscode.OutputChannel,
+    runtime: RuntimeHolder
+): GatewayManager {
+    const manager = new GatewayManager(
+        outputChannel,
+        context.extensionPath,
+        context,
+        idleTimeoutMs => {
+            runtime.serviceController?.markAutoStopped(idleTimeoutMs);
+        },
+        createGatewayRuntimeTraceSinkFromEnvironment()
+    );
+    const auditLog = createApprovalAuditLog(context.globalStorageUri.fsPath);
+    manager.setApprovalAuditSink(event => auditLog.append(event));
+    return manager;
 }

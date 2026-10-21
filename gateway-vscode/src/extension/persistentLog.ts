@@ -6,6 +6,7 @@ export const LOG_RETENTION_DAYS = 7;
 
 const LOG_FILE_PREFIX = 'gateway-';
 export const LOG_FILE_PATTERN = /^gateway-\d{8}\.log$/;
+export const APPROVALS_FILE_PATTERN = /^approvals-\d{8}\.jsonl$/;
 
 export interface PersistentLogger {
     readonly directory: string;
@@ -30,7 +31,7 @@ export function createPersistentLogger(storageRoot: string): PersistentLogger {
             const dateKey = formatLocalDateKey(new Date());
             if (currentLogPath === null || dateKey !== currentDateKey) {
                 fs.mkdirSync(directory, { recursive: true });
-                pruneOldLogs(directory);
+                pruneLogDirectory(directory);
                 currentDateKey = dateKey;
                 currentLogPath = path.join(directory, `${LOG_FILE_PREFIX}${dateKey}.log`);
             }
@@ -51,7 +52,7 @@ export function createPersistentLogger(storageRoot: string): PersistentLogger {
     };
 }
 
-function formatLocalDateKey(date: Date): string {
+export function formatLocalDateKey(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -62,10 +63,15 @@ function formatError(error: unknown): string {
     return error instanceof Error ? `${error.message}\n${error.stack ?? ''}`.trim() : String(error);
 }
 
-function pruneOldLogs(directory: string): void {
-    const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+/**
+ * Drops files older than the retention window that belong to either the human log
+ * or the approval audit. Both live in the same directory, and each pattern keeps
+ * its own meaning so callers relying on LOG_FILE_PATTERN are unaffected.
+ */
+export function pruneLogDirectory(directory: string, now: number = Date.now()): void {
+    const cutoff = now - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-        if (!entry.isFile() || !LOG_FILE_PATTERN.test(entry.name)) {
+        if (!entry.isFile() || !isRetainedLogFile(entry.name)) {
             continue;
         }
 
@@ -78,6 +84,10 @@ function pruneOldLogs(directory: string): void {
             // Best effort cleanup; ignore per-file failures.
         }
     }
+}
+
+function isRetainedLogFile(name: string): boolean {
+    return LOG_FILE_PATTERN.test(name) || APPROVALS_FILE_PATTERN.test(name);
 }
 
 /**

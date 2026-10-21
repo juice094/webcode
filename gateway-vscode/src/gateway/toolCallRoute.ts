@@ -17,6 +17,8 @@ import { resolveLocalPathArguments } from './pathArguments';
 import type { GatewayErrorLogger, GatewayLogger, RemoteToolRoute } from './types';
 import type { GatewayRuntimeTraceSink } from './runtimeTrace';
 import type { CommandApprovalManager } from './commandApproval';
+import type { ApprovalAuditSink } from './approvalAudit';
+import { auditEvent } from './approvalAuditEvents';
 import { DEFAULT_MCP_TOOL_TIMEOUT_MS } from './serverConnector';
 import { DEFAULT_TOOL_CALL_MS } from './timeouts';
 import {
@@ -27,6 +29,7 @@ import {
 } from './toolCallDeadline';
 
 type ToolCallHandlerOptions = {
+    audit?: ApprovalAuditSink;
     commandApprovalManager: CommandApprovalManager;
     createToolExecutionContext: () => ToolExecutionContext;
     error: GatewayErrorLogger;
@@ -105,11 +108,14 @@ export function createToolPreflightHandler(options: ToolCallHandlerOptions): exp
         try {
             const context = options.createToolExecutionContext();
             const preflight = await localTool.assessRisk(parsed.args, context);
-            if (preflight.assessment.level !== 'requires_confirmation') {
+            const { level, reasons } = preflight.assessment;
+            options.audit?.(auditEvent('preflight_assessed', parsed, { level, reasons }));
+            if (level !== 'requires_confirmation') {
                 return res.json({ risk: preflight.assessment });
             }
 
             const challenge = options.commandApprovalManager.issueChallenge(preflight.fingerprint);
+            options.audit?.(auditEvent('challenge_issued', parsed, { level, challengeId: challenge.challengeId }));
             return res.json({
                 risk: preflight.assessment,
                 challenge: {
@@ -124,7 +130,8 @@ export function createToolPreflightHandler(options: ToolCallHandlerOptions): exp
 }
 
 export function createToolApprovalHandler(
-    commandApprovalManager: CommandApprovalManager
+    commandApprovalManager: CommandApprovalManager,
+    audit?: ApprovalAuditSink
 ): express.RequestHandler {
     return (req, res) => {
         const challengeId = isRecord(req.body) && typeof req.body.challenge_id === 'string'
@@ -136,8 +143,11 @@ export function createToolApprovalHandler(
 
         const grant = commandApprovalManager.approveChallenge(challengeId);
         if (!grant) {
+            audit?.(auditEvent('grant_rejected', null, { challengeId }));
             return sendToolError(res, 410, 'Command approval challenge is invalid or expired.');
         }
+
+        audit?.(auditEvent('grant_issued', null, { challengeId }));
 
         return res.json({
             approval_token: grant.approvalToken,
@@ -213,6 +223,7 @@ async function executeLocalTool(
             () => localTool.execute(request.args, context)
         );
         const toolDuration = Date.now() - toolStart;
+        options.audit?.(auditEvent('execution_finished', request, { status: 'success', durationMs: toolDuration }));
         options.log(`   ✅ Finished local tool: ${request.name} (${toolDuration}ms)`);
         options.trace?.({
             event: 'tool_call_finished',
@@ -224,9 +235,14 @@ async function executeLocalTool(
         return res.json(result);
     } catch (error: unknown) {
         if (error instanceof ToolCallTimeoutError) {
+            options.audit?.(auditEvent('execution_finished', request, { status: 'error', error: 'timeout' }));
             return sendToolTimeout(res, request, error.deadlineMs, { scope: 'local', toolStart }, options);
         }
 
+        options.audit?.(auditEvent('execution_finished', request, {
+            status: 'error',
+            error: getErrorMessage(error)
+        }));
         options.error(`Local tool execution failed: ${request.name}`, error);
         options.trace?.({
             event: 'tool_call_finished',
@@ -367,6 +383,10 @@ async function authorizeLocalTool(
 
     const preflight = await localTool.assessRisk(request.args, context);
     if (preflight.assessment.level === 'blocked') {
+        options.audit?.(auditEvent('blocked', request, {
+            level: 'blocked',
+            reasons: preflight.assessment.reasons
+        }));
         sendToolError(res, 400, `Security Error: ${preflight.assessment.reasons.join(' ')}`);
         return false;
     }
@@ -379,6 +399,10 @@ async function authorizeLocalTool(
         preflight.fingerprint
     );
     if (!approved) {
+        options.audit?.(auditEvent('approval_required', request, {
+            level: 'requires_confirmation',
+            reasons: preflight.assessment.reasons
+        }));
         res.status(409).json({
             isError: true,
             commandRisk: preflight.assessment,

@@ -114,3 +114,13 @@ have no word boundaries, short rules also block unrelated commands (the rule `te
 `git commit -m "test"`), and rules shorter than 4 characters are reported in the gateway log. Nested forms are
 covered too (`bash -c 'git push --force'`), but quoting tricks, script bodies and build output can still slip
 through: this is a guardrail, not a sandbox. Changing the setting hot-reloads without dropping a connected tab.
+
+## Where are approval decisions recorded?
+
+Every preflight, challenge, approval, rejection and finished command appends one JSON line to
+`<globalStorage>/logs/approvals-YYYYMMDD.jsonl` (same directory as `gateway-YYYYMMDD.log`, kept for 7 days).
+An entry carries the tool name, risk level, reasons, working directory, shell profile and the **full command
+line** (capped at 4096 characters with a `commandTruncated` flag), so "what did the model actually run?" stays
+answerable. The file never leaves the machine, but treat it like shell history: avoid putting secrets directly on
+a command line (`export TOKEN=...` will be stored in clear text). Tool argument payloads (for example the body of
+`write_file`) and approval tokens are never written.

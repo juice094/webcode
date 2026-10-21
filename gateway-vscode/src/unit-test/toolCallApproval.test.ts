@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import type express from 'express';
 
+import type { ApprovalAuditEvent } from '../gateway/approvalAudit';
 import { CommandApprovalManager } from '../gateway/commandApproval';
 import {
   createToolApprovalHandler,
@@ -64,6 +65,70 @@ suite('Gateway command approval routes', () => {
     const execution = await invokeHandler(createToolCallHandler(options), request);
     assert.strictEqual(execution.statusCode, 400);
     assert.strictEqual(executionCount, 0);
+  });
+
+  test('audits the approval lifecycle without leaking the grant', async () => {
+    const audited: ApprovalAuditEvent[] = [];
+    const tool = createRiskyTool(() => undefined);
+    const manager = new CommandApprovalManager();
+    const options = { ...createHandlerOptions(tool, manager), audit: (event: ApprovalAuditEvent) => audited.push(event) };
+
+    const preflight = await invokeHandler(createToolPreflightHandler(options), {
+      name: 'execute_command',
+      arguments: { command: 'git reset --hard' }
+    });
+    const challengeId = readNestedString(preflight.body, 'challenge', 'id');
+    assert.ok(challengeId);
+
+    const approval = await invokeHandler(createToolApprovalHandler(manager, options.audit), {
+      challenge_id: challengeId
+    });
+    const approvalToken = readString(approval.body, 'approval_token');
+    assert.ok(approvalToken);
+
+    await invokeHandler(createToolCallHandler(options), {
+      name: 'execute_command',
+      arguments: { command: 'git reset --hard' },
+      approval_token: approvalToken
+    });
+
+    assert.deepStrictEqual(
+      audited.map(event => event.event),
+      ['preflight_assessed', 'challenge_issued', 'grant_issued', 'execution_finished']
+    );
+    assert.strictEqual(audited[0].level, 'requires_confirmation');
+    assert.strictEqual(audited[0].command, 'git reset --hard');
+    assert.strictEqual(audited[1].challengeId, challengeId);
+    assert.strictEqual(audited[3].status, 'success');
+    assert.ok(
+      !JSON.stringify(audited).includes(approvalToken),
+      'the approval token must never reach the audit trail'
+    );
+  });
+
+  test('audits blocked commands and rejected challenges', async () => {
+    const audited: ApprovalAuditEvent[] = [];
+    const tool = createRiskyTool(() => undefined, 'blocked');
+    const manager = new CommandApprovalManager();
+    const options = { ...createHandlerOptions(tool, manager), audit: (event: ApprovalAuditEvent) => audited.push(event) };
+
+    await invokeHandler(createToolPreflightHandler(options), {
+      name: 'execute_command',
+      arguments: { command: 'rm -rf .' }
+    });
+    const blocked = await invokeHandler(createToolCallHandler(options), {
+      name: 'execute_command',
+      arguments: { command: 'rm -rf .' }
+    });
+    await invokeHandler(createToolApprovalHandler(manager, options.audit), { challenge_id: 'missing' });
+
+    assert.strictEqual(blocked.statusCode, 400);
+    assert.deepStrictEqual(
+      audited.map(event => event.event),
+      ['preflight_assessed', 'blocked', 'grant_rejected']
+    );
+    assert.strictEqual(audited[1].level, 'blocked');
+    assert.deepStrictEqual(audited[1].reasons, ['test risk']);
   });
 });
 

@@ -45,6 +45,7 @@ import type {
 } from './gateway/types';
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
 import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/commandApproval';
+import type { ApprovalAuditSink } from './gateway/approvalAudit';
 import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pairingRoutes';
 import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 
@@ -102,6 +103,7 @@ export class GatewayManager {
     private readonly commandApprovalManager = new CommandApprovalManager();
     private readonly bridgeSessionManager = new BridgeSessionManager();
     private readonly traceSink: GatewayRuntimeTraceSink | undefined;
+    private approvalAuditSink: ApprovalAuditSink | undefined;
     private onBridgeSessionActivated: (() => void) | null = null;
     private onSessionRequestConfirmation: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null = null;
     private currentPort: number | null = null;
@@ -128,6 +130,9 @@ export class GatewayManager {
     setBridgeSessionActivatedHandler(handler: (() => void) | null): void {
         this.onBridgeSessionActivated = handler;
     }
+
+    /** Extension hook: every approval decision is appended to the audit log. */
+    setApprovalAuditSink(sink: ApprovalAuditSink | undefined): void { this.approvalAuditSink = sink; }
 
     /** True while a browser tab holds a session token (the token is the truth). */
     hasActiveBridgeSession(): boolean {
@@ -323,6 +328,7 @@ export class GatewayManager {
         });
 
         const toolCallOptions = {
+            audit: this.approvalAuditSink,
             commandApprovalManager: this.commandApprovalManager,
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
@@ -335,7 +341,9 @@ export class GatewayManager {
             toolRouter: this.toolRouter
         };
         this.app.post('/v1/tools/preflight', createToolPreflightHandler(toolCallOptions));
-        this.app.post('/v1/tools/approve', createToolApprovalHandler(this.commandApprovalManager));
+        this.app.post('/v1/tools/approve', createToolApprovalHandler(
+            this.commandApprovalManager, this.approvalAuditSink
+        ));
         this.app.post('/v1/tools/call', createToolCallHandler(toolCallOptions));
     }
 
