@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { appendEvalTrace, readEvalTrace } from '../harness/trace';
 import { loadScenario } from '../harness/scenario';
 import { DeterministicFixtureSite } from './fixtureSite';
+import { assertBridgeApprovalMode, seedDefaultApprovalMode } from './approvalModeSeed';
 
 interface EvaluationExtensionApi {
     getGatewayState(): {
@@ -85,7 +86,9 @@ suite('Deterministic minimal E2E', () => {
             viewport: { width: 1200, height: 900 },
         });
 
+        await seedDefaultApprovalMode(browserContext, 'always-ask', { tracePath, runId });
         const page = await openBridgePage(browserContext, bridgeUrl, fixtureUrl);
+        await assertBridgeApprovalMode(browserContext, fixtureUrl, 'always-ask', { tracePath, runId });
         appendEvalTrace(tracePath, {
             runId,
             source: 'browser',

@@ -10,8 +10,8 @@ import { buildWebcodeInitPrompt } from "./init_context";
 import {
   buildStoredApprovalEntries,
   getApprovalLabel,
-  isPayloadApproved,
   persistApprovalRule,
+  shouldRequestApproval,
   type ApprovalState,
 } from "./approval_policy";
 import { grantCommandApproval, preflightCommand } from "./command_preflight";
@@ -203,11 +203,7 @@ export class ToolExecutor {
   }
 
   private needsApproval(payload: ToolExecutionPayload): boolean {
-    if (payload.name === PROTOCOL.initToolName || isBootstrapOnlyToolName(payload.name)) {return false;}
-    // In ask-when-needed and never-ask modes, routine calls run without a modal;
-    // risky calls are still gated by the mandatory preflight modal in runQueuedTool.
-    if (this.options.getApprovalMode() !== "always-ask") {return false;}
-    return !isPayloadApproved(payload, this.options.getApprovalState());
+    return shouldRequestApproval(payload, this.options.getApprovalMode(), this.options.getApprovalState());
   }
 
   private failQueuedTool(request: ToolExecutionRequest, error: unknown): void {

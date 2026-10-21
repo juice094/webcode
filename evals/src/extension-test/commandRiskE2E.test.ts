@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { appendEvalTrace, readEvalTrace } from '../harness/trace';
 import { loadScenario } from '../harness/scenario';
 import { DeterministicFixtureSite } from './fixtureSite';
+import { assertBridgeApprovalMode, seedDefaultApprovalMode } from './approvalModeSeed';
 
 interface EvaluationExtensionApi {
     evaluation?: {
@@ -57,7 +58,11 @@ suite('Command risk approval E2E', () => {
 
         const bridgeUrl = await extensionApi.evaluation.startAndCreateBridgeUrl('eval-fixture', fixtureUrl);
         browserContext = await launchBrowser(runDirectory, browserPath);
+        // The bridge reads its preset when the handshake binds the tab, so the
+        // approval mode has to be seeded before the bridge page opens.
+        await seedDefaultApprovalMode(browserContext, 'always-ask', { tracePath, runId });
         const page = await openBridgePage(browserContext, bridgeUrl, fixtureUrl);
+        await assertBridgeApprovalMode(browserContext, fixtureUrl, 'always-ask', { tracePath, runId });
 
         await approveToolOnce(page, tracePath, runId, {
             command: expected.allowedCommand,

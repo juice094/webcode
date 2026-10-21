@@ -1,3 +1,5 @@
+import { isBootstrapOnlyToolName, PROTOCOL } from "@webcode/shared";
+import type { ApprovalMode } from "../approval_mode";
 import {
   getCommandExecutable,
   getCommandApprovalContext,
@@ -56,6 +58,19 @@ export function isPayloadApproved(payload: ToolExecutionPayload, approvalState: 
   }
 
   return getCommandApprovalRules(payload).some((rule) => approvalState.allowedCommandRules.has(rule));
+}
+
+// Single source of truth for "does this call need a click?". The approval mode
+// only decides whether routine calls interrupt the user; risky calls are gated
+// by the mandatory preflight modal in the tool executor regardless of mode.
+export function shouldRequestApproval(
+  payload: ToolExecutionPayload,
+  approvalMode: ApprovalMode,
+  approvalState: ApprovalState
+): boolean {
+  if (payload.name === PROTOCOL.initToolName || isBootstrapOnlyToolName(payload.name)) {return false;}
+  if (approvalMode !== "always-ask") {return false;}
+  return !isPayloadApproved(payload, approvalState);
 }
 
 export function persistApprovalRule(
