@@ -62,9 +62,10 @@ They are two separate things:
    running, the next connect asks you to restart it; confirming closes and relaunches the browser so
    the new bridge takes effect. Manual installs should run `pnpm bridge:sync` and then click the
    reload button on the bridge card in `chrome://extensions`.
-2. **Another pairing**: the session token lives in the gateway process memory and is cleared by an
-   extension upgrade or window reload, so reconnect once from the VS Code status bar. Automatic
-   resume is planned for a later release.
+2. **Another pairing**: the token is now persisted per workspace (VS Code SecretStorage), so the
+   first connection after upgrading still needs pairing, but later window reloads, extension
+   restarts, and gateway restarts resume automatically without pairing again. (If you rotate the
+   token yourself, or stop the service on the VS Code side, reconnect once.)
 
 Why both sides must be upgraded together: the browser handshake requires
 "VS Code extension version === browser extension version" (exact equality). Upgrading only one side
@@ -74,6 +75,31 @@ To confirm which build is running, open the command palette, choose
 `Output: Show Output Channels...`, select `MCP Gateway`: the first line is
 `build: version=… buildHash=… builtAt=…`, and it must match
 `browser-extension/bridge-build.json` inside the installed package.
+
+## Do I need to pair again after closing or reloading the window?
+
+No. Since 1.3.0:
+
+- the gateway token is stored per workspace in the VS Code secret store, so a restarted gateway
+  accepts the same token the tab already holds;
+- `GET /v1/status` returns `gatewayInstanceId` (new on every start) and `lastInterrupted`; when the
+  browser sees a new instance id but its token still works, the session counts as automatically
+  recovered and only the stored id is updated;
+- returning to a tab probes immediately instead of waiting for the 60-second check, so recovery
+  usually happens within seconds;
+- if the token really is rejected (you rotated it, or the workspace changed), the tab says it is
+  recovering automatically and points at the reconnect path.
+
+Interrupted tool calls are **never replayed**. Calls that were running when the host went away are
+written to `globalStorage/three-water666.gateway-vscode/state/shutdown-<workspaceId>.json`
+(argument digest plus a redacted preview capped at 120 characters, ignored after 10 minutes), and
+the next start reports "N call(s) were interrupted, retry them" in the log and in
+`/v1/status.lastInterrupted`.
+
+The security boundary is unchanged: the token only works on `127.0.0.1`, and redemption still
+requires the origin allowlist, the protocol version, and a single-use launch code. To invalidate
+every connected tab immediately, rotate the token (the API exists in this release; a command entry
+follows in a later release).
 
 ## What should I do about long-running tasks or commands?
 

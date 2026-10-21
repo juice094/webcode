@@ -188,4 +188,12 @@ export interface Session {
   targetOrigin?: string;
   targetUrl?: string;
   allowedOrigins?: string[];
+  /**
+   * Identity of the gateway start this tab paired with. The gateway returns a
+   * new id on every start, so a change means "the host restarted but the token
+   * still works" — the tab recovered without re-pairing.
+   */
+  gatewayInstanceId?: string;
+  /** Last time this tab re-attached to a restarted gateway. */
+  lastRecoveredAt?: number;
 }

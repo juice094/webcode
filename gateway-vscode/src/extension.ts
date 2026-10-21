@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+
 import * as vscode from 'vscode';
 
 import { shouldAutoStart } from './extension/autoStart';
@@ -18,6 +20,10 @@ import { registerGatewayConnectDeepLink } from './extension/uriHandler';
 import type { SessionRequestPrompt } from './gateway/pairingRoutes';
 import { updateGatewayStatusBar } from './extension/statusBar';
 import { GatewayManager } from './gateway';
+import { createWorkspaceId } from './gateway/bridgeRoute';
+import { readShutdownSnapshot, shutdownSnapshotPath } from './extension/shutdownSnapshot';
+import { runDeactivate } from './extension/deactivateSession';
+import { createSessionTokenSource } from './extension/sessionToken';
 import { formatBuildFingerprint, readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { createGatewayRuntimeTraceSinkFromEnvironment } from './gateway/runtimeTrace';
 import { t } from './i18n';
@@ -89,6 +95,72 @@ function logBuildFingerprint(context: vscode.ExtensionContext, logger: Persisten
     }));
 }
 
+/**
+ * State `deactivate()` needs. The extension host calls deactivate on window
+ * close and on reload; everything here is captured during activate so the
+ * teardown path never touches the VS Code API or the network.
+ */
+let resumeSession: {
+    manager: GatewayManager;
+    logger: PersistentLogger;
+    snapshotPath: string;
+    workspaceId: string;
+    workspaceName: string | null;
+} | null = null;
+
+/**
+ * Prepares restart continuity:
+ * 1. resolves the persisted bridge token source (SecretStorage, with a derived
+ *    and an in-memory fallback) and hands it to the manager, so a reconnecting
+ *    browser tab keeps working after the host restarts;
+ * 2. reads the snapshot written by the previous session and exposes the
+ *    interrupted-call count on `/v1/status` (notification only, never replayed).
+ */
+async function prepareResumeSession(
+    context: vscode.ExtensionContext,
+    manager: GatewayManager,
+    logger: PersistentLogger
+): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+    const workspaceId = createWorkspaceId(workspaceRoot);
+    const storageDir = context.globalStorageUri.fsPath;
+    const snapshotPath = shutdownSnapshotPath(path.join(storageDir, 'state'), workspaceId);
+    const tokenProvider = await createSessionTokenSource({
+        secrets: context.secrets,
+        workspaceId,
+        storageDir,
+        log: message => logger.warn(message)
+    });
+    const interrupted = readShutdownSnapshot(snapshotPath);
+    const lastInterrupted = interrupted && interrupted.inFlight.length > 0
+        ? { count: interrupted.inFlight.length, savedAt: interrupted.savedAt }
+        : null;
+    if (lastInterrupted) {
+        logger.warn(`Previous session was interrupted with ${lastInterrupted.count} tool call(s) in flight at ${lastInterrupted.savedAt}.`);
+    }
+
+    manager.setResumeState({ tokenProvider, lastInterrupted });
+    resumeSession = {
+        manager,
+        logger,
+        snapshotPath,
+        workspaceId,
+        workspaceName: workspaceRoot ? path.basename(workspaceRoot) : null
+    };
+    logger.info(`Bridge session token source: ${tokenProvider.mode}.`);
+}
+
+/**
+ * Window close / reload teardown. The work lives in deactivateSession.ts so it
+ * can be unit-tested; this wrapper only guards against an inactive session.
+ */
+export async function deactivate(): Promise<void> {
+    if (!resumeSession) {
+        return;
+    }
+    await runDeactivate(resumeSession);
+}
+
 // 异常兜底：扩展宿主进程由多个扩展共享，这里只负责把现场落盘，不改变默认行为。
 function registerCrashHandlers(logger: PersistentLogger): void {
     process.on('uncaughtException', (error: unknown) => {
@@ -125,7 +197,6 @@ export interface GatewayExtensionApi {
  * 保持入口层只做编排，可以让后续修复命令菜单、服务状态或技能监听时，
  * 直接进入对应模块，而不是继续把逻辑堆到 extension.ts 里。
  */
-// eslint-disable-next-line @typescript-eslint/require-await
 export async function activate(context: vscode.ExtensionContext): Promise<GatewayExtensionApi> {
     // 创建扩展专用输出通道。GatewayManager、服务控制器和命令菜单都会复用它，
     // 这样启动日志、重启日志、错误信息都集中显示在同一个 VS Code Output 面板里。
@@ -184,6 +255,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
     // 把 controller 写回 holder，补上 GatewayManager 自动停止回调需要的引用。
     // 从这一行之后，manager 的 watchdog 触发自动关闭时可以正确同步 VS Code UI 状态。
     runtime.serviceController = serviceController;
+
+    // 重启可续：持久化 token 源 + 上次中断的调用清单（只告知不重放）。
+    await prepareResumeSession(context, manager, persistentLogger);
 
     // bundled bridge 会先复制到版本无关的用户数据目录。准备过程不阻塞扩展激活；
     // 真正启动隔离浏览器时仍会等待同一个任务完成，并在需要时提示重启旧进程。

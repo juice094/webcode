@@ -28,7 +28,7 @@ import {
     type ToolCallScope
 } from './toolCallDeadline';
 
-type ToolCallHandlerOptions = {
+export type ToolCallHandlerOptions = {
     audit?: ApprovalAuditSink;
     commandApprovalManager: CommandApprovalManager;
     createToolExecutionContext: () => ToolExecutionContext;
@@ -38,6 +38,10 @@ type ToolCallHandlerOptions = {
     getWorkspaceRoot: () => string | null;
     localTools: Map<string, LocalTool>;
     log: GatewayLogger;
+    /** Reports a tool call that is now executing (used by the shutdown snapshot). */
+    onToolCallStart?: (info: { callId: string; toolName: string; args: Record<string, unknown> }) => void;
+    /** Reports that a previously started call finished or was abandoned. */
+    onToolCallEnd?: (callId: string) => void;
     trace?: GatewayRuntimeTraceSink;
     toolRouter: Map<string, RemoteToolRoute>;
 };
@@ -66,6 +70,14 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
             toolName: parsed.name,
             status: 'started'
         });
+
+        const callId = parsed.internalCallId ?? `call-${toolStart}`;
+        options.onToolCallStart?.({ callId, toolName: parsed.name, args: parsed.args });
+        // `res.once` is absent on the minimal fake responses used by the route
+        // unit tests; the hook is optional there, so only wire it on a real one.
+        if (options.onToolCallEnd && typeof res.once === 'function') {
+            res.once('close', () => options.onToolCallEnd?.(callId));
+        }
 
         const localTool = options.localTools.get(parsed.name);
         if (localTool) {

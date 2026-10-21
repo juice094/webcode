@@ -15,7 +15,40 @@ export type GatewayStatusDetails = {
     buildHash: string | null;
     bridgeProtocolVersion: number;
     startedAt: string | null;
+    /** Changes on every gateway start; the bridge uses it to spot a restart. */
+    gatewayInstanceId: string | null;
+    /** Calls that were still running when the previous host went away. */
+    lastInterrupted: { count: number; savedAt: string } | null;
 };
+
+function buildIdentityFields(status?: GatewayStatusDetails) {
+    return {
+        version: status?.extensionVersion ?? null,
+        buildHash: status?.buildHash ?? null,
+        bridgeProtocolVersion: status?.bridgeProtocolVersion ?? null,
+        startedAt: status?.startedAt ?? null
+    };
+}
+
+function buildResumeFields(status?: GatewayStatusDetails) {
+    return {
+        gatewayInstanceId: status?.gatewayInstanceId ?? null,
+        lastInterrupted: status?.lastInterrupted ?? null
+    };
+}
+
+/**
+ * Build identity and resume hints for `/v1/status`. Extracted from the route so
+ * the handler stays a one-liner; every field is optional for old callers.
+ */
+export function buildStatusPayload(config: GatewayConfig, status?: GatewayStatusDetails) {
+    return {
+        ok: true,
+        idleTimeoutMs: config.idleTimeoutMs,
+        ...buildIdentityFields(status),
+        ...buildResumeFields(status)
+    };
+}
 
 export function registerConfigRoutes(
     app: express.Express,
@@ -24,14 +57,7 @@ export function registerConfigRoutes(
     status?: GatewayStatusDetails
 ): void {
     app.get('/v1/status', (_req, res) => {
-        res.json({
-            ok: true,
-            idleTimeoutMs: config.idleTimeoutMs,
-            version: status?.extensionVersion ?? null,
-            buildHash: status?.buildHash ?? null,
-            bridgeProtocolVersion: status?.bridgeProtocolVersion ?? null,
-            startedAt: status?.startedAt ?? null
-        });
+        res.json(buildStatusPayload(config, status));
     });
 
     app.get('/v1/init', (req, res) => {

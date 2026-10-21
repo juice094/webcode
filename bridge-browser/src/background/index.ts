@@ -1,7 +1,11 @@
 import { handleInstalled } from './defaults';
 import { handleRuntimeMessage } from './messages';
 import { handleNotificationClicked } from './notifications';
-import { handleSessionExpiryAlarm, scheduleStoredSessionExpiryChecks } from './session_health';
+import {
+  handleSessionExpiryAlarm,
+  probeSessionNow,
+  scheduleStoredSessionExpiryChecks,
+} from './session_health';
 import { handleTabRemoved, handleTabUpdated } from './tab_lifecycle';
 
 // === Background Service (MV3 Persistent Edition) ===
@@ -22,5 +26,11 @@ chrome.runtime.onMessage.addListener(handleRuntimeMessage);
 chrome.notifications.onClicked.addListener(handleNotificationClicked);
 
 chrome.tabs.onRemoved.addListener(handleTabRemoved);
+
+// Returning to a tab re-probes immediately instead of waiting for the 60 s
+// expiry alarm, so a restarted gateway is picked up within seconds.
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void probeSessionNow(tabId);
+});
 
 chrome.alarms.onAlarm.addListener(handleSessionExpiryAlarm);

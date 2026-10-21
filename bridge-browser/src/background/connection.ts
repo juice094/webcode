@@ -82,6 +82,7 @@ export async function handleHandshake(
     targetUrl: session.targetUrl,
     idleTimeoutMs: session.idleTimeoutMs,
     bridgeRequestMs: session.bridgeRequestMs,
+    gatewayInstanceId: session.gatewayInstanceId,
   });
   return { success: true, targetUrl: session.targetUrl };
 }
@@ -95,6 +96,8 @@ interface BindSessionOptions {
   targetUrl: string;
   idleTimeoutMs: number;
   bridgeRequestMs?: number;
+  /** Absent when an older gateway did not report its instance id. */
+  gatewayInstanceId?: string;
 }
 
 export async function bindSession(tabId: number, options: BindSessionOptions) {
@@ -114,6 +117,7 @@ export async function bindSession(tabId: number, options: BindSessionOptions) {
     siteId: options.siteId,
     targetOrigin: options.targetOrigin,
     targetUrl: options.targetUrl,
+    gatewayInstanceId: options.gatewayInstanceId,
   };
   await saveSession(tabId, session);
   scheduleSessionExpiryCheck(tabId, lastGatewayActivityAt, options.idleTimeoutMs);

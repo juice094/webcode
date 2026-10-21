@@ -107,6 +107,20 @@ export async function updateSessionGatewayActivity(
   return session;
 }
 
+/**
+ * Records that this tab is talking to a (possibly restarted) gateway instance
+ * without re-pairing. Called after a successful recovery probe.
+ */
+export async function updateSessionGatewayInstance(tabId: number, gatewayInstanceId: string): Promise<void> {
+  const session = await getSession(tabId);
+  if (!session) {
+    return;
+  }
+  session.gatewayInstanceId = gatewayInstanceId;
+  session.lastRecoveredAt = Date.now();
+  await saveSession(tabId, session);
+}
+
 export async function updateSessionLog(tabId: number, showLog: boolean) {
   const session = await getSession(tabId);
   if (session) {

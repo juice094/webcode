@@ -2,6 +2,8 @@ import { isRecord } from "../types";
 
 export interface RedeemedBridgeSession {
   bridgeProtocolVersion: number;
+  /** Absent when an older gateway did not report its instance id. */
+  gatewayInstanceId?: string;
   /** Absent or 0 means the browser waits for as long as the request takes. */
   bridgeRequestMs?: number;
   idleTimeoutMs: number;
@@ -55,6 +57,7 @@ export function normalizeRedeemedBridgeSession(value: unknown): RedeemedBridgeSe
 
   return {
     bridgeProtocolVersion: value.bridgeProtocolVersion,
+    gatewayInstanceId: typeof value.gatewayInstanceId === "string" ? value.gatewayInstanceId : undefined,
     bridgeRequestMs: normalizeOptionalTimeout(value.bridgeRequestMs),
     idleTimeoutMs: value.idleTimeoutMs,
     siteId: value.siteId,

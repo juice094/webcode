@@ -176,9 +176,7 @@ export type SettingsRuntimeMessageRequest =
   | SetApprovalModeMessageRequest | SetDefaultApprovalModeMessageRequest
   | SetDefaultAutoApproveToolsMessageRequest;
 
-export type BackgroundRuntimeMessageRequest =
-  | BackgroundActionRuntimeMessageRequest
-  | SettingsRuntimeMessageRequest;
+export type BackgroundRuntimeMessageRequest = BackgroundActionRuntimeMessageRequest | SettingsRuntimeMessageRequest;
 
 export interface HandshakeResponse {
   success: boolean;
@@ -230,12 +228,11 @@ export interface StoredSession {
   targetOrigin?: string;
   targetUrl?: string;
   allowedOrigins?: string[];
+  gatewayInstanceId?: string;
+  lastRecoveredAt?: number;
 }
 
-export type SessionDisconnectReason =
-  | "gateway_unavailable"
-  | "invalid_token"
-  | "invalid_session";
+export type SessionDisconnectReason = "gateway_unavailable" | "invalid_token" | "invalid_session";
 
 export interface InitGatewayData {
   syncedAiSites?: SyncedAiSite[];
@@ -391,6 +388,8 @@ export function normalizeSession(value: unknown): Session | null {
     targetOrigin: value.targetOrigin ?? value.allowedOrigins?.[0],
     targetUrl: value.targetUrl,
     allowedOrigins: value.allowedOrigins,
+    gatewayInstanceId: typeof value.gatewayInstanceId === "string" ? value.gatewayInstanceId : undefined,
+    lastRecoveredAt: typeof value.lastRecoveredAt === "number" ? value.lastRecoveredAt : undefined,
   };
 }
 

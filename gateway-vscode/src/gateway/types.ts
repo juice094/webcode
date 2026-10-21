@@ -50,7 +50,21 @@ export interface GatewayConfig {
 
 export interface StartResult {
     port: number;
+    /** Identity of this gateway start; changes on every start/restart. */
+    instanceId?: string;
+    /** ISO timestamp of this start, mirrored by `/v1/status`. */
+    startedAt?: string;
 }
+
+/**
+ * Minimal contract the extension fulfils with a persisted token source. The
+ * gateway only needs a value and an optional rotation hook, which keeps the
+ * storage strategy (SecretStorage, derived, in-memory) out of this layer.
+ */
+export type BridgeSessionTokenProvider = {
+    get(): Promise<string>;
+    rotate?: () => Promise<string>;
+};
 
 export type ConnectedClient = {
     id: string;

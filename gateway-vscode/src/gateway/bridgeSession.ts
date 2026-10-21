@@ -27,6 +27,13 @@ function createRandomSecret(): string {
  * cold-restarts, and preserved across hot configuration reloads so connected
  * browser tabs keep working (see GatewayLifecycleOptions.preserveBridgeSession).
  *
+ * The token itself now outlives the process: the extension resolves it from a
+ * persisted source (see extension/sessionToken.ts) and seeds it here on every
+ * start, so a window reload or extension restart does not force a browser
+ * re-pair. `clear()` still revokes the in-memory token, but a later start
+ * re-seeds the same persisted value; `rotate()` at the source is what actually
+ * invalidates connected tabs.
+ *
  * The code TTL is retargetable so a hot reload can apply
  * webcodeGateway.timeouts.bridgeCodeTtlSeconds without recreating the manager
  * (recreating it would revoke the session token being preserved).
@@ -84,6 +91,15 @@ export class BridgeSessionManager {
             siteId: pending.siteId,
             targetUrl: pending.targetUrl
         };
+    }
+
+    /**
+     * Seeds the token resolved from the persisted source. Called on every start,
+     * including cold restarts, which is what makes a reconnecting tab keep
+     * working without a new launch code.
+     */
+    setSessionToken(token: string): void {
+        this.activeSessionToken = token;
     }
 
     activateSession(): string {

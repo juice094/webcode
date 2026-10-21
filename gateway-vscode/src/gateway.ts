@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
+
 import express from 'express';
 import type { Server as HttpServer } from 'http';
 import * as vscode from 'vscode';
-import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
+import { BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { getErrorMessage } from './gateway/errorUtils';
 import { SkillManager } from './skillManager';
@@ -9,7 +11,6 @@ import { TerminalSessionManager } from './terminalSessionManager';
 import {
     createLocalToolMap,
     type LocalTool,
-    type ToolDefinitionContext,
     type ToolDefinition,
     type ToolExecutionContext
 } from './tools';
@@ -20,6 +21,9 @@ import {
 } from './gateway/bridgeRoute';
 import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/bridgeSession';
 import { registerConfigRoutes } from './gateway/initRoutes';
+import type { InFlightToolCall } from './extension/shutdownSnapshot';
+import { seedSessionToken, type SessionTokenSource } from './extension/sessionToken';
+import { InFlightCallRegistry } from './gateway/inFlightCalls';
 import { DEFAULT_IDLE_TIMEOUT_MINUTES, formatIdleTimeoutMinutes } from './gateway/idleTimeout';
 import * as timeouts from './gateway/timeouts';
 import {
@@ -27,15 +31,17 @@ import {
     createCorsMiddleware,
     createGatewayActivityMiddleware,
     createInFlightRequestMiddleware,
-    createRequestLoggerMiddleware
+    createRequestLoggerMiddleware,
+    createShutdownGuardMiddleware
 } from './gateway/middleware';
 import { connectToConfiguredServers } from './gateway/serverConnector';
+import { registerToolRoutes } from './gateway/toolRoutes';
+import type { ToolCallHandlerOptions } from './gateway/toolCallRoute';
 import {
-    createToolApprovalHandler,
-    createToolCallHandler,
-    createToolPreflightHandler
-} from './gateway/toolCallRoute';
-import { generateGroupedTools } from './gateway/toolGroups';
+    findToolDefinition,
+    listToolDefinitions,
+    type ToolDefinitionSources
+} from './gateway/toolDefinitions';
 import type {
     ConnectedClient,
     GatewayConfig,
@@ -48,14 +54,7 @@ import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/comma
 import type { ApprovalAuditSink } from './gateway/approvalAudit';
 import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pairingRoutes';
 import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
-
-/**
- * The browser bridge content scripts only match the loopback port window
- * 34567-34576, so the gateway scans at most this many consecutive ports
- * starting from the configured one. Landing outside the window leaves the
- * bridge page without an injected extension.
- */
-const MAX_PORT_RETRY_ATTEMPTS = BRIDGE_PORT_RANGE_END - BRIDGE_PORT_RANGE_START + 1;
+import { listenOnAvailablePort } from './gateway/portListener';
 
 /**
  * QA-calibrated value: covers the worst case of one long MCP tool call
@@ -66,6 +65,11 @@ const MAX_PORT_RETRY_ATTEMPTS = BRIDGE_PORT_RANGE_END - BRIDGE_PORT_RANGE_START 
 const MAX_WATCHDOG_POSTPONEMENTS = 3;
 
 export interface GatewayLifecycleOptions {
+    /**
+     * Deactivate path only: skip the MCP client shutdown handshake so the whole
+     * stop stays inside the extension-host teardown budget.
+     */
+    fast?: boolean;
     /**
      * Keep the browser bridge session token (and pending launch codes) across
      * this stop/start cycle. Used by hot configuration reloads so connected
@@ -108,7 +112,14 @@ export class GatewayManager {
     private onSessionRequestConfirmation: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null = null;
     private currentPort: number | null = null;
     private startedAt: string | null = null;
+    private gatewayInstanceId = randomUUID();
     private browserLaunchWaitMs = timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS;
+    private shuttingDown = false;
+    private bridgeSessionTokenProvider: SessionTokenSource | null = null;
+    private lastInterrupted: { count: number; savedAt: string } | null = null;
+    private readonly inFlightCalls = new InFlightCallRegistry(
+        toolName => this.toolRouter.get(toolName)?.serverId
+    );
 
     constructor(
         outputChannel: vscode.OutputChannel,
@@ -149,29 +160,35 @@ export class GatewayManager {
         this.onSessionRequestConfirmation = handler;
     }
 
-    private _generateGroupedTools() {
-        return generateGroupedTools(this.toolRouter, this.localTools, tool => this.getLocalToolDefinition(tool));
+    /** Extension hook: persisted token source plus the previous session's loss report. */
+    setResumeState(state: {
+        tokenProvider: SessionTokenSource | null;
+        lastInterrupted: { count: number; savedAt: string } | null;
+    }): void {
+        this.bridgeSessionTokenProvider = state.tokenProvider;
+        this.lastInterrupted = state.lastInterrupted;
+    }
+
+    /** Rejects new work; called first thing in `deactivate()`. */
+    markShuttingDown(): void { this.shuttingDown = true; }
+
+    /** Tool calls running right now (notification only, never replayed). */
+    getInFlightToolCalls(): InFlightToolCall[] { return this.inFlightCalls.snapshot(); }
+
+    private toolDefinitionSources(): ToolDefinitionSources {
+        return {
+            localTools: this.localTools,
+            toolRouter: this.toolRouter,
+            context: {
+                commandShellPath: this.commandShellPath,
+                commandExecutionMs: this.commandExecutionMs,
+                commandExecutionMaxMs: this.commandExecutionMaxMs
+            }
+        };
     }
 
     private getToolDefinition(name: string): ToolDefinition | null {
-        const localTool = this.localTools.get(name);
-        if (localTool) {
-            return this.getLocalToolDefinition(localTool);
-        }
-
-        return this.toolRouter.get(name)?.definition ?? null;
-    }
-
-    private getLocalToolDefinition(tool: LocalTool): ToolDefinition {
-        return tool.getDefinition?.(this.createToolDefinitionContext()) ?? tool.definition;
-    }
-
-    private createToolDefinitionContext(): ToolDefinitionContext {
-        return {
-            commandShellPath: this.commandShellPath,
-            commandExecutionMs: this.commandExecutionMs,
-            commandExecutionMaxMs: this.commandExecutionMaxMs
-        };
+        return findToolDefinition(this.toolDefinitionSources(), name);
     }
 
     private applyCommandConfig(config: GatewayConfig): void {
@@ -241,7 +258,7 @@ export class GatewayManager {
             commandExecutionMs: this.commandExecutionMs,
             commandExecutionMaxMs: this.commandExecutionMaxMs,
             commandDenyRules: this.commandDenyRules,
-            listTools: () => this._generateGroupedTools(),
+            listTools: () => listToolDefinitions(this.toolDefinitionSources()),
             getToolDefinition: (name: string) => this.getToolDefinition(name)
         };
     }
@@ -279,6 +296,7 @@ export class GatewayManager {
     private registerRoutes(config: GatewayConfig): void {
         if (!this.app) {return;}
 
+        this.app.use(createShutdownGuardMiddleware(() => this.shuttingDown));
         this.app.use(createInFlightRequestMiddleware(
             () => { this.inFlightRequestCount += 1; },
             () => { this.inFlightRequestCount = Math.max(0, this.inFlightRequestCount - 1); }
@@ -291,6 +309,7 @@ export class GatewayManager {
             getBridgeLaunch: code => this.bridgeSessionManager.getBridgeLaunch(code),
             getAiSites: () => config.aiSites ?? [],
             getExtensionVersion: () => this.getExtensionVersion(),
+            getGatewayInstanceId: () => this.gatewayInstanceId,
             getIdleTimeoutMs: () => this.idleTimeoutMs,
             getBridgeRequestMs: () => this.bridgeRequestMs,
             getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
@@ -324,10 +343,12 @@ export class GatewayManager {
             extensionVersion: this.getExtensionVersion(),
             buildHash: readBrowserBridgeBuild(this.extensionPath)?.buildHash ?? null,
             bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
-            startedAt: this.startedAt
+            startedAt: this.startedAt,
+            gatewayInstanceId: this.gatewayInstanceId,
+            lastInterrupted: this.lastInterrupted
         });
 
-        const toolCallOptions = {
+        const toolCallOptions: ToolCallHandlerOptions = {
             audit: this.approvalAuditSink,
             commandApprovalManager: this.commandApprovalManager,
             createToolExecutionContext: () => this.createToolExecutionContext(),
@@ -337,14 +358,17 @@ export class GatewayManager {
             getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
             localTools: this.localTools,
             log: this.log.bind(this),
+            onToolCallEnd: callId => this.inFlightCalls.end(callId),
+            onToolCallStart: info => this.inFlightCalls.start(info),
             trace: this.trace.bind(this),
             toolRouter: this.toolRouter
         };
-        this.app.post('/v1/tools/preflight', createToolPreflightHandler(toolCallOptions));
-        this.app.post('/v1/tools/approve', createToolApprovalHandler(
-            this.commandApprovalManager, this.approvalAuditSink
-        ));
-        this.app.post('/v1/tools/call', createToolCallHandler(toolCallOptions));
+        registerToolRoutes({
+            app: this.app,
+            approvalAuditSink: this.approvalAuditSink,
+            commandApprovalManager: this.commandApprovalManager,
+            toolCallOptions
+        });
     }
 
     private getExtensionVersion(): string {
@@ -356,6 +380,8 @@ export class GatewayManager {
         if (this.server) {
             await this.stop({ preserveBridgeSession });
         }
+        this.shuttingDown = false;
+        this.gatewayInstanceId = randomUUID();
         this.skillDirectories = config.skillDirectories ?? [];
         this.applyCommandConfig(config);
         this.currentAiSites = config.aiSites ?? [];
@@ -397,6 +423,9 @@ export class GatewayManager {
         if (!preserveBridgeSession) {
             this.bridgeSessionManager.clear();
         }
+        // Re-seed from the persisted source on every start (including cold
+        // starts): this is what lets a reconnecting tab keep its token.
+        await seedSessionToken(this.bridgeSessionManager, this.bridgeSessionTokenProvider, message => this.error(message));
         this.trace({
             event: 'gateway_starting',
             status: 'started',
@@ -411,52 +440,19 @@ export class GatewayManager {
         this.app.use(express.json());
         this.registerRoutes(config);
 
-        return this.listenOnAvailablePort(config);
+        const bound = await this.listenOnAvailablePort(config);
+        return { ...bound, instanceId: this.gatewayInstanceId, startedAt: this.startedAt ?? undefined };
     }
 
     private listenOnAvailablePort(config: GatewayConfig): Promise<StartResult> {
-        return new Promise<StartResult>((resolve, reject) => {
-            const tryListen = (currentPort: number, attempt: number) => {
-                if (attempt >= MAX_PORT_RETRY_ATTEMPTS) {
-                    reject(new Error("No ports available"));
-                    return;
-                }
-
-                if (!this.app) {return;}
-                this.server = this.app.listen(currentPort, '127.0.0.1', () => {
-                    this.currentPort = currentPort;
-                    this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
-                    if (currentPort < BRIDGE_PORT_RANGE_START || currentPort > BRIDGE_PORT_RANGE_END) {
-                        this.log(`⚠️ Port ${currentPort} is outside the browser bridge supported range ${BRIDGE_PORT_RANGE_START}-${BRIDGE_PORT_RANGE_END}. The browser extension will not inject on this port; check the webcodeGateway.port setting.`);
-                    }
-                    this.trace({
-                        event: 'gateway_started',
-                        status: 'success',
-                        details: { port: currentPort }
-                    });
-                    vscode.window.setStatusBarMessage(`MCP Gateway: On (${currentPort})`, 5000);
-                    resolve({ port: currentPort });
-                });
-
-                this.server.on('error', (e: NodeJS.ErrnoException) => {
-                    if (e.code === 'EADDRINUSE') {
-                        // Fix: Prevent infinite loop if preferredPort equals config.port
-                        if (config.preferredPort && currentPort === config.preferredPort && currentPort !== config.port) {
-                            this.log(`⚠️ Preferred port ${currentPort} busy. Falling back to default range.`);
-                            tryListen(config.port, 0);
-                        } else {
-                            tryListen(currentPort + 1, attempt + 1);
-                        }
-                    } else {
-                        reject(e);
-                    }
-                });
-            };
-
-            if (config.preferredPort && config.preferredPort !== config.port) {
-                tryListen(config.preferredPort, 0);
-            } else {
-                tryListen(config.port, 0);
+        return listenOnAvailablePort({
+            app: this.app as express.Express,
+            config,
+            log: this.log.bind(this),
+            trace: this.trace.bind(this),
+            onBound: (port, server) => {
+                this.currentPort = port;
+                this.server = server;
             }
         });
     }
@@ -476,12 +472,15 @@ export class GatewayManager {
             this.log('🛑 Gateway server stopped.');
             this.trace({ event: 'gateway_stopped', status: 'success' });
         }
-        this.connectedClients.forEach(c => {
-            try {
-                void c.client.close();
-            } catch { }
-        });
+        if (options?.fast !== true) {
+            this.connectedClients.forEach(c => {
+                try {
+                    void c.client.close();
+                } catch { }
+            });
+        }
         this.connectedClients = [];
+        this.inFlightCalls.clear();
         this.commandApprovalManager.clear();
         if (!options?.preserveBridgeSession) {
             this.bridgeSessionManager.clear();

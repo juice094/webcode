@@ -126,8 +126,36 @@ async function redeemBridgeToken(manager: GatewayManager, port: number): Promise
 }
 
 async function requestInitStatus(port: number, token: string): Promise<number> {
-    const response = await fetch(`http://127.0.0.1:${port}/v1/init`, {
-        headers: { [PROTOCOL.authHeaderLowerName]: token }
+    return withConnectionRetry(async () => {
+        const response = await fetch(`http://127.0.0.1:${port}/v1/init`, {
+            headers: { [PROTOCOL.authHeaderLowerName]: token }
+        });
+        // Drain the body: an unread body leaves undici's HTTP parser paused, and
+        // the next stop()/listen() cycle destroys that socket.
+        await response.arrayBuffer();
+        return response.status;
     });
-    return response.status;
+}
+
+/**
+ * One retry for an idempotent GET whose pooled connection was destroyed by the
+ * restart under test. stop() then listen() on the same port closes the previous
+ * server, which tears down the idle keep-alive socket undici still holds;
+ * browsers retry an idempotent GET on a fresh connection, undici does not.
+ * A second failure is real and is reported.
+ */
+async function withConnectionRetry<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+        return await operation();
+    } catch (error: unknown) {
+        if (!isConnectionReset(error)) {
+            throw error;
+        }
+        return operation();
+    }
+}
+
+function isConnectionReset(error: unknown): boolean {
+    const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+    return code === 'ECONNRESET' || code === 'EPIPE';
 }

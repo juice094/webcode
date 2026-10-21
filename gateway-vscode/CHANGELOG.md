@@ -25,6 +25,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Release guard tests fail when the extension manifest, bridge manifest, and packaged bridge
   descriptor disagree on the version.
 
+- Restart continuity: the bridge session token is persisted per workspace (SecretStorage, with a
+  derived and an in-memory fallback), so a reloaded window or restarted gateway no longer forces a
+  browser re-pair. `/v1/status` reports `gatewayInstanceId` and `lastInterrupted`; a new
+  `deactivate()` writes an in-flight call snapshot (digest plus a redacted 120-character preview,
+  never replayed) before stopping the gateway.
+
 ### Upgrade notes
 
 - Restart the browser once after upgrading (the new bridge build is staged first).

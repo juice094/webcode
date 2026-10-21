@@ -94,6 +94,22 @@ export function isGatewayActivityRequest(method: string, requestPath: string): b
     return GATEWAY_ACTIVITY_ROUTES.has(`${method.toUpperCase()} ${requestPath}`);
 }
 
+/**
+ * Rejects new work while `deactivate()` is draining. Mounted before every other
+ * route so a browser that polls during shutdown gets a clear 503 instead of a
+ * reset when the host disappears.
+ */
+export function createShutdownGuardMiddleware(isShuttingDown: () => boolean): express.RequestHandler {
+    return (_req, res, next) => {
+        if (!isShuttingDown()) {
+            next();
+            return;
+        }
+        res.set('Retry-After', '2');
+        res.status(503).json({ error: 'The gateway is shutting down.' });
+    };
+}
+
 export function createGatewayActivityMiddleware(resetWatchdog: () => void): express.RequestHandler {
     return (req, _res, next) => {
         if (isGatewayActivityRequest(req.method, req.path)) {

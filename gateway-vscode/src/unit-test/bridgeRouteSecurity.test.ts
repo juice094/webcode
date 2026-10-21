@@ -261,6 +261,7 @@ async function startBridgeServer(
         getBridgeLaunch: code => sessions.getBridgeLaunch(code),
         getAiSites: () => [TEST_SITE],
         getExtensionVersion: () => '1.0.1',
+        getGatewayInstanceId: () => 'test-gateway-instance',
         getIdleTimeoutMs: () => 30 * 60 * 1000,
         getBridgeRequestMs: () => bridgeRequestMs,
         getWorkspaceRoot: () => null,

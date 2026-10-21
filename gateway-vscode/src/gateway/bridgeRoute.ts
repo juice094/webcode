@@ -31,6 +31,8 @@ type BridgeRouteOptions = {
      * the field out of the redemption response entirely.
      */
     getBridgeRequestMs: () => number;
+    /** Identity of this gateway start, so the tab can spot a restart. */
+    getGatewayInstanceId: () => string;
     getWorkspaceRoot: () => string | null;
     log: GatewayLogger;
     recordActivity: () => void;
@@ -157,6 +159,7 @@ function createRedemptionPayload(
         vscodeExtensionVersion: options.getExtensionVersion(),
         bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
         workspaceId,
+        gatewayInstanceId: options.getGatewayInstanceId(),
         idleTimeoutMs: options.getIdleTimeoutMs(),
         ...(bridgeRequestMs > 0 ? { bridgeRequestMs } : {})
     };

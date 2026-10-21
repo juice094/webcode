@@ -7,8 +7,10 @@ import {
   getStoredSessionTabIds,
   removeSession,
   updateSessionGatewayActivity,
+  updateSessionGatewayInstance,
   type CurrentProtocolSession,
 } from './sessions';
+import { decideSessionRecovery } from './session_recovery';
 
 export type GatewayHealthStatus = "online" | "offline" | "unauthorized";
 
@@ -18,9 +20,19 @@ const GATEWAY_IDLE_RECHECK_MS = 60 * 1000;
 const GATEWAY_HEALTH_TIMEOUT_MS = 2500;
 const SESSION_EXPIRY_ALARM_PREFIX = "webcode-session-expiry:";
 
-export async function checkGatewayHealth(
+type GatewayProbe = {
+  status: GatewayHealthStatus;
+  gatewayInstanceId?: string;
+};
+
+/**
+ * One authenticated `/v1/status` probe. On success it also reads the gateway
+ * instance id, which tells the caller whether the host restarted underneath an
+ * otherwise healthy session.
+ */
+async function probeGateway(
   session: Pick<CurrentProtocolSession, "port" | "token">
-): Promise<GatewayHealthStatus> {
+): Promise<GatewayProbe> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GATEWAY_HEALTH_TIMEOUT_MS);
 
@@ -31,16 +43,79 @@ export async function checkGatewayHealth(
       signal: controller.signal,
     });
 
-    if (response.ok) {
-      return "online";
+    if (!response.ok) {
+      return { status: response.status === 403 ? "unauthorized" : "offline" };
     }
 
-    return response.status === 403 ? "unauthorized" : "offline";
+    const body = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const gatewayInstanceId = typeof body?.gatewayInstanceId === "string" ? body.gatewayInstanceId : undefined;
+    return { status: "online", gatewayInstanceId };
   } catch {
-    return "offline";
+    return { status: "offline" };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function checkGatewayHealth(
+  session: Pick<CurrentProtocolSession, "port" | "token">
+): Promise<GatewayHealthStatus> {
+  return (await probeGateway(session)).status;
+}
+
+/**
+ * Applies the recovery policy to one tab: a single retry on 401, a persisted
+ * instance id when the token survived a restart, and an expiry only when the
+ * gateway is really gone or the token is really rejected twice.
+ */
+async function reconcileSession(
+  tabId: number,
+  session: CurrentProtocolSession
+): Promise<"keep" | "expire"> {
+  let probe = await probeGateway(session);
+  let decision = decideSessionRecovery({
+    status: probe.status,
+    gatewayInstanceId: probe.gatewayInstanceId,
+    sessionInstanceId: session.gatewayInstanceId,
+    alreadyRetried: false,
+  });
+
+  if (decision.action === "retry") {
+    probe = await probeGateway(session);
+    decision = decideSessionRecovery({
+      status: probe.status,
+      gatewayInstanceId: probe.gatewayInstanceId,
+      sessionInstanceId: session.gatewayInstanceId,
+      alreadyRetried: true,
+    });
+  }
+
+  if (decision.action === "keep") {
+    if (decision.recovered && decision.instanceId) {
+      await updateSessionGatewayInstance(tabId, decision.instanceId);
+    }
+    return "keep";
+  }
+
+  if (decision.action === "expire") {
+    await expireGatewaySession(tabId, decision.reason);
+    return "expire";
+  }
+
+  return "keep";
+}
+
+/**
+ * Immediate probe used when the user comes back to a tab. The alarm path runs
+ * on a 60 s cadence, which is too slow for "it should just work" after a reload.
+ */
+export async function probeSessionNow(tabId: number): Promise<void> {
+  const session = await getCurrentProtocolSession(tabId);
+  if (!session) {
+    return;
+  }
+  const outcome = await reconcileSession(tabId, session);
+  updateBadge(tabId, outcome === "keep");
 }
 
 export async function recordGatewayActivity(tabId: number): Promise<void> {
@@ -104,14 +179,13 @@ export async function handleSessionExpiryAlarm(alarm: chrome.alarms.Alarm): Prom
     return;
   }
 
-  const status = await checkGatewayHealth(session);
-  if (status === "online") {
+  const outcome = await reconcileSession(tabId, session);
+  if (outcome === "keep") {
     rescheduleSessionExpiryRecheck(tabId);
     return;
   }
 
-  console.log(`${BRANDING.logPrefix} Gateway session expired for tab ${tabId}: ${status}`);
-  await expireGatewaySession(tabId, getDisconnectReasonForHealthStatus(status));
+  console.log(`${BRANDING.logPrefix} Gateway session expired for tab ${tabId}.`);
 }
 
 async function scheduleStoredSessionExpiryCheck(tabId: number): Promise<void> {
@@ -143,10 +217,6 @@ function getTabIdFromSessionExpiryAlarm(alarmName: string): number | null {
 
   const tabId = Number(alarmName.slice(SESSION_EXPIRY_ALARM_PREFIX.length));
   return Number.isInteger(tabId) && tabId > 0 ? tabId : null;
-}
-
-function getDisconnectReasonForHealthStatus(status: GatewayHealthStatus): SessionDisconnectReason {
-  return status === "unauthorized" ? "invalid_token" : "gateway_unavailable";
 }
 
 function getValidTimestamp(value: number | undefined): number | null {
