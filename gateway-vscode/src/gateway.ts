@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Server as HttpServer } from 'http';
 import * as vscode from 'vscode';
-import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START } from '@webcode/shared';
+import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { getErrorMessage } from './gateway/errorUtils';
 import { SkillManager } from './skillManager';
@@ -46,6 +46,7 @@ import type {
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
 import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/commandApproval';
 import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pairingRoutes';
+import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 
 /**
  * The browser bridge content scripts only match the loopback port window
@@ -102,6 +103,8 @@ export class GatewayManager {
     private onBridgeSessionActivated: (() => void) | null = null;
     private onSessionRequestConfirmation: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null = null;
     private currentPort: number | null = null;
+    private startedAt: string | null = null;
+    private browserLaunchWaitMs = timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS;
 
     constructor(
         outputChannel: vscode.OutputChannel,
@@ -230,6 +233,7 @@ export class GatewayManager {
         this.connectedClients = await connectToConfiguredServers({
             connectedClients: this.connectedClients,
             extensionPath: this.extensionPath,
+            clientVersion: this.getExtensionVersion(),
             log: this.log.bind(this),
             error: this.error.bind(this),
             servers,
@@ -299,7 +303,12 @@ export class GatewayManager {
         ));
         this.app.use(createGatewayActivityMiddleware(() => this.resetWatchdog()));
 
-        registerConfigRoutes(this.app, config, this.log.bind(this));
+        registerConfigRoutes(this.app, config, this.log.bind(this), {
+            extensionVersion: this.getExtensionVersion(),
+            buildHash: readBrowserBridgeBuild(this.extensionPath)?.buildHash ?? null,
+            bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
+            startedAt: this.startedAt
+        });
 
         const toolCallOptions = {
             commandApprovalManager: this.commandApprovalManager,
@@ -319,8 +328,7 @@ export class GatewayManager {
     }
 
     private getExtensionVersion(): string {
-        const version = (this.context.extension.packageJSON as { version?: unknown }).version;
-        return typeof version === 'string' && version.trim() ? version : 'unknown';
+        return resolveExtensionVersion(this.context);
     }
 
     async start(config: GatewayConfig, options?: GatewayLifecycleOptions): Promise<StartResult> {
@@ -340,6 +348,9 @@ export class GatewayManager {
         this.toolCallMs = timeouts.resolveToolCallMs(config.toolCallMs);
         this.commandExecutionMs = timeouts.resolveCommandExecutionMs(config.commandExecutionMs);
         this.bridgeRequestMs = timeouts.resolveBridgeRequestMs(config.bridgeRequestMs);
+        this.browserLaunchWaitMs = config.browserLaunchWaitMs === undefined
+            ? timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS
+            : timeouts.resolveBrowserLaunchWaitMs(config.browserLaunchWaitMs);
         // TTLs arrive already clamped in milliseconds (the extension resolves
         // seconds-native settings), and are retargeted instead of recreating the
         // managers: a hot reload must keep the bridge session token that
@@ -347,6 +358,16 @@ export class GatewayManager {
         this.bridgeSessionManager.setBridgeCodeTtlMs(config.bridgeCodeTtlMs ?? DEFAULT_BRIDGE_CODE_TTL_MS);
         this.commandApprovalManager.setTtlMs(config.approvalTtlMs ?? DEFAULT_APPROVAL_TTL_MS);
         this.commandApprovalManager.clear();
+        // One line with every resolved deadline, so "what is this gateway
+        // actually enforcing?" is answerable from the log instead of guessing
+        // whether a setting was picked up.
+        this.log(
+            `⏱️ timeouts: toolCallMs=${this.toolCallMs} commandExecutionMs=${this.commandExecutionMs} ` +
+            `bridgeRequestMs=${this.bridgeRequestMs} bridgeCodeTtlMs=${this.bridgeSessionManager.getBridgeCodeTtlMs()} ` +
+            `approvalTtlMs=${this.commandApprovalManager.getTtlMs()} browserLaunchWaitMs=${this.browserLaunchWaitMs} ` +
+            `idleTimeoutMs=${this.idleTimeoutMs}`
+        );
+        this.startedAt = new Date().toISOString();
         // Bridge session token lifecycle: the token is revoked on every cold
         // start (fresh launch, manual stop/start, cold configuration keys such
         // as port or idleTimeoutMinutes). Hot configuration reloads (servers,
@@ -427,6 +448,7 @@ export class GatewayManager {
             this.watchdogTimer = null;
         }
         this.watchdogPostponements = 0;
+        this.startedAt = null;
         if (this.server) {
             this.server.close();
             this.server = null;

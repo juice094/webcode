@@ -54,6 +54,27 @@ Troubleshooting order for a disconnect:
    (launch codes are single-use and short-lived, so an "invalid link" error on an old link is expected).
 3. If it still fails, check the `ERROR`/`WARN` entries in the persisted log file above.
 
+## Why does upgrading to 1.3.0 need a browser restart and another pairing?
+
+They are two separate things:
+
+1. **Browser restart**: the new browser bridge build is staged first. If an isolated browser is
+   running, the next connect asks you to restart it; confirming closes and relaunches the browser so
+   the new bridge takes effect. Manual installs should run `pnpm bridge:sync` and then click the
+   reload button on the bridge card in `chrome://extensions`.
+2. **Another pairing**: the session token lives in the gateway process memory and is cleared by an
+   extension upgrade or window reload, so reconnect once from the VS Code status bar. Automatic
+   resume is planned for a later release.
+
+Why both sides must be upgraded together: the browser handshake requires
+"VS Code extension version === browser extension version" (exact equality). Upgrading only one side
+is rejected with a version mismatch.
+
+To confirm which build is running, open the command palette, choose
+`Output: Show Output Channels...`, select `MCP Gateway`: the first line is
+`build: version=… buildHash=… builtAt=…`, and it must match
+`browser-extension/bridge-build.json` inside the installed package.
+
 ## What should I do about long-running tasks or commands?
 
 `execute_command` has a deadline, and hitting it only stops the shell process itself: child processes

@@ -39,6 +39,8 @@ export function resolveServerToolTimeoutMs(config: Pick<ServerConfig, 'toolTimeo
 type ConnectToConfiguredServersOptions = {
     connectedClients: ConnectedClient[];
     extensionPath: string;
+    /** Version reported to MCP servers in the client handshake. */
+    clientVersion: string;
     log: GatewayLogger;
     error: GatewayErrorLogger;
     servers: Record<string, ServerConfig>;
@@ -54,8 +56,8 @@ function closeConnectedClients(clients: ConnectedClient[]): void {
     });
 }
 
-function createGatewayClient(): Client {
-    return new Client({ name: "gateway-vscode", version: "1.0.0" }, { capabilities: {} });
+function createGatewayClient(version: string): Client {
+    return new Client({ name: "gateway-vscode", version }, { capabilities: {} });
 }
 
 function replaceExtensionPath(value: string, extensionPath: string): string {
@@ -84,6 +86,7 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
     const {
         connectedClients,
         extensionPath,
+        clientVersion,
         log,
         error,
         servers,
@@ -114,7 +117,7 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
                 const transport = new StreamableHTTPClientTransport(new URL(config.url), {
                     requestInit: { headers: config.headers },
                 });
-                client = createGatewayClient();
+                client = createGatewayClient(clientVersion);
                 await client.connect(transport);
 
             } else if (config.type === 'sse') {
@@ -126,7 +129,7 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
                     eventSourceInit: { headers: config.headers },
                 } as unknown as ConstructorParameters<typeof SSEClientTransport>[1];
                 const transport = new SSEClientTransport(new URL(config.url), transportOptions);
-                client = createGatewayClient();
+                client = createGatewayClient(clientVersion);
                 await client.connect(transport);
 
             } else {
@@ -139,7 +142,7 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
 
                 log(`   -> Starting [${serverId}]: ${command} ${args.join(' ')}`);
                 const transport = new StdioClientTransport({ command, args, env });
-                client = createGatewayClient();
+                client = createGatewayClient(clientVersion);
                 await client.connect(transport);
             }
 

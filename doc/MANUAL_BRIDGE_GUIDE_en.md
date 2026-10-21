@@ -22,12 +22,22 @@ forbids self-updating unpacked extensions, so updates must follow this conventio
 
 ## Version consistency
 
-- The gateway handshake requires the VS Code extension version and the bridge
-  manifest version to match exactly (plus a `bridgeProtocolVersion` check);
-  mismatches are rejected with a hint about which side is outdated.
+- The **browser-side** handshake requires the VS Code extension version and the
+  bridge manifest version to match exactly (plus a `bridgeProtocolVersion`
+  check); mismatches are rejected with a hint about which side is outdated.
+- The **gateway side** of redemption only requires the bridge to be at least
+  `minExtensionVersion` from `shared/src/bridgeProtocol.json` (currently
+  `1.0.0`). An older bridge can therefore pass the gateway check but is still
+  stopped by the browser-side equality check — the conclusion is unchanged:
+  **both sides must ship the same version**.
 - Upgrade both sides together whenever the VS Code extension (vsix) changes.
-- Isolated-browser users do not need this convention (the extension manager
-  stages updates automatically).
+- Isolated-browser users do not sync manually (the extension manager stages
+  updates and asks for one browser restart on the next connect).
+
+Since 1.3.0 the extension logs a build fingerprint
+(`build: version=… buildHash=… builtAt=…`); compare it with
+`browser-extension/bridge-build.json` to confirm the loaded bridge and the
+extension come from the same build.
 
 ## Notes
 

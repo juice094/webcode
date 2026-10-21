@@ -17,6 +17,7 @@ import { registerGatewayConnectDeepLink } from './extension/uriHandler';
 import type { SessionRequestPrompt } from './gateway/pairingRoutes';
 import { updateGatewayStatusBar } from './extension/statusBar';
 import { GatewayManager } from './gateway';
+import { formatBuildFingerprint, readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { createGatewayRuntimeTraceSinkFromEnvironment } from './gateway/runtimeTrace';
 import { t } from './i18n';
 import {
@@ -73,6 +74,20 @@ async function confirmSessionRequest(request: SessionRequestPrompt): Promise<boo
     return choice === allow;
 }
 
+/**
+ * 构建指纹：每次会话的头几行就写清"正在跑的到底是哪份构建"，
+ * 让"装的 vsix 是不是 HEAD"能从日志直接回答，而不是靠比对文件哈希。
+ * 读不到描述文件时降级为 unknown，绝不打断激活。
+ */
+function logBuildFingerprint(context: vscode.ExtensionContext, logger: PersistentLogger): void {
+    logger.info(formatBuildFingerprint({
+        extensionVersion: resolveExtensionVersion(context),
+        build: readBrowserBridgeBuild(context.extensionPath),
+        nodeVersion: process.version,
+        vscodeVersion: vscode.version
+    }));
+}
+
 // 异常兜底：扩展宿主进程由多个扩展共享，这里只负责把现场落盘，不改变默认行为。
 function registerCrashHandlers(logger: PersistentLogger): void {
     process.on('uncaughtException', (error: unknown) => {
@@ -120,6 +135,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
         persistentLogger
     );
     persistentLogger.info('MCP Gateway extension activating.');
+    logBuildFingerprint(context, persistentLogger);
     registerCrashHandlers(persistentLogger);
     // outputChannel.show(true); // 静默启动，不自动弹出面板
     outputChannel.appendLine("🚀 MCP Gateway Extension Activating...");

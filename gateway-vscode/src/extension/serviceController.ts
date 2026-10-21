@@ -14,6 +14,7 @@ import {
     resolveApprovalTtlSeconds,
     resolveBridgeCodeTtlSeconds,
     resolveBridgeRequestMs,
+    resolveBrowserLaunchWaitMs,
     resolveCommandExecutionMs,
     resolveToolCallMs
 } from '../gateway/timeouts';
@@ -167,6 +168,7 @@ interface GatewayStartParams {
         approvalTtlMs: number;
         bridgeCodeTtlMs: number;
         bridgeRequestMs: number;
+        browserLaunchWaitMs: number;
         commandExecutionMs: number;
         toolCallMs: number;
     };
@@ -189,6 +191,7 @@ function buildStartParams(
             approvalTtlMs: resolveApprovalTtlSeconds(config.get<number>('timeouts.approvalTtlSeconds')) * 1000,
             bridgeCodeTtlMs: resolveBridgeCodeTtlSeconds(config.get<number>('timeouts.bridgeCodeTtlSeconds')) * 1000,
             bridgeRequestMs: resolveBridgeRequestMs(config.get<number>('timeouts.bridgeRequestMs')),
+            browserLaunchWaitMs: resolveBrowserLaunchWaitMs(config.get<number>('timeouts.browserLaunchWaitMs')),
             commandExecutionMs: resolveCommandExecutionMs(config.get<number>('timeouts.commandExecutionMs')),
             toolCallMs: resolveToolCallMs(config.get<number>('timeouts.toolCallMs'))
         },

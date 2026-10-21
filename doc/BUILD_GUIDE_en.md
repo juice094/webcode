@@ -64,6 +64,34 @@ If you see an error saying "running scripts is disabled on this system", open Po
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
+## Versions and build fingerprints
+
+Before a release, exactly three version fields are edited by hand; everything else is generated:
+
+| File | Purpose |
+|:---|:---|
+| `gateway-vscode/package.json` | VSIX version |
+| `bridge-browser/package.json` | browser bridge package version |
+| `bridge-browser/manifest.json` | browser manifest version (the `prebuild` hook asserts it matches `package.json`) |
+
+`gateway-vscode/browser-extension/` is a generated directory (gitignored). It is rebuilt during
+packaging by `scripts/copy-browser-extension.mjs`, which also writes `bridge-build.json`
+(`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`). **Never edit it by hand** —
+bump the versions and repackage.
+
+The guard test `gateway-vscode/src/unit-test/releaseVersioning.test.ts` fails when the three manifests
+disagree, when a version is not dotted semver, or when `bridge-build.json` lags behind the manifests
+(the descriptor case is skipped when the generated directory is absent, so a clean clone can run unit
+tests directly).
+
+Build fingerprint: activation logs one line
+`build: version=… buildHash=… builtAt=… bridgeProtocol=… node=… vscode=…`, and the authenticated
+`GET /v1/status` returns `version`, `buildHash`, `bridgeProtocolVersion`, and `startedAt`. That
+answers "is the installed vsix the current code?" without comparing file hashes.
+
+`release/` is wiped on every release run, so move the previous installers to `release-archive/`
+(not committed) before building.
+
 ## Artifacts
 
 After a successful build, a `release/` folder will be generated in the root directory containing:

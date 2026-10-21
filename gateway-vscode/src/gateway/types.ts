@@ -40,6 +40,8 @@ export interface GatewayConfig {
     approvalTtlMs?: number;
     /** Browser-side request deadline in milliseconds; 0 disables it. */
     bridgeRequestMs?: number;
+    /** How long a launch waits for the isolated browser bridge process. */
+    browserLaunchWaitMs?: number;
 }
 
 export interface StartResult {

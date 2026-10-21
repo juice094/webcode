@@ -36,6 +36,11 @@ export class CommandApprovalManager {
         this.ttlMs = ttlMs;
     }
 
+    /** Resolved challenge/grant lifetime, reported by the startup diagnostics line. */
+    getTtlMs(): number {
+        return this.ttlMs;
+    }
+
     issueChallenge(fingerprint: string): CommandApprovalChallenge {
         this.cleanup();
         this.enforceRecordLimit(this.challenges);

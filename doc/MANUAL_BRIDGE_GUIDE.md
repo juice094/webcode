@@ -21,10 +21,16 @@
 
 ## 版本一致性
 
-- 网关握手要求 VS Code 扩展版本与桥接 manifest 版本**严格一致**
-  （另有 `bridgeProtocolVersion` 协议版本校验），不一致会拒绝连接并提示哪侧过旧；
-- 因此每次升级 VS Code 扩展（vsix）后，桥接必须同步升级，反之亦然；
-- 隔离浏览器用户无需本约定（扩展管理器自动暂存更新）。
+- **浏览器侧**握手要求 VS Code 扩展版本与桥接 manifest 版本**严格等值**
+  （另有 `bridgeProtocolVersion` 协议检查），不一致直接拒绝连接并提示哪侧过旧；
+- **网关侧**兑换只要求桥接版本不低于 `shared/src/bridgeProtocol.json` 的
+  `minExtensionVersion`（当前 `1.0.0`）。因此“旧桥向新网关兑换”在网关这一步能通过，
+  但浏览器侧仍会拦下——结论不变：**两侧必须同版本**；
+- 每次升级 VS Code 扩展（vsix）后，桥接必须同步升级，反之亦然；
+- 隔离浏览器用户无需手动同步（扩展管理器自动暂存更新，下次连接时提示重启浏览器一次）。
+
+1.3.0 起扩展会打印构建指纹（`build: version=… buildHash=… builtAt=…`），
+配合 `browser-extension/bridge-build.json` 可以确认加载的桥与扩展是不是同一次构建。
 
 ## 注意事项
 

@@ -8,6 +8,7 @@ bridge-browser.zip
 gateway-vscode/browser-extension/
 .DS_Store
 /release
+/release-archive
 .claude
 out/
 .agents

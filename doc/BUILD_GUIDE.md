@@ -64,6 +64,32 @@ pnpm release  # 或 .\scripts\release\build-release.ps1
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
+## 版本号与构建指纹
+
+发版前只需手改三处版本号，其余全部由打包脚本生成：
+
+| 文件 | 作用 |
+|:---|:---|
+| `gateway-vscode/package.json` | VSIX 版本 |
+| `bridge-browser/package.json` | 浏览器桥包版本 |
+| `bridge-browser/manifest.json` | 浏览器扩展 manifest 版本（`prebuild` 会校验与 `package.json` 一致） |
+
+`gateway-vscode/browser-extension/` 是生成目录（已 gitignore），由
+`scripts/copy-browser-extension.mjs` 在打包时重建，并写入 `bridge-build.json`
+（`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`）。**不要手改这个目录**，
+版本号改完重新打包即可。
+
+守卫测试 `gateway-vscode/src/unit-test/releaseVersioning.test.ts` 会在以下情况失败：
+三处清单版本不一致、版本不是合法 semver、或 `bridge-build.json` 落后于清单版本
+（生成目录不存在时该用例跳过，方便干净克隆直接跑单测）。
+
+构建指纹：扩展激活时写入一行
+`build: version=… buildHash=… builtAt=… bridgeProtocol=… node=… vscode=…`；
+已认证的 `GET /v1/status` 同时返回 `version`、`buildHash`、`bridgeProtocolVersion`、`startedAt`。
+据此可以判断“装的 vsix 是不是当前代码”，不必再比对文件哈希。
+
+`release/` 每次发版都会被清空，旧安装包请先移到 `release-archive/`（不入 git）再执行构建。
+
 ## 产物说明
 
 打包成功后，根目录下会自动生成 `release/` 文件夹，包含：
