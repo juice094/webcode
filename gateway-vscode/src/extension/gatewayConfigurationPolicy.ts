@@ -12,6 +12,7 @@ const HOT_RELOAD_KEYS = [
     'webcodeGateway.skillDirectories',
     'webcodeGateway.commandShell.path',
     'webcodeGateway.command.allowedRoots',
+    'webcodeGateway.command.denyRules',
     'webcodeGateway.timeouts'
 ] as const;
 

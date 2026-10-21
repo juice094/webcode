@@ -84,11 +84,23 @@
 | 设置项 | 默认 | 作用 |
 |:---|:---|:---|
 | `timeouts.commandExecutionMs` | 60000 | `execute_command` 的默认截止时间 |
+| `timeouts.commandExecutionMaxMs` | 0 | `execute_command` 的上限，`0` 表示不设上限；生效值是请求值与上限的较小者 |
 | `timeouts.toolCallMs` | 0 | 网关侧单次工具调用的截止时间，`0` 表示不限 |
 | `timeouts.bridgeCodeTtlSeconds` | 120 | 一次性连接码的有效期（秒） |
 | `timeouts.approvalTtlSeconds` | 120 | 命令审批挑战与令牌的有效期（秒） |
 | `timeouts.browserLaunchWaitMs` | 10000 | 等待独立浏览器暴露桥进程的时间 |
 | `timeouts.bridgeRequestMs` | 0 | 浏览器→网关请求的截止时间，`0` 表示不限 |
 
-`0` 表示不限的语义只对 `toolCallMs` 与 `bridgeRequestMs` 有效，其余项有各自的最小值。
+`0` 表示不限的语义对 `commandExecutionMaxMs`、`toolCallMs` 与 `bridgeRequestMs` 有效，其余项有各自的最小值。
+`commandExecutionMaxMs` 只给 `execute_command` 加天花板：`commandExecutionMs` 提供默认值，上限负责把模型自填的
+`timeout` 压回去，工具的 schema `maximum` 会同步收紧到该值。它不影响 `run_in_terminal`（该工具没有截止时间）；
+另外 `toolCallMs` 若小于这个上限，网关会先超时，想让它真正生效请把 `toolCallMs` 保持 `0` 或不低于上限。
 第三方 MCP server 的单个工具截止时间另由 `webcodeGateway.servers.<id>.toolTimeoutMs`（默认 60000）控制。
+
+## 怎么永久禁止某些命令？
+
+在 VS Code 设置里配置 `webcodeGateway.command.denyRules`（字符串数组，默认空）。规则与命令行都先折叠空白、
+转小写，再做子串匹配，命中即判定为 `blocked`：不弹审批、不签发凭据，浏览器侧的"始终允许"也无法覆盖它。
+因为不做分词和词边界，太短的规则会误伤无关命令（例如规则 `test` 也会拦住 `git commit -m "test"`），
+长度小于 4 个字符的规则会在网关日志里给出警告。嵌套写法同样会被拦住（`bash -c 'git push --force'`），
+但引号拆分、脚本内容和编译产物仍可能绕开——它是护栏，不是沙箱。改这一项会热重载且不会踢掉已连接的标签页。

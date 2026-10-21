@@ -10,6 +10,10 @@ export const DEFAULT_COMMAND_EXECUTION_MS = 60_000;
 export const MIN_COMMAND_EXECUTION_MS = 1_000;
 export const MAX_COMMAND_EXECUTION_MS = 1_800_000;
 
+export const DEFAULT_COMMAND_EXECUTION_MAX_MS = 0;
+export const MIN_COMMAND_EXECUTION_MAX_MS = 0;
+export const MAX_COMMAND_EXECUTION_MAX_MS = 1_800_000;
+
 export const DEFAULT_TOOL_CALL_MS = 0;
 export const MIN_TOOL_CALL_MS = 0;
 export const MAX_TOOL_CALL_MS = 1_800_000;
@@ -53,6 +57,34 @@ export function resolveCommandExecutionMs(value: unknown): number {
  * in-flight lifetime through MAX_WATCHDOG_POSTPONEMENTS, so a second hard timer
  * would duplicate that guard instead of adding safety.
  */
+/**
+ * Ceiling for `execute_command`. Unlike `commandExecutionMs`, which only supplies
+ * the default a model may override, this value clamps whatever the model asks
+ * for. 0 disables the ceiling and preserves the pre-setting behavior.
+ */
+export function resolveCommandExecutionMaxMs(value: unknown): number {
+    return resolveClampedInteger(
+        value,
+        DEFAULT_COMMAND_EXECUTION_MAX_MS,
+        MIN_COMMAND_EXECUTION_MAX_MS,
+        MAX_COMMAND_EXECUTION_MAX_MS
+    );
+}
+
+/**
+ * Single place where the effective `execute_command` deadline is computed, so the
+ * schema the model sees and the timeout actually applied cannot drift apart.
+ */
+export function resolveCommandExecutionTimeoutMs(
+    requested: unknown,
+    defaultMs: number,
+    maxMs: unknown
+): number {
+    const value = typeof requested === 'number' && Number.isFinite(requested) ? requested : defaultMs;
+    const cap = resolveCommandExecutionMaxMs(maxMs);
+    return cap > 0 ? Math.min(value, cap) : value;
+}
+
 export function resolveToolCallMs(value: unknown): number {
     return resolveClampedInteger(value, DEFAULT_TOOL_CALL_MS, MIN_TOOL_CALL_MS, MAX_TOOL_CALL_MS);
 }

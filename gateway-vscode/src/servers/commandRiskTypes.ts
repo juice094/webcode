@@ -9,6 +9,8 @@ export interface CommandRiskContext {
     workspaceRoot?: string;
     cwd?: string;
     allowedRoots?: string[];
+    /** User rules that hard-block matching commands before any other assessment. */
+    denyRules?: string[];
     platform?: NodeJS.Platform;
 }
 

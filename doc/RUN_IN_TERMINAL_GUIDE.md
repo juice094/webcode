@@ -271,7 +271,11 @@ POSIX 和 PowerShell 使用结构化词法解析识别顶层命令、连接符�
 
 PowerShell 另外拒绝 `Invoke-Expression`、encoded command、非文件系统 provider 和系统管理命令。后台 PowerShell profile 使用 `-NoProfile -NonInteractive`，降低用户 profile、alias 和交互提示带来的不确定性。
 
-这些检查是风险防护，不是操作系统沙箱。脚本、包管理器生命周期、编译器和 workspace 内程序仍可能访问其进程权限允许的资源；如果需要严格文件系统隔离，需要单独的容器或 OS sandbox 执行模式。
+用户可以在 `webcodeGateway.command.denyRules` 里声明「一律拒绝」的命令。规则与命令行都先折叠空白、转小写，再做子串匹配，所以嵌套写法也会命中（`bash -c 'git push --force'`），代价是短规则会误伤无关命令——长度小于 4 个字符的规则会在网关日志里给出警告。命中直接进入 `blocked`：不弹审批、不签发凭据，浏览器侧的永久授权也无法覆盖。修改这一项走热重载，不会踢掉已连接的标签页。
+
+`webcodeGateway.timeouts.commandExecutionMaxMs` 给 `execute_command` 加一道天花板：生效截止时间是「模型请求值」与「上限」的较小者，`0`（默认）表示不设上限，工具 schema 里的 `maximum` 会同步收紧到该值，模型看到的就是真实上限。它只约束 `execute_command`；`run_in_terminal` 没有截止时间。若 `toolCallMs` 小于这个上限，网关会先超时，想让上限真正生效就把 `toolCallMs` 保持 `0` 或不低于上限。
+
+这些检查是风险防护，不是操作系统沙箱。脚本、包管理器生命周期、编译器和 workspace 内程序仍可能访问其进程权限允许的资源；deny 规则同样只是护栏：引号拆分、脚本内容和编译产物仍可能绕开它。如果需要严格文件系统隔离，需要单独的容器或 OS sandbox 执行模式。
 
 ## 与 execute_command 的边界
 

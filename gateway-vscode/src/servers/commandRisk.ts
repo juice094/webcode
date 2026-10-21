@@ -1,4 +1,5 @@
 import { assessCommandPolicy } from './commandPolicy';
+import { assessCommandDenyRules } from './commandDenyRules';
 import { assessPathPolicy } from './commandPathPolicy';
 import {
     combineRiskIssues,
@@ -18,10 +19,23 @@ export class CommandRiskError extends Error {
 }
 
 export function assessShellCommandRisk(command: string, context: CommandRiskContext = {}): CommandRiskAssessment {
+    // Deny rules match the raw command line before parsing, so a configured rule
+    // cannot be softened by any later policy step.
+    const denied = assessCommandDenyRules(command, context.denyRules);
+    if (denied.length > 0) {
+        return combineRiskIssues(denied);
+    }
+
     // execute_command always targets POSIX/Git Bash syntax regardless of host platform.
     return assessParsedShellCommandRisk(parseShellCommand(command, 'posix'), context);
 }
 
+/**
+ * Assesses an already-parsed command. User deny rules are NOT evaluated here:
+ * they match the raw command line in `assessShellCommandRisk` and
+ * `assessTerminalCommandRisk`, which are the entry points every tool uses. Call
+ * one of those two when deny rules matter.
+ */
 export function assessParsedShellCommandRisk(
     parsed: ParsedShellCommand,
     context: CommandRiskContext = {}

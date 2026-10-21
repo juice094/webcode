@@ -9,12 +9,14 @@ import type { PersistentLogger } from './persistentLog';
 import { updateGatewayStatusBar } from './statusBar';
 import type { AISiteConfig, ResolvedAiSiteConfig } from './types';
 import { resolveCommandAllowedRoots } from './commandAllowedRoots';
+import { resolveCommandDenyRules } from './commandDenyRules';
 import { resolveIdleTimeoutMs } from '../gateway/idleTimeout';
 import {
     resolveApprovalTtlSeconds,
     resolveBridgeCodeTtlSeconds,
     resolveBridgeRequestMs,
     resolveBrowserLaunchWaitMs,
+    resolveCommandExecutionMaxMs,
     resolveCommandExecutionMs,
     resolveToolCallMs
 } from '../gateway/timeouts';
@@ -163,13 +165,14 @@ function createBridgeCodeIssuer(
 
 interface GatewayStartParams {
     idleTimeoutMs: number;
-    commandConfig: { commandAllowedRoots: string[]; commandShellPath?: string };
+    commandConfig: { commandAllowedRoots: string[]; commandDenyRules: string[]; commandShellPath?: string };
     timeoutConfig: {
         approvalTtlMs: number;
         bridgeCodeTtlMs: number;
         bridgeRequestMs: number;
         browserLaunchWaitMs: number;
         commandExecutionMs: number;
+        commandExecutionMaxMs: number;
         toolCallMs: number;
     };
     customServers: ReturnType<typeof filterCustomServers>;
@@ -193,6 +196,7 @@ function buildStartParams(
             bridgeRequestMs: resolveBridgeRequestMs(config.get<number>('timeouts.bridgeRequestMs')),
             browserLaunchWaitMs: resolveBrowserLaunchWaitMs(config.get<number>('timeouts.browserLaunchWaitMs')),
             commandExecutionMs: resolveCommandExecutionMs(config.get<number>('timeouts.commandExecutionMs')),
+            commandExecutionMaxMs: resolveCommandExecutionMaxMs(config.get<number>('timeouts.commandExecutionMaxMs')),
             toolCallMs: resolveToolCallMs(config.get<number>('timeouts.toolCallMs'))
         },
         customServers: filterCustomServers(
@@ -213,13 +217,17 @@ function getCommandShellPath(config: vscode.WorkspaceConfiguration): string | un
 function getCommandExecutionConfig(
     config: vscode.WorkspaceConfiguration,
     outputChannel: vscode.OutputChannel
-): { commandAllowedRoots: string[]; commandShellPath?: string } {
+): { commandAllowedRoots: string[]; commandDenyRules: string[]; commandShellPath?: string } {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     return {
         commandShellPath: getCommandShellPath(config),
         commandAllowedRoots: resolveCommandAllowedRoots(
             config.get<string[]>('command.allowedRoots') ?? [],
             workspaceRoot,
+            outputChannel
+        ),
+        commandDenyRules: resolveCommandDenyRules(
+            config.get<string[]>('command.denyRules'),
             outputChannel
         )
     };

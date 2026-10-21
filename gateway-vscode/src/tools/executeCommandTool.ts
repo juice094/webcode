@@ -15,8 +15,10 @@ import {
     DEFAULT_COMMAND_EXECUTION_MS,
     MAX_COMMAND_EXECUTION_MS,
     MIN_COMMAND_EXECUTION_MS,
-    resolveCommandExecutionMs
+    resolveCommandExecutionMs,
+    resolveCommandExecutionTimeoutMs
 } from '../gateway/timeouts';
+import { buildExecuteCommandTimeoutSchema } from './executeCommandTimeout';
 
 export const executeCommandTool: LocalTool = {
     serverId: 'internal',
@@ -41,7 +43,11 @@ export const executeCommandTool: LocalTool = {
         }
     },
     getDefinition(context) {
-        return createExecuteCommandDefinition(context.commandShellPath, context.commandExecutionMs);
+        return createExecuteCommandDefinition(
+            context.commandShellPath,
+            context.commandExecutionMs,
+            context.commandExecutionMaxMs
+        );
     },
     async assessRisk(args, context) {
         return (await resolveExecuteCommandRequest(args, context)).risk;
@@ -61,9 +67,11 @@ export const executeCommandTool: LocalTool = {
                 return errorResult(`Approval Required: ${formatCommandRiskAssessment(request.risk.assessment)}`);
             }
 
-            const timeout = typeof args.timeout === 'number'
-                ? args.timeout
-                : resolveCommandExecutionMs(context.commandExecutionMs);
+            const timeout = resolveCommandExecutionTimeoutMs(
+                args.timeout,
+                resolveCommandExecutionMs(context.commandExecutionMs),
+                context.commandExecutionMaxMs
+            );
             const result = await runCommand(
                 request.execution.file,
                 request.execution.args,
@@ -137,6 +145,7 @@ async function resolveExecuteCommandRequest(
             workspaceRoot: context.workspaceRoot,
             cwd: directory.absolutePath,
             allowedRoots: context.commandAllowedRoots,
+            denyRules: context.commandDenyRules,
             platform: process.platform
         }
     });
@@ -157,7 +166,8 @@ const EXECUTE_COMMAND_INPUT_SCHEMA = executeCommandTool.definition.inputSchema a
 
 function createExecuteCommandDefinition(
     commandShellPath?: string,
-    commandExecutionMs: number = DEFAULT_COMMAND_EXECUTION_MS
+    commandExecutionMs: number = DEFAULT_COMMAND_EXECUTION_MS,
+    commandExecutionMaxMs?: number
 ): ToolDefinition {
     const profiles = describeBackgroundShellProfiles({
         platform: process.platform,
@@ -179,11 +189,11 @@ function createExecuteCommandDefinition(
             ...EXECUTE_COMMAND_INPUT_SCHEMA,
             properties: {
                 ...EXECUTE_COMMAND_INPUT_SCHEMA.properties,
-                timeout: {
-                    ...EXECUTE_COMMAND_INPUT_SCHEMA.properties.timeout,
-                    default: commandExecutionMs,
-                    description: `Timeout in milliseconds. Default: ${commandExecutionMs}.`
-                }
+                timeout: buildExecuteCommandTimeoutSchema(
+                    EXECUTE_COMMAND_INPUT_SCHEMA.properties.timeout,
+                    commandExecutionMs,
+                    commandExecutionMaxMs
+                )
             }
         }
     };

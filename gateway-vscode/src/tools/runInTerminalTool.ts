@@ -116,6 +116,7 @@ async function resolveRunInTerminalRequest(
             workspaceRoot: context.workspaceRoot,
             cwd: directory.absolutePath,
             allowedRoots: context.commandAllowedRoots,
+            denyRules: context.commandDenyRules,
             platform: process.platform
         }
     });

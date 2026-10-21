@@ -201,6 +201,13 @@
               "maximum": 1800000,
               "markdownDescription": "Deadline in milliseconds for `execute_command`; the command is stopped when it overruns. Raise this for long builds, or use `run_in_terminal` for commands that must keep running in a visible terminal."
             },
+            "commandExecutionMaxMs": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 1800000,
+              "markdownDescription": "Ceiling in milliseconds for the `timeout` an AI may request on `execute_command`. The effective deadline is the smaller of the requested value and this ceiling, so `commandExecutionMs` supplies the default while this setting bounds it. `0` disables the ceiling. Keep `toolCallMs` at `0` or above this ceiling, otherwise the gateway deadline fires before the command deadline."
+            },
             "toolCallMs": {
               "type": "integer",
               "default": 0,
@@ -281,6 +288,14 @@
             "type": "string"
           },
           "description": "Additional absolute directories trusted by command path risk checks. Paths outside trusted roots require per-command approval. Supports ~ and ${workspaceFolder}."
+        },
+        "webcodeGateway.command.denyRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Commands that are always rejected. A rule matches as a case-insensitive substring of the command line after whitespace is collapsed, so keep rules distinctive (4 or more characters is recommended). A matching command is blocked outright: no approval prompt, no browser-side allow rule and no approval token can override it. This is a guardrail, not a sandbox: quoting tricks and scripts can still evade a rule."
         },
         "webcodeGateway.ripgrep.path": {
           "type": "string",

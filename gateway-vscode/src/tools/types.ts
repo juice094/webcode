@@ -30,6 +30,8 @@ export type ToolExecutionContext = {
     commandShellPath?: string;
     commandAllowedRoots?: string[];
     commandExecutionMs?: number;
+    commandExecutionMaxMs?: number;
+    commandDenyRules?: string[];
     approvedCommandFingerprint?: string;
     listTools: () => unknown;
     getToolDefinition: (name: string) => ToolDefinition | null;
@@ -38,6 +40,7 @@ export type ToolExecutionContext = {
 export type ToolDefinitionContext = {
     commandShellPath?: string;
     commandExecutionMs?: number;
+    commandExecutionMaxMs?: number;
 };
 
 export type LocalTool = {

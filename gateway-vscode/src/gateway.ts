@@ -94,8 +94,10 @@ export class GatewayManager {
     private currentAiSites: NonNullable<GatewayConfig['aiSites']> = [];
     private commandShellPath: string | undefined;
     private commandAllowedRoots: string[] = [];
+    private commandDenyRules: string[] = [];
     private toolCallMs = timeouts.DEFAULT_TOOL_CALL_MS;
     private commandExecutionMs = timeouts.DEFAULT_COMMAND_EXECUTION_MS;
+    private commandExecutionMaxMs = timeouts.DEFAULT_COMMAND_EXECUTION_MAX_MS;
     private bridgeRequestMs = timeouts.DEFAULT_BRIDGE_REQUEST_MS;
     private readonly commandApprovalManager = new CommandApprovalManager();
     private readonly bridgeSessionManager = new BridgeSessionManager();
@@ -162,8 +164,16 @@ export class GatewayManager {
     private createToolDefinitionContext(): ToolDefinitionContext {
         return {
             commandShellPath: this.commandShellPath,
-            commandExecutionMs: this.commandExecutionMs
+            commandExecutionMs: this.commandExecutionMs,
+            commandExecutionMaxMs: this.commandExecutionMaxMs
         };
+    }
+
+    private applyCommandConfig(config: GatewayConfig): void {
+        const commandShellPath = config.commandShellPath?.trim();
+        this.commandShellPath = commandShellPath === '' ? undefined : commandShellPath;
+        this.commandAllowedRoots = config.commandAllowedRoots ?? [];
+        this.commandDenyRules = config.commandDenyRules ?? [];
     }
 
     private resetWatchdog() {
@@ -224,6 +234,8 @@ export class GatewayManager {
             commandShellPath: this.commandShellPath,
             commandAllowedRoots: this.commandAllowedRoots,
             commandExecutionMs: this.commandExecutionMs,
+            commandExecutionMaxMs: this.commandExecutionMaxMs,
+            commandDenyRules: this.commandDenyRules,
             listTools: () => this._generateGroupedTools(),
             getToolDefinition: (name: string) => this.getToolDefinition(name)
         };
@@ -337,9 +349,7 @@ export class GatewayManager {
             await this.stop({ preserveBridgeSession });
         }
         this.skillDirectories = config.skillDirectories ?? [];
-        const commandShellPath = config.commandShellPath?.trim();
-        this.commandShellPath = commandShellPath === '' ? undefined : commandShellPath;
-        this.commandAllowedRoots = config.commandAllowedRoots ?? [];
+        this.applyCommandConfig(config);
         this.currentAiSites = config.aiSites ?? [];
         this.idleTimeoutMs = config.idleTimeoutMs;
         // Resolved here as well so a direct GatewayManager caller cannot bypass
@@ -347,6 +357,7 @@ export class GatewayManager {
         // these values from the webcodeGateway.timeouts settings.
         this.toolCallMs = timeouts.resolveToolCallMs(config.toolCallMs);
         this.commandExecutionMs = timeouts.resolveCommandExecutionMs(config.commandExecutionMs);
+        this.commandExecutionMaxMs = timeouts.resolveCommandExecutionMaxMs(config.commandExecutionMaxMs);
         this.bridgeRequestMs = timeouts.resolveBridgeRequestMs(config.bridgeRequestMs);
         this.browserLaunchWaitMs = config.browserLaunchWaitMs === undefined
             ? timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS
@@ -363,6 +374,7 @@ export class GatewayManager {
         // whether a setting was picked up.
         this.log(
             `⏱️ timeouts: toolCallMs=${this.toolCallMs} commandExecutionMs=${this.commandExecutionMs} ` +
+            `commandExecutionMaxMs=${this.commandExecutionMaxMs} commandDenyRules=${this.commandDenyRules.length} ` +
             `bridgeRequestMs=${this.bridgeRequestMs} bridgeCodeTtlMs=${this.bridgeSessionManager.getBridgeCodeTtlMs()} ` +
             `approvalTtlMs=${this.commandApprovalManager.getTtlMs()} browserLaunchWaitMs=${this.browserLaunchWaitMs} ` +
             `idleTimeoutMs=${this.idleTimeoutMs}`

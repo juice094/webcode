@@ -34,6 +34,10 @@ export interface GatewayConfig {
     toolCallMs?: number;
     /** Default deadline for `execute_command` in milliseconds. */
     commandExecutionMs?: number;
+    /** Ceiling for a model-supplied `execute_command` timeout; 0 disables it. */
+    commandExecutionMaxMs?: number;
+    /** User rules that hard-block matching commands; they cannot be approved. */
+    commandDenyRules?: string[];
     /** Lifetime of a single-use bridge code in milliseconds. */
     bridgeCodeTtlMs?: number;
     /** Lifetime of a command approval challenge and grant in milliseconds. */

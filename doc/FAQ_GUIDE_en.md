@@ -90,12 +90,27 @@ changing them restarts the gateway automatically:
 | Setting | Default | Purpose |
 |:---|:---|:---|
 | `timeouts.commandExecutionMs` | 60000 | Default deadline for `execute_command` |
+| `timeouts.commandExecutionMaxMs` | 0 | Ceiling for `execute_command`; `0` disables it. The effective deadline is the smaller of the request and this value |
 | `timeouts.toolCallMs` | 0 | Gateway-side deadline for one tool call; `0` means no deadline |
 | `timeouts.bridgeCodeTtlSeconds` | 120 | Lifetime of a single-use launch code (seconds) |
 | `timeouts.approvalTtlSeconds` | 120 | Lifetime of a command approval challenge and token (seconds) |
 | `timeouts.browserLaunchWaitMs` | 10000 | How long to wait for an isolated browser to expose its bridge process |
 | `timeouts.bridgeRequestMs` | 0 | Browser-to-gateway request deadline; `0` means no deadline |
 
-The `0` = no-deadline meaning applies only to `toolCallMs` and `bridgeRequestMs`; the other settings
-have their own minimums. Per-tool deadlines for third-party MCP servers are configured separately with
-`webcodeGateway.servers.<id>.toolTimeoutMs` (default 60000).
+The `0` = no-deadline meaning applies to `commandExecutionMaxMs`, `toolCallMs` and `bridgeRequestMs`; the
+other settings have their own minimums. `commandExecutionMaxMs` only puts a ceiling on `execute_command`:
+`commandExecutionMs` supplies the default, the ceiling clamps whatever `timeout` the model asks for, and the
+tool's schema `maximum` is tightened to match. It does not affect `run_in_terminal`, which has no deadline.
+If `toolCallMs` is lower than the ceiling, the gateway deadline fires first, so keep `toolCallMs` at `0` or
+at or above the ceiling for the ceiling to matter. Per-tool deadlines for third-party MCP servers are
+configured separately with `webcodeGateway.servers.<id>.toolTimeoutMs` (default 60000).
+
+## How do I permanently block a command?
+
+Configure `webcodeGateway.command.denyRules` (string array, empty by default). Each rule and the command line
+are lowercased with whitespace collapsed, then matched as a substring; a hit is `blocked`: no approval prompt,
+no approval token, and no browser-side "always allow" rule can override it. Because rules are not tokenized and
+have no word boundaries, short rules also block unrelated commands (the rule `test` blocks
+`git commit -m "test"`), and rules shorter than 4 characters are reported in the gateway log. Nested forms are
+covered too (`bash -c 'git push --force'`), but quoting tricks, script bodies and build output can still slip
+through: this is a guardrail, not a sandbox. Changing the setting hot-reloads without dropping a connected tab.

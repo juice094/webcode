@@ -7,24 +7,28 @@ import {
     DEFAULT_BRIDGE_CODE_TTL_SECONDS,
     DEFAULT_BRIDGE_REQUEST_MS,
     DEFAULT_BROWSER_LAUNCH_WAIT_MS,
+    DEFAULT_COMMAND_EXECUTION_MAX_MS,
     DEFAULT_COMMAND_EXECUTION_MS,
     DEFAULT_TOOL_CALL_MS,
     MAX_APPROVAL_TTL_SECONDS,
     MAX_BRIDGE_CODE_TTL_SECONDS,
     MAX_BRIDGE_REQUEST_MS,
     MAX_BROWSER_LAUNCH_WAIT_MS,
+    MAX_COMMAND_EXECUTION_MAX_MS,
     MAX_COMMAND_EXECUTION_MS,
     MAX_TOOL_CALL_MS,
     MIN_APPROVAL_TTL_SECONDS,
     MIN_BRIDGE_CODE_TTL_SECONDS,
     MIN_BRIDGE_REQUEST_MS,
     MIN_BROWSER_LAUNCH_WAIT_MS,
+    MIN_COMMAND_EXECUTION_MAX_MS,
     MIN_COMMAND_EXECUTION_MS,
     MIN_TOOL_CALL_MS,
     resolveApprovalTtlSeconds,
     resolveBridgeCodeTtlSeconds,
     resolveBridgeRequestMs,
     resolveBrowserLaunchWaitMs,
+    resolveCommandExecutionMaxMs,
     resolveCommandExecutionMs,
     resolveToolCallMs
 } from '../gateway/timeouts';
@@ -57,6 +61,13 @@ const TIMEOUT_CASES: readonly TimeoutResolverCase[] = [
         defaultValue: DEFAULT_COMMAND_EXECUTION_MS,
         min: MIN_COMMAND_EXECUTION_MS,
         max: MAX_COMMAND_EXECUTION_MS
+    },
+    {
+        name: 'commandExecutionMaxMs',
+        resolve: resolveCommandExecutionMaxMs,
+        defaultValue: DEFAULT_COMMAND_EXECUTION_MAX_MS,
+        min: MIN_COMMAND_EXECUTION_MAX_MS,
+        max: MAX_COMMAND_EXECUTION_MAX_MS
     },
     {
         name: 'toolCallMs',
@@ -98,6 +109,7 @@ const TIMEOUT_CASES: readonly TimeoutResolverCase[] = [
 suite('Gateway timeout resolution', () => {
     test('keeps the documented defaults aligned with the previous hard-coded values', () => {
         assert.strictEqual(DEFAULT_COMMAND_EXECUTION_MS, 60_000);
+        assert.strictEqual(DEFAULT_COMMAND_EXECUTION_MAX_MS, 0);
         assert.strictEqual(DEFAULT_TOOL_CALL_MS, 0);
         assert.strictEqual(DEFAULT_BRIDGE_CODE_TTL_SECONDS, 120);
         assert.strictEqual(DEFAULT_APPROVAL_TTL_SECONDS, 120);
