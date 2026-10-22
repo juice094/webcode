@@ -167,6 +167,55 @@ export function showConfirmationModal(
   showApprovalWindowAttention(payload);
 }
 
+/**
+ * Keep Tab inside the approval dialog.
+ *
+ * `<dialog>` is supposed to trap focus by itself, but inside a shadow root its
+ * containment does not reach the host document: Tab walks out to the page
+ * behind the modal. The keyboard E2E test caught this, so the trap is enforced
+ * explicitly here. The listener is registered in the capture phase and before
+ * the modal event guards, otherwise those guards stop keydown from reaching it.
+ */
+function installFocusTrap(dialog: HTMLDialogElement): void {
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") {return;}
+
+    const focusable = collectFocusable(dialog);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = getActiveElement(dialog);
+
+    if (event.shiftKey) {
+      if (!active || active === first) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (!active || active === last) {
+      event.preventDefault();
+      first.focus({ preventScroll: true });
+    }
+  }, true);
+}
+
+function collectFocusable(dialog: HTMLDialogElement): HTMLElement[] {
+  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+  return Array.from(dialog.querySelectorAll<HTMLElement>(selector))
+    .filter((element) => element.getClientRects().length > 0 && !element.hidden);
+}
+
+function getActiveElement(dialog: HTMLDialogElement): Element | null {
+  const root = dialog.getRootNode();
+  return root instanceof ShadowRoot ? root.activeElement : document.activeElement;
+}
+
 function createModalHost(): HTMLElement {
   const host = document.createElement("div");
   host.dataset.wcApprovalHost = "true";
@@ -190,6 +239,7 @@ function createModalElements(
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-labelledby", "approval-title");
   dialog.innerHTML = `<div class="card">${renderApprovalModalHtml(createModalContent(payload, details, options))}</div>`;
+  installFocusTrap(dialog);
   shadow.appendChild(dialog);
   return getModalElements(dialog);
 }

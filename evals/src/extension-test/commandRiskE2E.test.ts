@@ -21,6 +21,12 @@ interface ApprovalExpectation {
     requestId: string;
     riskReason?: string;
     toolName: string;
+    /**
+     * Keyboard checks run before the approval is confirmed.
+     * - 'tab-trap': Tab must never move focus out of the dialog.
+     * - 'escape-blocked': Escape must not dismiss a mandatory approval.
+     */
+    keyboardCheck?: 'tab-trap' | 'escape-blocked';
 }
 
 const EXTENSION_ID = 'three-water666.gateway-vscode';
@@ -66,12 +72,14 @@ suite('Command risk approval E2E', () => {
 
         await approveToolOnce(page, tracePath, runId, {
             command: expected.allowedCommand,
+            keyboardCheck: 'tab-trap',
             mandatory: false,
             requestId: 'eval_command_allowed_1',
             toolName: 'execute_command',
         });
         await approveToolOnce(page, tracePath, runId, {
             command: expected.confirmationCommand,
+            keyboardCheck: 'escape-blocked',
             mandatory: true,
             requestId: 'eval_command_confirm_2',
             riskReason: 'Inline code execution with node requires explicit approval.',
@@ -201,10 +209,15 @@ async function approveToolOnce(
         assert.strictEqual(await riskReasons.count(), 0, 'Allowed commands should not show risk reasons.');
     }
 
+    if (expectation.keyboardCheck) {
+        await runKeyboardCheck(page, expectation.keyboardCheck);
+    }
+
     const cardHandle = await card.elementHandle();
     assert.ok(cardHandle, 'The approval card should be attached before confirmation.');
     await approveButton.click();
     await cardHandle.waitForElementState('hidden', { timeout: 10_000 });
+    await assertFocusRestored(page);
     appendEvalTrace(tracePath, {
         runId,
         source: 'browser',
@@ -214,6 +227,63 @@ async function approveToolOnce(
         toolName: expectation.toolName,
         details: { mandatory: expectation.mandatory },
     });
+}
+
+/**
+ * Run the keyboard assertions for this approval before it is confirmed.
+ *
+ * Both checks protect behaviour that a click-driven test cannot reach:
+ * - the dialog must own focus while open, otherwise Tab walks into the host page
+ * - Escape must not dismiss a mandatory approval, or the user could bypass the
+ *   confirmation the gateway depends on
+ */
+async function runKeyboardCheck(
+    page: Page,
+    check: NonNullable<ApprovalExpectation['keyboardCheck']>
+): Promise<void> {
+    if (check === 'tab-trap') {
+        await assertFocusStaysInDialog(page);
+        return;
+    }
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.strictEqual(
+        await page.locator('.card').count(),
+        1,
+        'Escape must not close a mandatory approval.'
+    );
+}
+
+/** Tab must cycle inside the dialog; focus escaping means the trap is broken. */
+async function assertFocusStaysInDialog(page: Page): Promise<void> {
+    for (let press = 1; press <= 8; press += 1) {
+        await page.keyboard.press('Tab');
+        const focusInside = await page.evaluate(() => {
+            const host = document.querySelector('[data-wc-approval-host="true"]');
+            const root = (host as HTMLElement | null)?.shadowRoot;
+            return Boolean(root?.activeElement);
+        });
+        assert.ok(focusInside, `Focus left the approval dialog after ${press} Tab press(es).`);
+    }
+}
+
+/** After closing, focus must not remain on a button that no longer exists. */
+async function assertFocusRestored(page: Page): Promise<void> {
+    const state = await page.evaluate(() => {
+        const host = document.querySelector('[data-wc-approval-host="true"]');
+        const active = document.activeElement;
+        return {
+            hostRemoved: host === null,
+            activeTag: active ? active.tagName : 'NONE',
+        };
+    });
+    assert.strictEqual(state.hostRemoved, true, 'The approval host should be removed after closing.');
+    assert.notStrictEqual(
+        state.activeTag,
+        'BUTTON',
+        'Focus must not stay on the removed approval button.'
+    );
 }
 
 function assertTraceContainsToolSuccess(
