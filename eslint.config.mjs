@@ -47,6 +47,7 @@ export default typescriptEslint.config(
     {
         ignores: [
             "**/dist/**",
+            "bridge-browser/preview-dist/**",
             "**/node_modules/**",
             "**/out/**",
             "**/release/**",
@@ -148,6 +149,27 @@ export default typescriptEslint.config(
                 selector: "import",
                 format: ["camelCase", "PascalCase"],
             }],
+        },
+    },
+    {
+        // Design-token guardrail.
+        //
+        // Colour must reach the DOM through stylesheets so it stays overridable
+        // by tokens, themes and forced-colors. Writing colour from script was
+        // how the original hardcoded palettes accumulated, and it is invisible
+        // to every CSS-level check we have.
+        //
+        // Scope is intentionally narrow: only direct `style.color`-style
+        // assignments are rejected. `style.setProperty('--token', ...)` remains
+        // allowed because that is how a surface feeds a CSS variable.
+        files: ["bridge-browser/src/**/*.ts", "gateway-vscode/src/**/*.ts"],
+        rules: {
+            "no-restricted-syntax": ["error",
+                {
+                    selector: "AssignmentExpression > MemberExpression.left[object.property.name='style'][property.name=/^(color|backgroundColor|borderColor|borderTopColor|borderBottomColor|borderLeftColor|borderRightColor)$/]",
+                    message: "Do not assign colours via inline styles. Add a class or a CSS variable and style it in the surface stylesheet.",
+                },
+            ],
         },
     },
     {

@@ -24,9 +24,11 @@ export const LOGGER_STYLE_TEXT = `
       min-width: ${LOGGER_MIN_WIDTH}px;
       min-height: ${LOGGER_MIN_HEIGHT}px;
       background: rgba(0, 0, 0, 0.85);
-      color: #00ff00;
+      /* Terminal-green identity kept, but sourced from the semantic success token
+         so the palette stays under one source of truth. */
+      color: var(--wc-success);
       font-family: Consolas, "SFMono-Regular", Menlo, monospace;
-      font-size: 12px;
+      font-size: var(--wc-text-sm);
       border-radius: 8px;
       display: flex;
       flex-direction: column;
@@ -88,6 +90,7 @@ export const LOGGER_STYLE_TEXT = `
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      font-size: var(--wc-text-md);
       line-height: 1;
       padding: 0;
     }
@@ -95,6 +98,11 @@ export const LOGGER_STYLE_TEXT = `
     .icon-btn:hover {
       background: rgba(255, 255, 255, 0.14);
       color: #fff;
+    }
+
+    .icon-btn:focus-visible {
+      outline: 2px solid #3b82f6;
+      outline-offset: 1px;
     }
 
     .icon-btn.close:hover {
@@ -153,9 +161,23 @@ export const LOGGER_STYLE_TEXT = `
     }
 
     .time {
-      color: #888;
-      font-size: 10px;
+      color: var(--wc-on-surface-muted);
+      font-size: var(--wc-text-xs);
     }
+
+    .log-icon {
+      margin: 0 3px;
+      color: var(--wc-on-surface-muted);
+    }
+
+    /* Per-type colours live in CSS so the logger never writes inline colour
+       from TypeScript. Keys mirror LoggerLogType. */
+    .line[data-log-type="summary"] .log-message { color: var(--wc-warning); }
+    .line[data-log-type="info"] .log-message { color: var(--wc-on-surface); }
+    .line[data-log-type="success"] .log-message { color: var(--wc-success); }
+    .line[data-log-type="warn"] .log-message { color: var(--wc-warning); }
+    .line[data-log-type="error"] .log-message { color: var(--wc-danger); }
+    .line[data-log-type="action"] .log-message { color: var(--wc-accent); }
 
     .resize-handle {
       position: absolute;
@@ -196,5 +218,22 @@ export const LOGGER_STYLE_TEXT = `
       justify-content: flex-end;
       gap: 4px;
       background: #222;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition-duration: 1ms !important;
+        animation-duration: 1ms !important;
+      }
+    }
+
+    @media (forced-colors: active) {
+      .logger {
+        border-color: CanvasText;
+      }
+
+      .icon-btn:focus-visible {
+        outline-color: Highlight;
+      }
     }
   `;

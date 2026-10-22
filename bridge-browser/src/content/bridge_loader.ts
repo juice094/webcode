@@ -220,8 +220,8 @@ function showVersionMismatch(
   document.body.dataset.bridgeState = "error";
   elements.loader.style.display = "none";
   elements.statusText.innerHTML = `
-                            <span style="color:#ff6b6b">${i18n.versionMismatchTitle}</span><br>
-                            <span style="font-size:0.8em; opacity:0.8">${getVersionMismatchBody(result)}</span>
+                            <span class="bridge-msg bridge-msg-error">${i18n.versionMismatchTitle}</span><br>
+                            <span class="bridge-msg bridge-msg-detail">${getVersionMismatchBody(result)}</span>
                         `;
 }
 
@@ -262,8 +262,8 @@ function showInvalidLinkParameters(elements: HandshakeElements): void {
     elements.loader.style.display = "none";
   }
   elements.statusText.innerHTML = `
-                            <span style="color:#ff6b6b">${i18n.invalidLinkParameters}</span><br>
-                            <span style="font-size:0.8em; opacity:0.8">${i18n.invalidLinkParametersBody}</span>
+                            <span class="bridge-msg bridge-msg-error">${i18n.invalidLinkParameters}</span><br>
+                            <span class="bridge-msg bridge-msg-detail">${i18n.invalidLinkParametersBody}</span>
                         `;
 }
 
@@ -275,8 +275,8 @@ function showExtensionNotDetected(elements: HandshakeElements): void {
 
   document.body.dataset.bridgeState = "error";
   elements.statusText.innerHTML = `
-                            <span style="color:#ff6b6b">${i18n.extensionNotDetectedTitle}</span><br>
-                            <span style="font-size:0.8em; opacity:0.8">${i18n.extensionNotDetectedDesc}</span>
+                            <span class="bridge-msg bridge-msg-error">${i18n.extensionNotDetectedTitle}</span><br>
+                            <span class="bridge-msg bridge-msg-detail">${i18n.extensionNotDetectedDesc}</span>
                         `;
   elements.loader.style.display = "none";
 }
@@ -288,7 +288,7 @@ function hasReadyHandshakeElements(elements: HandshakeElements): elements is Rea
 function showConnected(target: string, elements: ReadyHandshakeElements): void {
   document.body.dataset.bridgeState = "connected";
   elements.statusText.innerText = i18n.connectedRedirecting;
-  elements.statusText.style.color = "#4CAF50";
+  elements.statusText.dataset.bridgeTone = "success";
   setTimeout(() => {
     window.location.href = target;
   }, 500);
@@ -298,7 +298,7 @@ function showConnectionConflict(params: HandshakeParams, elements: ReadyHandshak
   document.body.dataset.bridgeState = "conflict";
   elements.loader.style.display = "none";
   elements.statusText.innerHTML = `
-                        <span style="color:#f39c12; font-weight:bold">${i18n.connectionConflictTitle}</span><br><br>
+                        <span class="bridge-msg bridge-msg-warn">${i18n.connectionConflictTitle}</span><br><br>
                         ${i18n.connectionConflictBody(params.port)}
                     `;
 
@@ -327,7 +327,7 @@ function createConnectHereButton(params: HandshakeParams, elements: HandshakeEle
 function showConnectionFailed(response: HandshakeResponse, elements: ReadyHandshakeElements): void {
   document.body.dataset.bridgeState = "error";
   elements.statusText.innerText = i18n.connectionFailed(response?.error ?? i18n.unknownError);
-  elements.statusText.style.color = "#ff6b6b";
+  elements.statusText.dataset.bridgeTone = "error";
 }
 
 function getVersionMismatchBody(

@@ -1,5 +1,9 @@
 import { BRANDING } from '@webcode/shared';
 
+import { SHARED_STYLES } from '../styles/shared';
+import { injectStyleText } from '../styles/inject';
+import { POPUP_STYLES } from './popup_styles';
+
 import { isMessageRequest, isStatusResponse, isSuccessResponse, type MessageRequest } from '../types';
 import { createPopupTranslator, renderInstalledDescription, type PopupTranslator } from './i18n';
 import { bindApprovalModeSelect, localizeApprovalModeOptions } from './approval_mode_view';
@@ -68,6 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializePopup(): Promise<void> {
+  injectStyleText(document, `${SHARED_STYLES}\n${POPUP_STYLES}`, "popup");
   const context = createPopupContext();
   initializeLabels(context);
 
@@ -359,7 +364,7 @@ function startManualInitStatus(context: PopupContext, state: ManualInitStatusSta
   const button = context.elements.manualInitBtn;
   button.disabled = true;
   button.innerText = context.t("manual_init_running");
-  button.style.backgroundColor = "";
+  delete button.dataset.state;
 
   return state.token;
 }
@@ -384,12 +389,12 @@ function showManualInitStatus(
   const button = context.elements.manualInitBtn;
   button.disabled = false;
   button.innerText = context.t(labelKey);
-  button.style.backgroundColor = success ? "#0d8a6a" : "#8a3d3d";
+  button.dataset.state = success ? "success" : "error";
 
   state.resetTimer = setTimeout(() => {
     if (token !== state.token) {return;}
     button.innerText = context.t("manual_init");
-    button.style.backgroundColor = "";
+    delete button.dataset.state;
     state.resetTimer = null;
   }, 3000);
 }

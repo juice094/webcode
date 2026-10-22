@@ -32,6 +32,7 @@ skills-lock.json
 /evals/manual-browser-profiles/
 /evals/manual-browser-extensions/
 /bridge-browser/public/generated/
+/bridge-browser/preview-dist/
 /evals/.playwright-cli/
 
 # Local agent config, not part of the project

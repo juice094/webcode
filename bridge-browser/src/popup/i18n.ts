@@ -127,6 +127,6 @@ export function createPopupTranslator(): PopupTranslator {
 export function renderInstalledDescription(t: PopupTranslator): string {
   return t("installed_desc").replace(
     BRANDING.productName,
-    `<span style="color: #3498db; font-weight: bold">${BRANDING.productName}</span>`
+    `<strong class="brand-emphasis">${BRANDING.productName}</strong>`
   );
 }

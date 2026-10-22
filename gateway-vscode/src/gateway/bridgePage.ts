@@ -2,8 +2,27 @@ import {
     BRANDING,
     BRIDGE_PORT_RANGE_END,
     BRIDGE_PORT_RANGE_START,
-    BRIDGE_PROTOCOL_VERSION
+    BRIDGE_PROTOCOL_VERSION,
+    DESIGN_TOKENS,
+    toCssDeclarations
 } from '@webcode/shared';
+
+/**
+ * Bridge page token block.
+ *
+ * Values come from `@webcode/shared`, the same source the browser extension
+ * uses, so the page cannot drift from the extension palette. The bridge page is
+ * dark-only by design: it is a short-lived hand-off screen shown before
+ * redirecting into the user's site.
+ */
+const BRIDGE_PAGE_TOKENS = `
+${toCssDeclarations(DESIGN_TOKENS.dark)}
+  --bridge-danger: oklch(0.66 0.19 27);
+  --bridge-store: #2ea043;
+  --bridge-store-hover: #238636;
+  --bridge-github: #e74c3c;
+  --bridge-github-hover: #c0392b;
+`;
 
 export type BridgePageOptions = {
     vscodeExtensionVersion: string;
@@ -44,8 +63,8 @@ export function renderInvalidBridgePage(): string {
                         <h2 id="bridge-title">Invalid bridge target</h2>
                         <p id="bridge-status">This bridge link is no longer valid. Launch codes are single-use and short-lived; the link may have been used or expired.</p>
                         <p class="warn">Go back to VS Code, click ${escapeHtmlText(BRANDING.productName)} in the status bar, and connect again.</p>
-                        <hr style="border: none; border-top: 1px solid #333; margin: 18px 0;">
-                        <h2 style="font-size: 1.1em; color: #3498db;">链接无效</h2>
+                        <hr class="bridge-divider">
+                        <h2 class="section-title">链接无效</h2>
                         <p>此连接链接已失效（启动码为一次性且短时有效，可能已被使用或过期）。请回到 VS Code，点击状态栏中的 ${escapeHtmlText(BRANDING.productName)} 重新发起连接。</p>
                     </div>
                 </body>
@@ -70,20 +89,38 @@ function renderBridgeHead(): string {
     return `<head>
                     <title>${BRANDING.bridgeName}</title>
                     <style>
-                        body { font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #1e1e1e; color: #fff; text-align: center; }
-                        .loader { border: 3px solid #333; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-                        .card { background: #252526; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 400px; }
-                        h2 { margin-top: 0; color: #3498db; }
-                        p { color: #cccccc; }
-                        .warn { color: #e67e22; font-size: 0.9em; margin-top: 10px; }
-                        button { background: #3498db; border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer; margin-top: 15px; }
-                        button:hover { background: #2980b9; }
+                        :root {
+${BRIDGE_PAGE_TOKENS}
+                        }
+                        body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: var(--wc-surface); color: var(--wc-on-surface); text-align: center; }
+                        .loader { border: 3px solid var(--wc-border); border-top: 3px solid var(--wc-accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                        .card { background: var(--wc-surface-raised); padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 400px; }
+                        h2 { margin-top: 0; color: var(--wc-accent); }
+                        p { color: var(--wc-on-surface-muted); }
+                        .warn { color: var(--wc-warning); font-size: 0.9em; margin-top: 10px; }
+                        button { background: var(--wc-accent); border: none; padding: 10px 20px; color: var(--wc-on-accent); border-radius: 4px; cursor: pointer; margin-top: 15px; }
+                        button:hover { background: color-mix(in oklch, var(--wc-accent) 88%, black); }
                         .download-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-                        .download-link { display:inline-block; color:white; padding:10px 16px; text-decoration:none; border-radius:4px; font-weight:bold; }
-                        .download-link.store { background:#2ea043; }
-                        .download-link.store:hover { background:#238636; }
-                        .download-link.github { background:#e74c3c; }
-                        .download-link.github:hover { background:#c0392b; }
+                        .download-link { display:inline-block; color: white; padding:10px 16px; text-decoration:none; border-radius:4px; font-weight:bold; }
+                        .download-link.store { background: var(--bridge-store); }
+                        .download-link.store:hover { background: var(--bridge-store-hover); }
+                        .download-link.github { background: var(--bridge-github); }
+                        .download-link.github:hover { background: var(--bridge-github-hover); }
+                        .bridge-msg { display: inline-block; }
+                        .bridge-msg-error { color: var(--wc-danger); }
+                        .bridge-msg-warn { color: var(--wc-warning); font-weight: bold; }
+                        .bridge-msg-detail { font-size: 0.8em; opacity: 0.8; }
+                        [data-bridge-tone="success"] { color: var(--wc-success); }
+                        [data-bridge-tone="error"] { color: var(--wc-danger); }
+                        .card-danger { border: 1px solid var(--wc-danger); box-shadow: 0 4px 15px color-mix(in oklch, var(--wc-danger) 20%, transparent); }
+                        .card-warning { border: 1px solid var(--wc-warning); box-shadow: 0 4px 15px color-mix(in oklch, var(--wc-warning) 20%, transparent); }
+                        .title-danger { color: var(--wc-danger); margin-bottom: 10px; }
+                        .title-warning { color: var(--wc-warning); margin-bottom: 10px; }
+                        .bridge-chip { background: var(--wc-surface); padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; color: var(--wc-on-surface); }
+                        .spaced { margin-bottom: 20px; }
+                        .bridge-divider { border: none; border-top: 1px solid var(--wc-border); margin: 18px 0; }
+                        .section-title { font-size: 1.1em; color: var(--wc-accent); }
+                        [hidden] { display: none !important; }
                         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
                     </style>
                 </head>`;
@@ -98,10 +135,10 @@ function renderMainCard(): string {
 }
 
 function renderInstallGuide({ releaseUrl, storeUrl }: Pick<BridgePageOptions, 'releaseUrl' | 'storeUrl'>): string {
-    return `<div class="card" id="install-guide" style="display:none; border: 1px solid #e74c3c; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.2);">
-                        <h2 id="install-title" style="color:#e74c3c; margin-bottom:10px">⚠️ Extension Required</h2>
-                        <p id="install-desc" style="margin-bottom:20px">To enable auto-connection, you need the companion browser extension:</p>
-                        <div style="background:#333; padding:10px; border-radius:6px; margin-bottom:20px; font-weight:bold; color:#fff">
+    return `<div class="card card-danger" id="install-guide" hidden>
+                        <h2 id="install-title" class="title-danger">⚠️ Extension Required</h2>
+                        <p id="install-desc" class="spaced">To enable auto-connection, you need the companion browser extension:</p>
+                        <div class="bridge-chip">
                             🧩 ${BRANDING.bridgeName}
                         </div>
                         <div class="download-actions">
@@ -112,14 +149,14 @@ function renderInstallGuide({ releaseUrl, storeUrl }: Pick<BridgePageOptions, 'r
                                 GitHub Releases
                             </a>
                         </div>
-                        <p id="install-warn" class="warn" style="margin-top:15px; font-size:12px">Already installed? Try reloading this page.</p>
+                        <p id="install-warn" class="warn">Already installed? Try reloading this page.</p>
                     </div>`;
 }
 
 function renderPortWarning(): string {
-    return `<div class="card" id="port-warning" style="display:none; border: 1px solid #e67e22; box-shadow: 0 4px 15px rgba(230, 126, 34, 0.2);">
-                        <h2 id="port-warning-title" style="color:#e67e22; margin-bottom:10px">⚠️ Port Out of Supported Range</h2>
-                        <p id="port-warning-desc" style="margin-bottom:20px"></p>
+    return `<div class="card card-warning" id="port-warning" hidden>
+                        <h2 id="port-warning-title" class="title-warning">⚠️ Port Out of Supported Range</h2>
+                        <p id="port-warning-desc" class="spaced"></p>
                         <button onclick="window.location.reload()">Reload</button>
                     </div>`;
 }
@@ -223,8 +260,8 @@ function renderInstallDetectionScript(): string {
                             }
 
                             stopInstallDetection();
-                            document.getElementById('main-card').style.display = 'none';
-                            document.getElementById('install-guide').style.display = 'block';
+                            setCardVisible('main-card', false);
+                            setCardVisible('install-guide', true);
                         }
 
                         window.addEventListener(bridgeSignalEventName, checkBridgeExtensionSignal);
@@ -282,13 +319,20 @@ function renderInstallDetectionHelpers(): string {
                             window.removeEventListener(bridgeSignalEventName, checkBridgeExtensionSignal);
                         }
 
+                        function setCardVisible(id, visible) {
+                            const card = document.getElementById(id);
+                            if (card) {
+                                card.hidden = !visible;
+                            }
+                        }
+
                         function showPortWarning(title, descTemplate) {
                             stopInstallDetection();
-                            document.getElementById('main-card').style.display = 'none';
-                            document.getElementById('install-guide').style.display = 'none';
+                            setCardVisible('main-card', false);
+                            setCardVisible('install-guide', false);
                             document.getElementById('port-warning-title').textContent = title;
                             document.getElementById('port-warning-desc').textContent = descTemplate.replace('{port}', window.location.port);
-                            document.getElementById('port-warning').style.display = 'block';
+                            setCardVisible('port-warning', true);
                         }
     `;
 }

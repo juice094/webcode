@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>webcode UI 预览</title>
+<style>
+  body {
+    margin: 0;
+    padding: 28px 24px 60px;
+    background: #0f1115;
+    color: #d7dbe3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  header { max-width: 1200px; margin: 0 auto 24px; }
+  h1 { margin: 0 0 6px; font-size: 18px; }
+  .sub { margin: 0; color: #7f8797; font-size: 12px; line-height: 1.6; }
+  #grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 22px;
+    align-items: start;
+  }
+  .stage { padding: 16px; border: 1px solid #23262d; border-radius: 12px; background: #15171c; }
+  .stage > h2 {
+    margin: 0 0 4px;
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8d95a5;
+  }
+  .stage > .hint { margin: 0 0 14px; font-size: 11px; color: #6f7788; line-height: 1.5; }
+  .popup-frame { width: 290px; margin: 0 auto; }
+  .dialog-frame, .overlay-frame, .logger-frame { margin: 0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>webcode UI 预览</h1>
+  <p class="sub">直接导入真实样式模块渲染，不是手抄副本。运行 <code>pnpm --filter bridge-browser run preview:ui</code>。</p>
+</header>
+
+<main id="grid"></main>
+
+<template id="popup-template">
+  <div class="popup">
+    <h2><div class="status-dot online"></div><span>webcode bridge</span></h2>
+    <div class="connected-stack">
+      <div class="card status-card">
+        <p class="connection-label">✅ Connected to VS Code</p>
+        <p class="status-meta">Port: 34567</p>
+      </div>
+      <button class="btn" type="button">Manual Initialization</button>
+      <div class="card settings-card">
+        <label class="checkbox-row"><span>Auto Send Message</span><input type="checkbox" checked /></label>
+        <label class="checkbox-row">
+          <span>Tool Approval</span>
+          <select class="mode-select"><option>Ask When Needed</option><option>Always Ask</option></select>
+        </label>
+        <p class="mode-hint">Risky tools always ask before running.</p>
+        <label class="checkbox-row session-setting-last"><span>Show Floating Log</span><input type="checkbox" /></label>
+        <button class="disclosure-button" type="button" aria-expanded="true">
+          <span>New Session Preset</span><span class="disclosure-caret" aria-hidden="true"></span>
+        </button>
+        <div class="preset-panel">
+          <p class="preset-hint">Applies only to new sessions.</p>
+          <label class="checkbox-row preset-row">
+            <span>Tool Approval</span>
+            <select class="mode-select"><option>Ask When Needed</option></select>
+          </label>
+        </div>
+        <button class="disclosure-button" type="button" aria-expanded="true">
+          <span>Authorized Rules</span><span class="disclosure-caret" aria-hidden="true"></span>
+        </button>
+        <div class="rules-panel">
+          <ul class="rules-list">
+            <li class="rule-row">
+              <span class="rule-label">command-exact:execute_command:.:default:git status</span>
+              <span class="rule-time">2m</span>
+              <button class="rule-remove" type="button">Remove</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="approval-template">
+  <dialog open aria-modal="true" aria-labelledby="approval-title">
+    <div class="card">
+      <h2 class="title" id="approval-title">
+        <span class="warn-icon" aria-hidden="true">✋</span>Tool approval required
+      </h2>
+      <div class="field">
+        <span class="label">Tool</span>
+        <div class="value value-tool">execute_command</div>
+      </div>
+      <div class="field">
+        <span class="label">Purpose</span>
+        <div class="value value-purpose">Run the project test suite</div>
+      </div>
+      <div class="field">
+        <span class="label">Arguments</span>
+        <div class="value">{ "command": "pnpm test" }</div>
+      </div>
+      <div class="buttons">
+        <button class="btn btn-always" type="button">Always allow</button>
+        <button class="btn btn-reject" type="button">Reject</button>
+        <button class="btn btn-confirm" type="button">Approve</button>
+      </div>
+    </div>
+  </dialog>
+</template>
+
+<template id="overlay-template">
+  <div class="launcher">
+    <span class="launcher-mark success">✓</span>
+    <span class="launcher-copy">
+      <span class="launcher-title">webcode</span>
+      <span class="launcher-label">Tool activity</span>
+    </span>
+    <span class="launcher-count">3</span>
+  </div>
+  <div class="panel">
+    <div class="header">
+      <span class="mark success">✓</span>
+      <div class="heading"><div class="title">Tool activity</div><div class="summary">3 tools</div></div>
+    </div>
+    <div class="list">
+      <div class="row executing">
+        <span class="status-dot"></span>
+        <div class="row-content">
+          <div class="row-top"><span class="tool-name">execute_command</span><span class="source-badge">DOM</span></div>
+          <div class="purpose">Run the test suite</div>
+          <div class="detail">pnpm test</div>
+        </div>
+      </div>
+      <div class="row succeeded">
+        <span class="status-dot"></span>
+        <div class="row-content">
+          <div class="row-top"><span class="tool-name">read_file</span><span class="source-badge network">network</span></div>
+          <div class="detail">src/styles/tokens.ts</div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">Approval pending for 1 tool</div>
+  </div>
+</template>
+
+<template id="logger-template">
+  <div class="logger">
+    <div class="header">
+      <span class="title">webcode Process Log</span>
+      <span class="actions">
+        <button class="icon-btn clear" type="button" aria-label="Clear logs">⌫</button>
+        <button class="icon-btn minimize" type="button" aria-label="Minimize">−</button>
+        <button class="icon-btn restore" type="button" aria-label="Restore">□</button>
+        <button class="icon-btn close" type="button" aria-label="Close logs">×</button>
+      </span>
+    </div>
+    <div class="filters">
+      <button class="filter active" type="button">summary</button>
+      <button class="filter" type="button">all</button>
+    </div>
+    <div class="content">
+      <div class="line"><span class="time">12:04:01</span>bridge connected on port 34567</div>
+      <div class="line"><span class="time">12:04:03</span>tool call: execute_command</div>
+    </div>
+  </div>
+</template>
+
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

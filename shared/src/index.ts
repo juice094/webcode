@@ -5,6 +5,7 @@ import bridgeProtocolConfig from './bridgeProtocol.json';
 
 export * from './chatgptStream';
 export * from './deepseekStream';
+export * from './designTokens';
 export * from './networkCapture';
 export * from './sse';
 

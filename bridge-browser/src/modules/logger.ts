@@ -1,5 +1,7 @@
 import { BRANDING } from '@webcode/shared';
 
+import { SHARED_STYLES } from '../styles/shared';
+
 import { i18n } from './i18n';
 import {
   getFilterLabel,
@@ -36,7 +38,7 @@ export const Logger = {
 
     const shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
-    style.textContent = LOGGER_STYLE_TEXT;
+    style.textContent = `${SHARED_STYLES}\n${LOGGER_STYLE_TEXT}`;
 
     const panel = document.createElement("div");
     panel.className = "logger";
@@ -62,7 +64,7 @@ export const Logger = {
     clearBtn.className = "icon-btn clear";
     clearBtn.title = i18n.lang === "zh" ? "清空日志" : "Clear logs";
     clearBtn.setAttribute("aria-label", clearBtn.title);
-    clearBtn.textContent = "🗑️";
+    clearBtn.textContent = "⌫";
     clearBtn.onclick = () => {
       if (this.contentEl) {this.contentEl.innerHTML = "";}
     };
@@ -303,11 +305,16 @@ export const Logger = {
     timeEl.textContent = `[${time}]`;
 
     const msgEl = document.createElement("span");
-    msgEl.style.color = meta.color;
+    msgEl.className = "log-message";
     msgEl.textContent = msg;
 
+    const iconEl = document.createElement("span");
+    iconEl.className = "log-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    iconEl.textContent = meta.icon;
+
     line.appendChild(timeEl);
-    line.append(` ${meta.icon} `);
+    line.appendChild(iconEl);
     line.appendChild(msgEl);
     line.hidden = !this.activeTypes.has(type);
 

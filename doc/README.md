@@ -25,6 +25,8 @@
 ## 项目计划与 Agent 工作流
 
 - [UI 美观与交互体验优化开发计划](UI_UX_DEVELOPMENT_PLAN.md)：范围、阶段、基线、验收、回滚与 Rust 重新评估条件。
+- [UI 现代化改造计划](UI_MODERNIZATION_PLAN.md)：Chrome 111 基线下的令牌层、原语层、性能预算与分面推广步骤。
+- [UI 现代化改造阶段性 QA 报告](UI_MODERNIZATION_QA_REPORT.md)：隔离会话状态、已完成项、受阻原因与后续步骤。
 - [UI/UX 开发 Agent Skill](../.codex/skills/ui-ux-development/SKILL.md)：后续 agent 实施 UI 改动时必须遵循的工作流。
 
 项目入口和开发测试命令见[根目录 README](../README.md)；评测流程见 [Evals README](../evals/README.md)。

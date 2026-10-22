@@ -19,5 +19,5 @@
       "@webcode/shared": ["../shared/src/index.ts"]
     }
   },
-  "include": ["src", "test", "vite.config.ts", "vite.main-world.config.ts", "vite.test.config.ts"]
+  "include": ["src", "test", "preview", "vite.config.ts", "vite.preview.config.ts", "vite.main-world.config.ts", "vite.test.config.ts"]
 }

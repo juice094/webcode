@@ -5,15 +5,13 @@ type VisualState = "processing" | "success" | "error";
 
 const VISUAL_STATUS_STYLE_ID = `${BRANDING.slug}-mcp-visual-status-style`;
 
-function ensureVisualStatusStyle() {
-  if (document.getElementById(VISUAL_STATUS_STYLE_ID)) {return;}
-
-  const style = document.createElement("style");
-  style.id = VISUAL_STATUS_STYLE_ID;
-  style.textContent = `
+const VISUAL_STATUS_STYLE_TEXT = `
     [data-mcp-visual="true"] {
       position: relative !important;
       box-sizing: border-box !important;
+      border: 2px solid var(--wc-visual-border, transparent) !important;
+      border-radius: 6px !important;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
     [data-mcp-visual="true"]::after {
       content: attr(data-mcp-status-label);
@@ -23,7 +21,7 @@ function ensureVisualStatusStyle() {
       z-index: 10;
       padding: 2px 8px;
       border-radius: 999px;
-      color: #fff;
+      color: var(--wc-visual-label, #fff);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 11px;
       font-weight: 700;
@@ -41,7 +39,7 @@ function ensureVisualStatusStyle() {
       z-index: 11;
       width: 0;
       overflow: hidden;
-      color: #fff;
+      color: var(--wc-visual-label, #fff);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 11px;
       font-weight: 700;
@@ -50,16 +48,28 @@ function ensureVisualStatusStyle() {
       white-space: nowrap;
       animation: ${BRANDING.slug}-mcp-loading-dots 1.2s steps(4, end) infinite;
     }
+    [data-mcp-visual="true"][data-mcp-state="processing"] {
+      border-color: var(--wc-visual-border, #1565C0) !important;
+      box-shadow: 0 0 0 3px var(--wc-visual-shadow, rgba(21, 101, 192, 0.24)) !important;
+    }
+    [data-mcp-visual="true"][data-mcp-state="success"] {
+      border-color: var(--wc-visual-border, #008C45) !important;
+      box-shadow: 0 0 0 3px var(--wc-visual-shadow, rgba(0, 140, 69, 0.22)) !important;
+    }
+    [data-mcp-visual="true"][data-mcp-state="error"] {
+      border-color: var(--wc-visual-border, #C62828) !important;
+      box-shadow: 0 0 0 3px var(--wc-visual-shadow, rgba(198, 40, 40, 0.24)) !important;
+    }
     [data-mcp-visual="true"][data-mcp-state="processing"]::after {
-      background: #1565C0;
+      background: var(--wc-visual-accent, #1565C0);
       padding-right: 24px;
       animation: ${BRANDING.slug}-mcp-status-pulse 1.2s ease-in-out infinite;
     }
     [data-mcp-visual="true"][data-mcp-state="success"]::after {
-      background: #008C45;
+      background: var(--wc-visual-accent, #008C45);
     }
     [data-mcp-visual="true"][data-mcp-state="error"]::after {
-      background: #C62828;
+      background: var(--wc-visual-accent, #C62828);
     }
     @keyframes ${BRANDING.slug}-mcp-loading-dots {
       0% {
@@ -85,7 +95,14 @@ function ensureVisualStatusStyle() {
         box-shadow: 0 2px 12px rgba(21, 101, 192, 0.55);
       }
     }
-  `;
+`;
+
+function ensureVisualStatusStyle() {
+  if (document.getElementById(VISUAL_STATUS_STYLE_ID)) {return;}
+
+  const style = document.createElement("style");
+  style.id = VISUAL_STATUS_STYLE_ID;
+  style.textContent = VISUAL_STATUS_STYLE_TEXT;
   (document.head || document.documentElement).appendChild(style);
 }
 
@@ -118,10 +135,9 @@ function markVisualState(
     delete element.dataset.mcpVisual;
   }
 
-  visualElement.style.border = `2px solid ${borderColor}`;
-  visualElement.style.borderRadius = "6px";
-  visualElement.style.transition = "border-color 0.3s ease, box-shadow 0.3s ease";
-  visualElement.style.boxShadow = `0 0 0 3px ${shadowColor}`;
+  visualElement.style.setProperty("--wc-visual-border", borderColor);
+  visualElement.style.setProperty("--wc-visual-shadow", shadowColor);
+  visualElement.style.setProperty("--wc-visual-accent", borderColor);
   visualElement.dataset.mcpState = state;
   visualElement.dataset.mcpVisual = "true";
   visualElement.dataset.mcpStatusLabel = label;
@@ -162,10 +178,9 @@ function clearVisualAttributes(element: HTMLElement) {
 
   if (!hadVisualStyle) {return;}
 
-  element.style.border = "";
-  element.style.borderRadius = "";
-  element.style.transition = "";
-  element.style.boxShadow = "";
+  element.style.removeProperty("--wc-visual-border");
+  element.style.removeProperty("--wc-visual-shadow");
+  element.style.removeProperty("--wc-visual-accent");
 }
 
 export function clearVisualState(element: HTMLElement) {

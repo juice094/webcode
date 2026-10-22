@@ -1,5 +1,6 @@
 import { BRANDING } from "@webcode/shared";
 import { t } from "../modules/i18n";
+import { SHARED_STYLES } from "../styles/shared";
 import { FloatingPanelDragController } from "./floating_panel_drag";
 import { FollowUpComposer, type FollowUpComposerState } from "./follow_up_overlay";
 import { FOLLOW_UP_COMPOSER_STYLE_TEXT } from "./follow_up_overlay_styles";
@@ -389,7 +390,7 @@ function createOverlayView(): OverlayView {
   host.style.display = "none";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
-  style.textContent = `${TOOL_ACTIVITY_STYLE_TEXT}\n${FOLLOW_UP_COMPOSER_STYLE_TEXT}`;
+  style.textContent = `${SHARED_STYLES}\n${TOOL_ACTIVITY_STYLE_TEXT}\n${FOLLOW_UP_COMPOSER_STYLE_TEXT}`;
   const launcherView = createLauncherView();
   const stack = document.createElement("div");
   stack.className = "overlay-stack";

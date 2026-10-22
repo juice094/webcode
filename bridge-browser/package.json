@@ -10,6 +10,7 @@
     "build": "pnpm run build:main-world && tsc && vite build",
     "build:main-world": "vite build --config vite.main-world.config.ts",
     "preview": "vite preview",
+    "preview:ui": "vite --config vite.preview.config.ts",
     "test": "vite build --config vite.test.config.ts && node --test \"out/runtime-tests/**/*.test.js\""
   },
   "dependencies": {
