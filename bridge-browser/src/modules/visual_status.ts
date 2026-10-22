@@ -71,6 +71,22 @@ const VISUAL_STATUS_STYLE_TEXT = `
     [data-mcp-visual="true"][data-mcp-state="error"]::after {
       background: var(--wc-visual-accent, #C62828);
     }
+    /*
+     * This stylesheet is injected into the host document, so the shadow-root
+     * reduced-motion fallback does not reach it. Without this block the status
+     * badge keeps pulsing and the border transition keeps running for users who
+     * asked for reduced motion.
+     */
+    @media (prefers-reduced-motion: reduce) {
+      [data-mcp-visual="true"] {
+        transition: none !important;
+      }
+      [data-mcp-visual="true"]::before,
+      [data-mcp-visual="true"]::after {
+        animation: none !important;
+      }
+    }
+
     @keyframes ${BRANDING.slug}-mcp-loading-dots {
       0% {
         width: 0;
