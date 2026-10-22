@@ -5,6 +5,7 @@ Language: English | [中文](README.md)
 ## User Guides
 
 - [Browser mode guide](BROWSER_MODE_GUIDE_en.md): browser selection, keepalive modes, and isolated profiles.
+- [Manual bridge installation](MANUAL_BRIDGE_GUIDE_en.md): source and sync conventions for loading the unpacked bridge via `chrome://extensions`.
 - [FAQ](FAQ_GUIDE_en.md): first launch, trigger words, and tool-result delivery.
 - [Built-in tools reference](BUILTIN_TOOLS_en.md): Gateway, bootstrap, and browser-side tools.
 - [MCP configuration guide](MCP_GUIDE_en.md): configure third-party MCP servers.
@@ -25,6 +26,10 @@ Language: English | [中文](README.md)
 ## Project Plan and Agent Workflow
 
 - [UI and interaction development plan](UI_UX_DEVELOPMENT_PLAN.md) (Chinese): scope, phases, baseline, acceptance, rollback, and Rust re-evaluation triggers.
+- [UI modernization plan](UI_MODERNIZATION_PLAN.md) (Chinese): token and primitive layers, performance budget, and per-surface rollout, including the R1-R13 record.
+- [Dependency hardening plan](DEPENDENCY_HARDENING_PLAN.md) (Chinese): audit findings, shipped-versus-buildtime split, red-team review, and phased remediation.
+- [Dependency audit exemptions](DEPENDENCY_AUDIT_EXEMPTIONS.md) (Chinese): accepted advisories with rationale and review dates.
+- [Archived documents](archive/README.md) (Chinese): superseded documents and what replaced them.
 - [UI/UX development Agent Skill](../.codex/skills/ui-ux-development/SKILL.md) (Chinese): workflow for future UI implementation tasks.
 
 See the [root README](../README_en.md) for project setup and development commands, and the [Evals README](../evals/README_en.md) for evaluation workflows.

@@ -5,6 +5,7 @@
 ## 用户指南
 
 - [浏览器模式指南](BROWSER_MODE_GUIDE.md)：浏览器选择、保活模式和独立 profile。
+- [手动安装浏览器桥接](MANUAL_BRIDGE_GUIDE.md)：通过 `chrome://extensions` 加载已解压扩展的来源与同步约定。
 - [常见问题](FAQ_GUIDE.md)：首次启动、触发词和工具结果回填。
 - [内置工具说明](BUILTIN_TOOLS.md)：Gateway、初始化和浏览器侧工具。
 - [MCP 服务配置指南](MCP_GUIDE.md)：配置第三方 MCP server。
@@ -28,7 +29,7 @@
 - [UI 现代化改造计划](UI_MODERNIZATION_PLAN.md)：Chrome 111 基线下的令牌层、原语层、性能预算与分面推广步骤；含 R1–R13 的完成记录与已发现缺陷。
 - [依赖漏洞治理与加固计划](DEPENDENCY_HARDENING_PLAN.md)：审计结论、真实暴露面分层、红队审计与分阶段治理步骤。
 - [依赖审计豁免清单](DEPENDENCY_AUDIT_EXEMPTIONS.md)：已知不修复的依赖漏洞、判定口径、理由与复查日期。
-- [UI 现代化改造阶段性 QA 报告](UI_MODERNIZATION_QA_REPORT.md)：**已作废**，仅保留作当时的受阻记录。
+- [归档文档](archive/README.md)：已作废但保留历史价值的文档及其替代关系。
 - [UI/UX 开发 Agent Skill](../.codex/skills/ui-ux-development/SKILL.md)：后续 agent 实施 UI 改动时必须遵循的工作流。
 
 项目入口和开发测试命令见[根目录 README](../README.md)；评测流程见 [Evals README](../evals/README.md)。
