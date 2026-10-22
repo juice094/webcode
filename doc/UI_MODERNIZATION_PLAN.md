@@ -87,11 +87,16 @@
 
 深色系统下，初始化弹窗渲染为纯白卡片，与深色宿主页面对比刺眼。
 
-根因：`DESIGN_TOKENS.dark` 定义完整，但全仓库从未设置 `data-theme` 属性，也没有 `prefers-color-scheme` 规则。深色令牌是**不可达的死代码**。
+根因：四个 shadow-root surface（审批弹窗、`auto_init_confirm`、浮动日志、工具活动浮层）的宿主元素是裸 `div`，没有 `data-theme` 属性；`tokens.ts` 当时只有 `:root[data-theme="dark"]` 选择器，没有 `prefers-color-scheme` 规则。因此深色令牌对这 4 个 surface 不可达。
 
-修复：在 `tokens.ts` 增加 `@media (prefers-color-scheme: dark)` 块，配合 `:not([data-theme])` 排除显式主题。显式 `data-theme` 仍然优先。
+**更正**：报告初稿曾写“全仓库从未设置 `data-theme`”，这是错的。`bridge-browser/index.html` 第 2 行一直是 `<html data-theme="dark">`，popup 的深色令牌是可达的。当时的 grep 只扫了 `src/**/*.ts`，漏掉 HTML 文件。
 
-复测：重新启动会话，`emulateMedia({ colorScheme: 'dark' })` 后截图确认弹窗为深色卡片。
+修复分两步：
+
+1. 在 `tokens.ts` 增加 `@media (prefers-color-scheme: dark)` 块，配合 `:not([data-theme])` 排除显式主题。显式 `data-theme` 仍然优先。
+2. 移除 popup 的 `<html data-theme="dark">`。否则 `:not()` 会把 popup 排除在系统主题之外，让它成为唯一不跟随系统的 surface。
+
+复测：重新启动会话，`emulateMedia({ colorScheme: 'dark' })` 后截图确认弹窗为深色卡片。popup 的浅色外观**未在浏览器中验证**。
 
 **仍未验证**
 
@@ -109,6 +114,7 @@
 
 ### 已知偏差
 
+- 全部 surface 现在都跟随系统主题，没有任何 surface 硬编码主题。popup 从固定的深色改为跟随系统后，**浅色外观未经浏览器验证**。
 - `auto_init_confirm` 已统一配色，但它与审批弹窗在功能上重叠（都是确认/取消），合并属于行为变更，未在本轮处理。
 - `visual_status` 的 CSS 变量 fallback 仍是硬编码色值，这是宿主页面无令牌时的必要默认值，属于设计限制而非遗漏。
 - 已加 lint 规则：禁止通过 `style.color`、`style.backgroundColor` 等直接赋值写入颜色，违规即报错。`style.setProperty('--token', ...)` 仍允许，因为那是向 CSS 变量供值的正确方式。规则已用临时探针验证确实会命中。
