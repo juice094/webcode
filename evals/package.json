@@ -22,7 +22,7 @@
     "qa:stop": "node scripts/qa-stop.mjs"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@playwright/cli": "0.1.18",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
