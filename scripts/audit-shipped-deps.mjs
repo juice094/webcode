@@ -13,6 +13,12 @@
  * Usage:
  *   node scripts/audit-shipped-deps.mjs
  *   node scripts/audit-shipped-deps.mjs --input audit.json   # offline check
+ *   node scripts/audit-shipped-deps.mjs --report             # full layer breakdown
+ *
+ * Note on `pnpm audit` metadata: it reports `devDependencies: 0` for this
+ * workspace regardless of reality, because it does not understand pnpm
+ * workspaces. The layer classification below derives from dependency paths
+ * instead, so do not trust the metadata totals.
  */
 
 import { execSync } from "node:child_process";
@@ -34,14 +40,72 @@ const SHIPPED_ROOTS = new Set([
 const REGISTRY = process.env.WEBCODE_AUDIT_REGISTRY ?? "https://registry.npmjs.org/";
 
 function parseArgs(argv) {
-  const options = { input: null };
+  const options = { input: null, report: false };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--input") {
       options.input = argv[index + 1] ?? null;
       index += 1;
+    } else if (argv[index] === "--report") {
+      options.report = true;
     }
   }
   return options;
+}
+
+/**
+ * Classify a dependency path by where the code runs.
+ *
+ * - shipped: bundled into the extension and delivered to users.
+ * - build: executed on developer machines and CI while building.
+ * - test: executed only by the eval harness.
+ * - other: anything the classifier does not recognise, reported rather than
+ *   silently ignored so a new package cannot hide in an unlabelled bucket.
+ */
+function classifyPath(path) {
+  if (isShippedPath(path)) {
+    return "shipped";
+  }
+
+  const root = path.split(">")[0];
+  if (root === "evals") {
+    return "test";
+  }
+  if (root === "bridge-browser" || root === "gateway-vscode" || root === ".") {
+    return "build";
+  }
+  return "other";
+}
+
+/** Group every (advisory, path) pair into its layer, de-duplicated. */
+function groupByLayer(advisories) {
+  const layers = { shipped: [], build: [], test: [], other: [] };
+  const seen = new Set();
+
+  for (const [id, advisory] of Object.entries(advisories)) {
+    for (const finding of advisory.findings ?? []) {
+      for (const path of finding.paths ?? []) {
+        const key = `${id}|${path}`;
+        if (seen.has(key)) {continue;}
+        seen.add(key);
+        layers[classifyPath(path)].push({ id, advisory, path });
+      }
+    }
+  }
+
+  return layers;
+}
+
+function reportLayers(advisories, layers) {
+  console.log(`audit: ${Object.keys(advisories).length} advisories across ${Object.values(layers).flat().length} dependency paths`);
+  for (const name of ["shipped", "build", "test", "other"]) {
+    const entries = layers[name];
+    const modules = new Set(entries.map((entry) => entry.advisory.module_name));
+    console.log(`  ${name}: ${entries.length} paths, ${modules.size} modules`);
+  }
+
+  for (const { id, advisory, path } of layers.other) {
+    console.log(`  unclassified: ${advisory.module_name} ${id} via ${path}`);
+  }
 }
 
 function readAuditPayload(inputPath) {
@@ -134,6 +198,12 @@ function reportShippedAdvisories(shipped) {
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const advisories = parseAuditPayload(readAuditPayload(options.input));
+
+  if (options.report) {
+    reportLayers(advisories, groupByLayer(advisories));
+    return;
+  }
+
   const shipped = collectShippedAdvisories(advisories);
 
   console.log(
