@@ -159,7 +159,9 @@ export function showConfirmationModal(
   bindModalActions(elements, details, { onConfirm, onReject }, closeModal, options.mandatory === true);
   bindDialogCancel(elements.dialog, options.mandatory === true, closeModal);
 
-  host.appendChild(elements.dialog);
+  // The dialog already lives inside the shadow root. Appending it to the host
+  // again would move it into the host page's light DOM, where none of the
+  // shadow styles apply and the dialog renders unstyled.
   elements.dialog.showModal();
   elements.btnConfirm.focus({ preventScroll: true });
   showApprovalWindowAttention(payload);

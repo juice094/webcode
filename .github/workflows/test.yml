@@ -59,6 +59,11 @@ jobs:
       - name: Run unit tests
         run: pnpm test
 
+      - name: Approval flow E2E
+        env:
+          WEBCODE_EVAL_VSCODE_PATH: download
+        run: xvfb-run -a pnpm test:e2e:command-risk
+
   extension-host:
     name: Extension Host (${{ matrix.vscode }})
     runs-on: ubuntu-latest
