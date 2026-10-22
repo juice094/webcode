@@ -99,8 +99,14 @@ async function redeemBridgeToken(manager: GatewayManager, port: number): Promise
 }
 
 function isConnectionReset(error: unknown): boolean {
-    const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
-    return code === 'ECONNRESET' || code === 'EPIPE';
+    // Same undici caveat as gatewayLifecycle.test.ts: a destroyed keep-alive
+    // socket surfaces as UND_ERR_SOCKET, not ECONNRESET.
+    const cause = (error as { cause?: { code?: unknown; message?: unknown } } | null)?.cause;
+    const code = cause?.code;
+    return code === 'ECONNRESET'
+        || code === 'EPIPE'
+        || code === 'UND_ERR_SOCKET'
+        || code === 'UND_ERR_CLOSED';
 }
 
 async function withConnectionRetry<T>(operation: () => Promise<T>): Promise<T> {

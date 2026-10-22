@@ -156,6 +156,13 @@ async function withConnectionRetry<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function isConnectionReset(error: unknown): boolean {
-    const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
-    return code === 'ECONNRESET' || code === 'EPIPE';
+    // undici reports a destroyed keep-alive socket as `UND_ERR_SOCKET` with the
+    // message "other side closed", not as a Node ECONNRESET. Only matching the
+    // Node codes made this retry a no-op on CI.
+    const cause = (error as { cause?: { code?: unknown; message?: unknown } } | null)?.cause;
+    const code = cause?.code;
+    return code === 'ECONNRESET'
+        || code === 'EPIPE'
+        || code === 'UND_ERR_SOCKET'
+        || code === 'UND_ERR_CLOSED';
 }
