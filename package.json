@@ -20,6 +20,7 @@
     "qa:status": "pnpm --filter @webcode/evals run qa:status",
     "qa:stop": "pnpm --filter @webcode/evals run qa:stop",
     "lint": "eslint .",
+    "audit:shipped": "node scripts/audit-shipped-deps.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

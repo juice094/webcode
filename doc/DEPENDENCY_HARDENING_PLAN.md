@@ -169,22 +169,27 @@ proxy-addr >=1.1.0 <2.0.8（IP 欺骗 via IPv4-mapped IPv6）
 - `test:extension` 通过：达成（340 passing）。
 - 4 条 advisory 不再出现在 `gateway-vscode > express` 路径下：达成（实测为 0）。
 
-### P1：自动化（与 P0 同批交付）
+### P1：自动化（已完成）
 
-**实施**
+**实施结果**
 
-1. 添加 `.github/dependabot.yml`：
-   - `dependencies` 分组，每周检查。
-   - `devDependencies` 分组，每月检查，不自动合并。
-2. 在 `.github/workflows/test.yml` 增加审计步骤：
-   - 只对生产依赖执行硬门槛。
-   - 完整报告作为 artifact 输出。
-3. 建立豁免清单文件，记录已知不修复项及理由。
+1. `scripts/audit-shipped-deps.mjs`：只对 `gateway-vscode` 运行时依赖（`@modelcontextprotocol/sdk`、`cors`、`express`、`zod`）的传递路径设硬门槛。退出码语义：0 通过、1 检出产物内漏洞、2 审计无法执行。
+2. `package.json` 增加 `audit:shipped` 脚本。
+3. `.github/workflows/test.yml` 在 unit 任务中加入审计步骤，并始终上传完整报告为 artifact（不阻断）。
+4. `.github/dependabot.yml`：production 每周、development 每月，均分组。
+5. `doc/DEPENDENCY_AUDIT_EXEMPTIONS.md`：记录 6 类已知不修复项的判定口径、理由与复查日期（2026-11-22）。
 
-**退出条件**
+**退出条件验证**
 
-- 构造一个新增生产依赖漏洞的场景，CI 确实失败。
-- 豁免清单非空且每项都有理由与复查日期。
+- 构造含 `gateway-vscode>express>qs` 的合成 audit 数据 → 脚本退出码 **1**，并输出 advisory 详情。
+- 构造只含 `bridge-browser>vite` 与 `evals>mocha>diff` 的合成数据 → 退出码 **0**，无误报。
+- 真实仓库运行 → 132 条总数，产物内 **0** 条，退出码 0。
+- 豁免清单 6 项，均有理由与复查日期。
+
+**仍未验证**
+
+- dependabot 配置未经真实 PR 验证（需推送后观察）。
+- CI 工作流改动未在 GitHub Actions 上实跑。
 
 ### P2：分层审计（结构性）
 
@@ -232,7 +237,8 @@ proxy-addr >=1.1.0 <2.0.8（IP 欺骗 via IPv4-mapped IPv6）
 
 - 4 条 advisory 经逐条阅读确认在当前代码路径下不触发，升级属于预防性措施而非紧急修复。
 - 产物中动态 `require()` 已解释为 `iconv-lite` 的提示字符串，非模块加载。
-- P1（dependabot、CI 门槛）与 P2（分层审计）尚未开始。
+- P1 已完成并有本地验证证据，但 dependabot 与 CI 工作流需推送后在 GitHub 上观察才能确认生效。
+- P2（分层审计脚本的产物一致性抽查）尚未开始。
 - 构建环境暴露面未纳入治理。
 - 无性能或体积回归阈值，`qs` 升级后未测量影响。
 

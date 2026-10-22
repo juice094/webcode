@@ -1,0 +1,29 @@
+# Dependency updates.
+#
+# Runtime dependencies feed the shipped bundle, so they are checked weekly and
+# grouped to keep PR volume low. Development dependencies never reach users;
+# they run on developer machines and CI, so they move on a slower cadence and
+# are never merged automatically.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      runtime-dependencies:
+        patterns:
+          - "*"
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      development-dependencies:
+        patterns:
+          - "*"
+        dependency-type: development
