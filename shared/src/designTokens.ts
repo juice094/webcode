@@ -32,7 +32,7 @@ export const DESIGN_TOKENS: Record<DesignTokenTheme, Readonly<Record<string, str
     "--wc-on-surface": "oklch(0.32 0.01 260)",
     "--wc-on-surface-muted": "oklch(0.45 0.012 260)",
     "--wc-border": "oklch(0.9 0.005 250)",
-    "--wc-accent": "oklch(0.55 0.18 250)",
+    "--wc-accent": "oklch(0.53 0.18 250)",
     "--wc-on-accent": "oklch(1 0 0)",
     "--wc-on-filled": "oklch(1 0 0)",
     "--wc-danger": "oklch(0.55 0.22 27)",
@@ -46,9 +46,12 @@ export const DESIGN_TOKENS: Record<DesignTokenTheme, Readonly<Record<string, str
     "--wc-on-surface": "oklch(0.93 0.005 260)",
     "--wc-on-surface-muted": "oklch(0.72 0.01 260)",
     "--wc-border": "oklch(0.36 0.012 258)",
-    "--wc-accent": "oklch(0.62 0.17 250)",
-    "--wc-on-accent": "oklch(1 0 0)",
-    "--wc-on-filled": "oklch(1 0 0)",
+    // Dark surfaces lift the accent/filled colours for legibility against the
+    // dark background. That makes white label text fail WCAG AA, so filled
+    // buttons use dark ink instead.
+    "--wc-accent": "oklch(0.68 0.17 250)",
+    "--wc-on-accent": "oklch(0.18 0.01 260)",
+    "--wc-on-filled": "oklch(0.18 0.01 260)",
     "--wc-danger": "oklch(0.66 0.19 27)",
     "--wc-success": "oklch(0.66 0.15 155)",
     "--wc-warning": "oklch(0.75 0.14 72)",

@@ -21,6 +21,7 @@
     "qa:stop": "pnpm --filter @webcode/evals run qa:stop",
     "lint": "eslint .",
     "audit:shipped": "node scripts/audit-shipped-deps.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

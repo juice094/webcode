@@ -36,6 +36,9 @@ jobs:
       - name: Build shared package
         run: pnpm --filter @webcode/shared run build
 
+      - name: Check token contrast
+        run: pnpm check:contrast
+
       - name: Audit shipped dependencies
         run: pnpm audit:shipped
 
