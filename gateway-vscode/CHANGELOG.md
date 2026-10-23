@@ -22,11 +22,20 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - In-flight calls are finalized from one `finally`, so the shutdown snapshot cannot leak entries.
 - Call ids are UUIDs instead of `call-<timestamp>`, which collided within the same millisecond.
 - `webcodeGateway.port: 0` binds an OS-assigned port; tests use it to avoid Windows reserved ranges.
+- The rate limiter compacts its window in place and sweeps expired keys, bounding memory under
+  rotating origins; approval records expire lazily instead of scanning both maps per operation.
 
 ### Performance
 
 - `read_file` tail reads use a ring buffer instead of shifting the window array per line.
 - Search tools consume ripgrep output with a cursor and cache compiled tool definitions.
+- Compiled glob patterns are cached, and the ripgrep-less fallback search runs with bounded
+  concurrency and stops at `max_results`.
+
+### Extensibility
+
+- A third-party MCP tool declares a path argument with `format: "workspace-relative-path"` and the
+  gateway enforces the workspace boundary; the hard-coded name allowlist is now only a fallback.
 
 ## [1.3.0] - 2026-10-21
 
