@@ -4,6 +4,30 @@ All notable changes to the "gateway-vscode" extension will be documented in this
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.4.0] - 2026-10-23
+
+### Changed
+
+- A tool call timeout now aborts the call instead of abandoning the wait: process trees are
+  terminated, ripgrep processes are killed, and file handles are closed. The timeout text changed
+  from `is not a cancellation` to `aborted the call`.
+- A client disconnect aborts the running tool call instead of letting it finish for nobody.
+
+### Added
+
+- Tool call concurrency gate (4 at a time, FIFO queue) so a retry storm cannot stack real work.
+
+### Fixed
+
+- In-flight calls are finalized from one `finally`, so the shutdown snapshot cannot leak entries.
+- Call ids are UUIDs instead of `call-<timestamp>`, which collided within the same millisecond.
+- `webcodeGateway.port: 0` binds an OS-assigned port; tests use it to avoid Windows reserved ranges.
+
+### Performance
+
+- `read_file` tail reads use a ring buffer instead of shifting the window array per line.
+- Search tools consume ripgrep output with a cursor and cache compiled tool definitions.
+
 ## [1.3.0] - 2026-10-21
 
 ### Added
