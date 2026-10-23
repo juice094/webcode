@@ -1,20 +1,17 @@
 # Dependency updates.
 #
-# Why the grouping is split this way: a single group covering every production
-# dependency produced PRs too large to create, so Dependabot reported success
-# while opening nothing. Security updates now get their own group so they are
-# never blocked behind a routine minor bump.
-#
-# Two constraints shape this file:
+# Three constraints shape this file:
 #
 # 1. Dependabot rejects the file when two entries share
-#    (package-ecosystem, directory, target-branch). The production and
-#    development splits therefore live inside one entry's `groups`.
+#    (package-ecosystem, directory, target-branch), so every split lives inside
+#    one entry's `groups`.
 # 2. A pnpm workspace keeps a single root `pnpm-lock.yaml`. An entry scoped to a
-#    subdirectory such as `/bridge-browser` rewrites that package's
-#    `package.json` without touching the root lockfile, so CI's
-#    `pnpm install --frozen-lockfile` fails on every PR it opens. The root entry
-#    already covers every workspace package, so no per-package entry exists.
+#    subdirectory rewrites that package's `package.json` without touching the
+#    root lockfile, so CI's `pnpm install --frozen-lockfile` fails on every PR.
+#    The root entry covers all workspace packages.
+# 3. A single development group bundled 12 packages and every CI job failed with
+#    no way to tell which package broke it. Development updates are now grouped
+#    by tool domain and limited to patch releases.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -24,24 +21,68 @@ updates:
       day: monday
     open-pull-requests-limit: 10
     groups:
-      # Security fixes are small and urgent; keep them out of the routine groups.
+      # Security fixes cut across domains, so they get one group of their own and
+      # are never queued behind a routine update.
       security-patches:
         applies-to: security-updates
         patterns:
           - "*"
-      # Routine production minors are separate so one failed lockfile refresh
-      # cannot block a security update.
+
+      # Runtime dependencies: minor and patch are both acceptable because the
+      # bundle is rebuilt and tested on every PR.
       production-minor:
         applies-to: version-updates
         dependency-type: production
         update-types:
           - minor
           - patch
-      development-dependencies:
+
+      # Development dependencies are split by tool domain so a failure points at
+      # one subsystem, and limited to patch because a minor bump in lint or type
+      # packages routinely changes rules and breaks unrelated code.
+      dev-lint:
         applies-to: version-updates
         dependency-type: development
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
+          - "lint-staged"
+          - "husky"
         update-types:
-          - minor
+          - patch
+      dev-types:
+        applies-to: version-updates
+        dependency-type: development
+        patterns:
+          - "@types/*"
+        update-types:
+          - patch
+      dev-test:
+        applies-to: version-updates
+        dependency-type: development
+        patterns:
+          - "mocha"
+          - "@types/mocha"
+          - "@vscode/test-*"
+          - "playwright*"
+          - "@playwright/*"
+          - "zod"
+        update-types:
+          - patch
+      dev-build:
+        applies-to: version-updates
+        dependency-type: development
+        patterns:
+          - "typescript"
+          - "webpack"
+          - "webpack-cli"
+          - "ts-loader"
+          - "vite"
+          - "@vitejs/*"
+          - "@crxjs/*"
+        update-types:
           - patch
     ignore:
       # Major bumps need a human to read the changelog first.
