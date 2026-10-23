@@ -394,7 +394,7 @@
     "@modelcontextprotocol/sdk": "^1.32.0",
     "@webcode/shared": "workspace:*",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "express": "^4.22.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
