@@ -4,7 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 import type { ToolDefinition } from '../tools';
-import { getRemoteToolPublicName } from './remoteTools';
+import { derivePathArgumentNames, getRemoteToolPublicName } from './remoteTools';
 import type {
     ConnectedClient,
     GatewayErrorLogger,
@@ -163,7 +163,8 @@ export async function connectToConfiguredServers(options: ConnectToConfiguredSer
                     definition: { ...tool, name: publicName } as ToolDefinition,
                     serverId,
                     toolName,
-                    toolTimeoutMs
+                    toolTimeoutMs,
+                    pathArguments: derivePathArgumentNames(toolName, tool.inputSchema)
                 });
             });
 

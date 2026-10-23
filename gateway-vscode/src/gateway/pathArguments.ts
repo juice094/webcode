@@ -1,30 +1,45 @@
 import * as path from 'path';
 
 import type { RemoteToolRoute } from './types';
-import { isLocalPathToolName } from './remoteTools';
+import { derivePathArgumentNames } from './remoteTools';
 
+/**
+ * Rewrites the path arguments a remote tool declares into absolute paths
+ * inside the workspace.
+ *
+ * The argument names come from the tool's schema (`format:
+ * "workspace-relative-path"`) or, for a tool on the legacy allowlist, from the
+ * historic property-name list. Unknown tools get no rewriting, exactly as
+ * before.
+ */
 export function resolveLocalPathArguments(
     route: RemoteToolRoute,
     args: Record<string, unknown>,
     workspaceRoot: string | null
 ): void {
-    if (!isLocalPathToolName(route.toolName) || !args || !workspaceRoot) {
+    if (!args || !workspaceRoot) {
         return;
     }
 
-    const fixPath = (p: unknown) => {
-        if (typeof p === 'string') {
-            return resolveInsideWorkspace(workspaceRoot, p);
-        }
-        return p;
-    };
+    const pathArguments = route.pathArguments
+        ?? derivePathArgumentNames(route.toolName, route.definition.inputSchema);
+    if (pathArguments.length === 0) {
+        return;
+    }
 
-    if (args.path) {args.path = fixPath(args.path);}
-    if (args.cwd) {args.cwd = fixPath(args.cwd);}
-    if (args.repo_path) {args.repo_path = fixPath(args.repo_path);}
-    if (args.source) {args.source = fixPath(args.source);}
-    if (args.destination) {args.destination = fixPath(args.destination);}
-    if (Array.isArray(args.paths)) {args.paths = args.paths.map(p => fixPath(p));}
+    for (const name of pathArguments) {
+        const value = args[name];
+        if (typeof value === 'string') {
+            args[name] = resolveInsideWorkspace(workspaceRoot, value);
+            continue;
+        }
+        if (Array.isArray(value)) {
+            const items: unknown[] = value as unknown[];
+            args[name] = items.map((item): unknown => (
+                typeof item === 'string' ? resolveInsideWorkspace(workspaceRoot, item) : item
+            ));
+        }
+    }
 }
 
 export function resolveInsideWorkspace(workspaceRoot: string, inputPath: string): string {

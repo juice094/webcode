@@ -15,6 +15,14 @@ import {
 import type { SearchCodeOptions } from './searchCodeTypes';
 
 const MAX_FALLBACK_FILE_SIZE_BYTES = 1024 * 1024 * 2;
+
+/**
+ * Bounded file-read concurrency. The fallback used to stat and read every file
+ * serially; a 10k-file workspace meant 10k sequential round trips. Eight
+ * in-flight reads keep the event loop busy without exhausting file handles.
+ */
+const FALLBACK_CONCURRENCY = 8;
+
 type FallbackMatcher = (line: string) => SearchMatchRange | null;
 
 export type SearchCodeInProcessResult = {
@@ -37,30 +45,33 @@ export async function searchCodeInProcess(options: SearchCodeOptions): Promise<S
         caseSensitive: options.caseSensitive,
         useRegex: options.useRegex
     });
+    const candidates = await collectFallbackCandidates(options);
+    const results = await scanCandidatesWithBoundedConcurrency(candidates, options, matcher);
+
+    // Matches are collected per file, so order the file results by relative path
+    // before flattening to keep the previous "stable path order" contract.
+    const ordered = [...results.entries]
+        .sort(([left], [right]) => left.localeCompare(right));
+
     const matches: string[] = [];
-    let limited = false;
-    const gitFiles = await listGitSearchFiles(options.searchRoot);
-
-    if (gitFiles) {
-        for (const candidate of sortSearchCandidatesByRelativePath(gitFiles)) {
-            if (shouldSkipFallbackCandidate(candidate, options)) {
-                continue;
+    for (const [, fileMatches] of ordered) {
+        for (const match of fileMatches) {
+            if (matches.length >= options.maxResults) {
+                return { matches, limited: true };
             }
-
-            const shouldStop = await appendInProcessFileMatches(
-                candidate.filePath,
-                candidate.relativeToSearchRoot,
-                options,
-                matcher,
-                matches
-            );
-            if (shouldStop) {
-                limited = true;
-                break;
-            }
+            matches.push(match);
         }
+    }
 
-        return { matches, limited };
+    return { matches, limited: results.limited };
+}
+
+async function collectFallbackCandidates(options: SearchCodeOptions): Promise<SearchCandidateFile[]> {
+    const gitFiles = await listGitSearchFiles(options.searchRoot);
+    if (gitFiles) {
+        return sortSearchCandidatesByRelativePath(
+            gitFiles.filter(candidate => !shouldSkipFallbackCandidate(candidate, options))
+        );
     }
 
     const candidates: SearchCandidateFile[] = [];
@@ -71,48 +82,86 @@ export async function searchCodeInProcess(options: SearchCodeOptions): Promise<S
         includePattern: options.includePattern
     });
 
-    for (const candidate of sortSearchCandidatesByRelativePath(candidates)) {
-        const shouldStop = await appendInProcessFileMatches(
-            candidate.filePath,
-            candidate.relativeToSearchRoot,
-            options,
-            matcher,
-            matches
-        );
-        if (shouldStop) {
-            limited = true;
-            break;
-        }
-    }
-
-    return { matches, limited };
+    return sortSearchCandidatesByRelativePath(candidates);
 }
 
-async function appendInProcessFileMatches(
-    filePath: string,
-    relativeToSearchRoot: string,
+/**
+ * Reads candidates with a bounded worker pool.
+ *
+ * Once any file fills the remaining result budget the pool stops pulling new
+ * work, so a huge workspace cannot keep reading after the answer is known. The
+ * per-file matches are kept separately because concurrent workers cannot append
+ * to one shared ordered array without interleaving file lines.
+ */
+async function scanCandidatesWithBoundedConcurrency(
+    candidates: SearchCandidateFile[],
+    options: SearchCodeOptions,
+    matcher: FallbackMatcher
+): Promise<{ entries: Map<string, string[]>; limited: boolean }> {
+    const results = new Map<string, string[]>();
+    let matchedCount = 0;
+    let stopped = false;
+    let cursor = 0;
+
+    const worker = async (): Promise<void> => {
+        while (!stopped) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= candidates.length) {
+                return;
+            }
+
+            const remaining = options.maxResults - matchedCount;
+            if (remaining <= 0) {
+                stopped = true;
+                return;
+            }
+
+            const fileMatches = await collectFileMatches(candidates[index], options, matcher, remaining);
+            if (fileMatches.length === 0) {
+                continue;
+            }
+
+            results.set(candidates[index].relativeToSearchRoot, fileMatches);
+            matchedCount += fileMatches.length;
+        }
+    };
+
+    const workerCount = Math.min(FALLBACK_CONCURRENCY, candidates.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    return {
+        entries: results,
+        limited: matchedCount >= options.maxResults
+    };
+}
+
+async function collectFileMatches(
+    candidate: SearchCandidateFile,
     options: SearchCodeOptions,
     matcher: FallbackMatcher,
-    matches: string[]
-): Promise<boolean> {
+    remaining: number
+): Promise<string[]> {
+    const { filePath, relativeToSearchRoot } = candidate;
     const relativePath = toPosixPath(path.relative(options.workspaceRoot, filePath));
     if (isGitMetadataPath(relativePath)) {
-        return false;
+        return [];
     }
     if (!matchesFallbackInclude(filePath, relativeToSearchRoot, options.includePattern)) {
-        return false;
+        return [];
     }
 
     const stats = await fsPromises.stat(filePath).catch(() => null);
     if (!stats?.isFile() || stats.size > MAX_FALLBACK_FILE_SIZE_BYTES) {
-        return false;
+        return [];
     }
 
     const rawContent = await fsPromises.readFile(filePath, 'utf8').catch(() => null);
     if (rawContent == null || rawContent.includes('\0')) {
-        return false;
+        return [];
     }
 
+    const matches: string[] = [];
     const lines = normalizeLineEndings(rawContent).split('\n');
     for (let index = 0; index < lines.length; index++) {
         const matchRange = matcher(lines[index]);
@@ -120,14 +169,13 @@ async function appendInProcessFileMatches(
             continue;
         }
 
-        const lineText = lines[index];
-        matches.push(formatSearchCodeMatch(relativePath, index + 1, lineText, options, matchRange));
-        if (matches.length >= options.maxResults) {
-            return true;
+        matches.push(formatSearchCodeMatch(relativePath, index + 1, lines[index], options, matchRange));
+        if (matches.length >= remaining) {
+            break;
         }
     }
 
-    return false;
+    return matches;
 }
 
 function matchesFallbackInclude(

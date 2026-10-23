@@ -78,6 +78,12 @@ export type RemoteToolRoute = {
     toolName: string;
     /** Deadline passed to tools/call; undefined keeps the MCP SDK default. */
     toolTimeoutMs?: number;
+    /**
+     * Argument names holding workspace-relative paths. Resolved once when the
+     * server is connected, so a new third-party path tool only has to declare
+     * the schema format instead of being added to a gateway allowlist.
+     */
+    pathArguments?: readonly string[];
 };
 
 export type GatewayLogger = (message: string) => void;
