@@ -70,8 +70,8 @@ importers:
         specifier: 20.x
         version: 20.19.43
       '@types/vscode':
-        specifier: ^1.106.1
-        version: 1.116.0
+        specifier: ^1.140.0
+        version: 1.140.0
       '@vscode/test-cli':
         specifier: ^0.0.12
         version: 0.0.12
@@ -122,8 +122,8 @@ importers:
         specifier: 20.x
         version: 20.19.43
       '@types/vscode':
-        specifier: ^1.106.1
-        version: 1.116.0
+        specifier: ^1.140.0
+        version: 1.140.0
       '@vscode/test-cli':
         specifier: ^0.0.12
         version: 0.0.12
@@ -771,8 +771,8 @@ packages:
   '@types/serve-static@1.15.10':
     resolution: {integrity: sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw==}
 
-  '@types/vscode@1.116.0':
-    resolution: {integrity: sha512-sYHp4MO6BqJ2PD7Hjt0hlIS3tMaYsVPJrd0RUjDJ8HtOYnyJIEej0bLSccM8rE77WrC+Xox/kdBwEFDO8MsxNA==}
+  '@types/vscode@1.140.0':
+    resolution: {integrity: sha512-KAB5RBZIgnUhpp4mKsVJPPHLOQKu6WtGy2xpfWjaajEXO4xIIC+UESAXLiQ9ewx6QD1uBmvC/S8BJzkbvv4bRA==}
 
   '@typescript-eslint/eslint-plugin@8.57.1':
     resolution: {integrity: sha512-Gn3aqnvNl4NGc6x3/Bqk1AOn0thyTU9bqDRhiRnUWezgvr2OnhYCWCgC8zXXRVqBsIL1pSDt7T9nJUe0oM0kDQ==}
@@ -3832,7 +3832,7 @@ snapshots:
       '@types/node': 20.19.43
       '@types/send': 0.17.6
 
-  '@types/vscode@1.116.0': {}
+  '@types/vscode@1.140.0': {}
 
   '@typescript-eslint/eslint-plugin@8.57.1(@typescript-eslint/parser@8.57.1(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:

@@ -26,7 +26,7 @@
     "@playwright/cli": "0.1.18",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
-    "@types/vscode": "^1.106.1",
+    "@types/vscode": "^1.140.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "mocha": "^11.8.0",
