@@ -1,29 +1,70 @@
 # Dependency updates.
 #
-# Runtime dependencies feed the shipped bundle, so they are checked weekly and
-# grouped to keep PR volume low. Development dependencies never reach users;
-# they run on developer machines and CI, so they move on a slower cadence and
-# are never merged automatically.
+# Why the grouping is split this way: a single group covering every production
+# dependency produced PRs too large to create, so Dependabot reported success
+# while opening nothing. Security updates now get their own group so they are
+# never blocked behind a routine minor bump.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+    open-pull-requests-limit: 10
     groups:
-      runtime-dependencies:
+      # Security fixes are small and urgent; keep them out of the routine groups.
+      security-patches:
+        applies-to: security-updates
         patterns:
           - "*"
+      # Routine production minors are separate so one failed lockfile refresh
+      # cannot block a security update.
+      production-minor:
+        applies-to: version-updates
         dependency-type: production
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Major bumps need a human to read the changelog first.
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     groups:
       development-dependencies:
         patterns:
           - "*"
         dependency-type: development
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: npm
+    directory: /bridge-browser
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      bridge-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      bridge-routine:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

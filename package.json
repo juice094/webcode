@@ -21,6 +21,7 @@
     "qa:stop": "pnpm --filter @webcode/evals run qa:stop",
     "lint": "eslint .",
     "audit:shipped": "node scripts/audit-shipped-deps.mjs",
+    "audit:shipped:strict": "node scripts/audit-shipped-deps.mjs --require-bundle",
     "check:contrast": "node scripts/check-contrast.mjs",
     "prepare": "husky"
   },
@@ -35,7 +36,11 @@
     "overrides": {
       "qs": ">=6.16.0",
       "body-parser": ">=1.20.6 <2.0.0",
-      "proxy-addr": ">=2.0.8 <3.0.0"
+      "proxy-addr": ">=2.0.8 <3.0.0",
+      "fast-uri": ">=3.1.8 <4.0.0",
+      "hono": ">=4.13.11 <5.0.0",
+      "@hono/node-server": ">=1.19.15 <2.0.0",
+      "ip-address": ">=10.7.4 <11.0.0"
     }
   },
   "lint-staged": {
