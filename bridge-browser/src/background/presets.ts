@@ -11,7 +11,7 @@ const DEFAULT_SESSION_PRESET_SETTINGS: SessionPresetSettings = {
 };
 
 export async function getSessionPresetSettings(): Promise<SessionPresetSettings> {
-  const result = await chrome.storage.local.get([SESSION_PRESET_SETTINGS_KEY]) as Record<string, unknown>;
+  const result = await chrome.storage.local.get([SESSION_PRESET_SETTINGS_KEY]);
   return normalizeSessionPresetSettings(result[SESSION_PRESET_SETTINGS_KEY]);
 }
 

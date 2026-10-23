@@ -221,7 +221,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "local") {
     const approvalStorageKey = `allowed_tools_${currentWorkspaceId}`;
     if (changes[approvalStorageKey]) {
-      approvalState = parseStoredApprovalEntries(changes[approvalStorageKey].newValue as unknown);
+      approvalState = parseStoredApprovalEntries(changes[approvalStorageKey].newValue);
       Logger.log(`Allowed tools updated (Workspace: ${currentWorkspaceId})`, "action");
     }
     if (changes.syncedAiSites) {

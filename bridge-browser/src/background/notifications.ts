@@ -122,9 +122,11 @@ export async function focusNotificationSourceTab(notificationId: string): Promis
     const tabId = getNotificationSourceTabId(notificationId);
     if (tabId === null) {return;}
 
+    // `tabs.update` resolves to undefined when the tab no longer exists, so the
+    // window focus step is skipped instead of dereferencing a missing tab.
     const tab = await chrome.tabs.update(tabId, { active: true });
 
-    if (typeof tab.windowId === "number" && tab.windowId !== chrome.windows.WINDOW_ID_NONE) {
+    if (tab && typeof tab.windowId === "number" && tab.windowId !== chrome.windows.WINDOW_ID_NONE) {
       await focusWindow(tab.windowId);
     }
   } catch (error) {

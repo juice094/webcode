@@ -70,7 +70,7 @@ export async function discoverGateways(): Promise<DiscoveredGateway[]> {
 }
 
 async function readPreferredPort(): Promise<number | null> {
-  const stored = await chrome.storage.local.get([LAST_GATEWAY_PORT_KEY]) as Record<string, unknown>;
+  const stored = await chrome.storage.local.get([LAST_GATEWAY_PORT_KEY]);
   const value = stored[LAST_GATEWAY_PORT_KEY];
   return typeof value === "number" && Number.isInteger(value) ? value : null;
 }

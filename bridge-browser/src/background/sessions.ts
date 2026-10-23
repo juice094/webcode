@@ -16,12 +16,12 @@ export type ActiveProtocolSessionResult =
 
 export async function getSession(tabId: number): Promise<Session | undefined> {
   const key = `session_${tabId}`;
-  const result = await chrome.storage.local.get([key]) as Record<string, unknown>;
+  const result = await chrome.storage.local.get([key]);
   return normalizeSession(result[key]) ?? undefined;
 }
 
 export async function getStoredSessionTabIds(): Promise<number[]> {
-  const result = await chrome.storage.local.get(null) as Record<string, unknown>;
+  const result = await chrome.storage.local.get(null);
   return Object.keys(result)
     .map(getSessionTabIdFromKey)
     .filter((tabId): tabId is number => typeof tabId === "number");
@@ -31,7 +31,7 @@ export async function getSessionDisconnectReason(
   tabId: number
 ): Promise<SessionDisconnectReason | undefined> {
   const key = getDisconnectReasonKey(tabId);
-  const result = await chrome.storage.local.get([key]) as Record<string, unknown>;
+  const result = await chrome.storage.local.get([key]);
   return normalizeDisconnectReason(result[key]);
 }
 
