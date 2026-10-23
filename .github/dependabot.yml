@@ -5,10 +5,16 @@
 # while opening nothing. Security updates now get their own group so they are
 # never blocked behind a routine minor bump.
 #
-# Constraint: Dependabot rejects the file when two entries share
-# (package-ecosystem, directory, target-branch). The production and development
-# splits therefore live inside one entry's `groups`, which is why there is a
-# single `directory: /` block below.
+# Two constraints shape this file:
+#
+# 1. Dependabot rejects the file when two entries share
+#    (package-ecosystem, directory, target-branch). The production and
+#    development splits therefore live inside one entry's `groups`.
+# 2. A pnpm workspace keeps a single root `pnpm-lock.yaml`. An entry scoped to a
+#    subdirectory such as `/bridge-browser` rewrites that package's
+#    `package.json` without touching the root lockfile, so CI's
+#    `pnpm install --frozen-lockfile` fails on every PR it opens. The root entry
+#    already covers every workspace package, so no per-package entry exists.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -39,28 +45,6 @@ updates:
           - patch
     ignore:
       # Major bumps need a human to read the changelog first.
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
-
-  - package-ecosystem: npm
-    directory: /bridge-browser
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
-    groups:
-      bridge-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      bridge-routine:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-    ignore:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
