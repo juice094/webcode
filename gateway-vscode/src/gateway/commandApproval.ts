@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 
 export const DEFAULT_APPROVAL_TTL_MS = 2 * 60 * 1000;
 const MAX_PENDING_RECORDS = 256;
+const SWEEP_INTERVAL_OPERATIONS = 64;
 
 type ChallengeRecord = {
     expiresAt: number;
@@ -21,6 +22,7 @@ export type CommandApprovalGrant = {
 export class CommandApprovalManager {
     private readonly challenges = new Map<string, ChallengeRecord>();
     private readonly grants = new Map<string, ChallengeRecord>();
+    private operationCounter = 0;
 
     constructor(
         private ttlMs = DEFAULT_APPROVAL_TTL_MS,
@@ -42,7 +44,7 @@ export class CommandApprovalManager {
     }
 
     issueChallenge(fingerprint: string): CommandApprovalChallenge {
-        this.cleanup();
+        this.sweepOccasionally();
         this.enforceRecordLimit(this.challenges);
         const challengeId = crypto.randomUUID();
         const expiresAt = this.now() + this.ttlMs;
@@ -51,9 +53,16 @@ export class CommandApprovalManager {
     }
 
     approveChallenge(challengeId: string): CommandApprovalGrant | null {
-        this.cleanup();
+        this.sweepOccasionally();
         const challenge = this.challenges.get(challengeId);
         if (!challenge) {
+            return null;
+        }
+
+        // Expiry is checked on access so a stale challenge cannot be redeemed
+        // between sweeps.
+        if (challenge.expiresAt <= this.now()) {
+            this.challenges.delete(challengeId);
             return null;
         }
 
@@ -69,13 +78,22 @@ export class CommandApprovalManager {
     }
 
     consumeGrant(approvalToken: string | undefined, fingerprint: string): boolean {
-        this.cleanup();
+        this.sweepOccasionally();
         if (!approvalToken) {
             return false;
         }
 
         const grant = this.grants.get(approvalToken);
-        if (grant?.fingerprint !== fingerprint) {
+        if (!grant) {
+            return false;
+        }
+
+        if (grant.expiresAt <= this.now()) {
+            this.grants.delete(approvalToken);
+            return false;
+        }
+
+        if (grant.fingerprint !== fingerprint) {
             return false;
         }
 
@@ -86,9 +104,20 @@ export class CommandApprovalManager {
     clear(): void {
         this.challenges.clear();
         this.grants.clear();
+        this.operationCounter = 0;
     }
 
-    private cleanup(): void {
+    /**
+     * Sweeps expired records every N operations instead of on every call.
+     * Expiry is still enforced on access, so this only bounds memory; it is not
+     * a correctness mechanism.
+     */
+    private sweepOccasionally(): void {
+        this.operationCounter += 1;
+        if (this.operationCounter % SWEEP_INTERVAL_OPERATIONS !== 0) {
+            return;
+        }
+
         const now = this.now();
         this.removeExpired(this.challenges, now);
         this.removeExpired(this.grants, now);

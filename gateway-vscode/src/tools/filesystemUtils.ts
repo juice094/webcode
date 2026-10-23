@@ -250,15 +250,44 @@ export function matchesPattern(value: string, pattern: string, caseSensitive = f
 }
 
 
-function matchesCompiledPattern(normalizedValue: string, pattern: string, caseSensitive: boolean): boolean {
+/**
+ * Compiled glob cache.
+ *
+ * `walkWorkspaceFiles` calls `matchesPattern` once per file, and each call used
+ * to rebuild a RegExp from the pattern. On a 100k-file walk that is 100k regex
+ * compilations for a single include pattern. The cache is keyed by pattern and
+ * case sensitivity, bounded so pathological pattern churn cannot grow it.
+ */
+const COMPILED_GLOB_CACHE_LIMIT = 256;
+const compiledGlobCache = new Map<string, RegExp>();
+
+function compileGlobPattern(pattern: string, caseSensitive: boolean): RegExp {
+    const key = `${caseSensitive ? '1' : '0'}\0${pattern}`;
+    const cached = compiledGlobCache.get(key);
+    if (cached) {
+        return cached;
+    }
+
     const escaped = pattern
         .replace(/[.+^${}()|[\]\\]/g, '\\$&')
         .replace(/\*\*/g, '\0')
         .replace(/\*/g, '[^/]*')
         .replace(/\?/g, '[^/]')
         .replace(/\0/g, '.*');
+    const compiled = new RegExp(`^${escaped}$`, caseSensitive ? '' : 'i');
 
-    return new RegExp(`^${escaped}$`, caseSensitive ? '' : 'i').test(normalizedValue);
+    if (compiledGlobCache.size >= COMPILED_GLOB_CACHE_LIMIT) {
+        const oldestKey = compiledGlobCache.keys().next().value;
+        if (oldestKey !== undefined) {
+            compiledGlobCache.delete(oldestKey);
+        }
+    }
+    compiledGlobCache.set(key, compiled);
+    return compiled;
+}
+
+function matchesCompiledPattern(normalizedValue: string, pattern: string, caseSensitive: boolean): boolean {
+    return compileGlobPattern(pattern, caseSensitive).test(normalizedValue);
 }
 
 export function matchesAnyPattern(value: string, patterns: string[]): boolean {
