@@ -147,7 +147,7 @@ suite('Gateway timeout injection', () => {
 function readCallOptions(call: unknown[]): { signal?: AbortSignal; timeout?: number } | undefined {
     const options = call[2];
     return typeof options === 'object' && options !== null
-        ? options as { signal?: AbortSignal; timeout?: number }
+        ? options
         : undefined;
 }
 
