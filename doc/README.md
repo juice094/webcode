@@ -29,6 +29,7 @@
 - [UI 现代化改造计划](UI_MODERNIZATION_PLAN.md)：Chrome 111 基线下的令牌层、原语层、性能预算与分面推广步骤；含 R1–R13 的完成记录与已发现缺陷。
 - [依赖漏洞治理与加固计划](DEPENDENCY_HARDENING_PLAN.md)：审计结论、真实暴露面分层、红队审计与分阶段治理步骤。
 - [依赖审计豁免清单](DEPENDENCY_AUDIT_EXEMPTIONS.md)：已知不修复的依赖漏洞、判定口径、理由与复查日期。
+- [依赖修复计划（2026-10）](DEPENDENCY_REMEDIATION_PLAN_2026_10.md)：CI 与依赖现状核查、Dependabot 分组缺陷、受约束 overrides 与审计盲区修复的分批计划。
 - [工程审查整改计划](ENGINEERING_REVIEW_REMEDIATION_PLAN.md)：工具调用超时中止、并发背压、搜索与读取热路径优化的分批落地计划。
 - [归档文档](archive/README.md)：已作废但保留历史价值的文档及其替代关系。
 - [UI/UX 开发 Agent Skill](../.codex/skills/ui-ux-development/SKILL.md)：后续 agent 实施 UI 改动时必须遵循的工作流。

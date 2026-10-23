@@ -22,7 +22,7 @@
 | --- | --- | --- | --- | --- |
 | `brace-expansion` | 构建期 | ~21 | 经 `eslint > minimatch` 引入，只在 lint 时解析 glob 模式，输入不受外部控制 | 2026-11-22 |
 | `undici` | 构建期 | ~21 | 经 `@vscode/vsce > cheerio` 引入，只在打包时抓取页面 | 2026-11-22 |
-| `hono` | 测试期 | ~26 | 经 `evals > @modelcontextprotocol/sdk` 引入；gateway 使用 SDK 1.0.x，不依赖 hono | 2026-11-22 |
+| `hono` / `@hono/node-server` | 测试期 | ~30 | 经 `@modelcontextprotocol/sdk` 引入。2026-10-23 实测：gateway-vscode 解析到 SDK 1.32.1，依赖树包含 hono 4.12.15 与 @hono/node-server 1.19.14，但 dist/extension.js 中这些模块出现次数为 0，因为 gateway 只 import SDK 的 client 子路径，server 侧模块不被 webpack 内联。注意：pnpm audit 把这批路径全部归到 evals>，未归属 gateway-vscode>，该豁免依赖产物实测而非审计工具。见依赖修复计划第 6.3 节 | 2026-11-22 |
 | `vite` / `esbuild` / `rollup` | 构建期 | ~10 | 浏览器扩展构建工具，不进入任何发布产物 | 2026-11-22 |
 | `ip-address` / `proxy-addr` | 测试期 | ~6 | 唯一 critical 落在此处，经 `evals` 的 express 传递引入。`evals` 的 MCP 用法是 stdio server，不暴露 HTTP 端点 | 2026-11-22 |
 | `markdown-it` / `linkify-it` | 构建期 | ~7 | 经 `@vscode/vsce` 引入，只在打包时渲染 README | 2026-11-22 |
