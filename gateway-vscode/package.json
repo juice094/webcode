@@ -401,15 +401,15 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "@types/vscode": "^1.106.1",
-    "@vscode/test-cli": "^0.0.12",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.140.0",
+    "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.6.0",
-    "mocha": "^11.7.5",
-    "ts-loader": "^9.5.4",
+    "@vscode/vsce": "^3.9.2",
+    "mocha": "^11.8.0",
+    "ts-loader": "^9.6.2",
     "typescript": "^5.9.3",
-    "webpack": "^5.102.1",
+    "webpack": "^5.112.0",
     "webpack-cli": "^6.0.1"
   }
 }
