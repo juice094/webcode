@@ -4,6 +4,11 @@
 # dependency produced PRs too large to create, so Dependabot reported success
 # while opening nothing. Security updates now get their own group so they are
 # never blocked behind a routine minor bump.
+#
+# Constraint: Dependabot rejects the file when two entries share
+# (package-ecosystem, directory, target-branch). The production and development
+# splits therefore live inside one entry's `groups`, which is why there is a
+# single `directory: /` block below.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -26,23 +31,14 @@ updates:
         update-types:
           - minor
           - patch
+      development-dependencies:
+        applies-to: version-updates
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
     ignore:
       # Major bumps need a human to read the changelog first.
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
-
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
-    groups:
-      development-dependencies:
-        patterns:
-          - "*"
-        dependency-type: development
-    ignore:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
