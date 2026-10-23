@@ -7,7 +7,7 @@ import { checkUrlSafety, isBridgePageUrl } from './url_safety';
 
 export async function handleTabUpdated(
   tabId: number,
-  changeInfo: chrome.tabs.TabChangeInfo,
+  changeInfo: chrome.tabs.OnUpdatedInfo,
   tab: chrome.tabs.Tab
 ) {
   // Use URL from changeInfo if available, otherwise fallback to tab.url

@@ -215,7 +215,7 @@ async function redeemBridgeCode(
 }
 
 async function findConflictTabId(port: number, tabId: number): Promise<string | null> {
-  const all = await chrome.storage.local.get(null) as Record<string, unknown>;
+  const all = await chrome.storage.local.get(null);
   for (const [key, val] of Object.entries(all)) {
     if (isConflictingSession(key, val, port, tabId)) {
       return key.replace("session_", "");

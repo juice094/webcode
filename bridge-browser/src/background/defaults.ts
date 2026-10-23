@@ -7,7 +7,7 @@ export async function handleInstalled(details?: chrome.runtime.InstalledDetails)
 }
 
 async function clearStoredSessions(): Promise<void> {
-  const localItems = await chrome.storage.local.get(null) as Record<string, unknown>;
+  const localItems = await chrome.storage.local.get(null);
   const sessionKeys = Object.keys(localItems).filter(
     (key) => key.startsWith('session_') || key.startsWith('disconnect_')
   );
