@@ -22,7 +22,75 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** Repo root, resolved from this script so the gate works from any cwd. */
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+
+/**
+ * Built bundle that ships inside the `.vsix`.
+ *
+ * The path-based classifier below trusts `pnpm audit` to attribute a dependency
+ * to the package that declares it. It does not: an advisory reachable through
+ * `gateway-vscode > @modelcontextprotocol/sdk > hono` can be reported only as
+ * `evals > @modelcontextprotocol/sdk > hono`, which would hide a module that
+ * actually got bundled. Scanning the bundle closes that gap directly.
+ */
+const BUNDLE_PATH = join(REPO_ROOT, "gateway-vscode", "dist", "extension.js");
+const BUNDLE_MAP_PATH = `${BUNDLE_PATH}.map`;
+
+/**
+ * Which packages are reachable from the shipped bundle.
+ *
+ * Webpack minifies, so the bundle text no longer contains package paths and
+ * grepping it for a module name yields false negatives: `fast-uri` is inlined
+ * yet the string "fast-uri" never appears. The source map written by
+ * `devtool: 'nosources-source-map'` keeps every module path, which is the
+ * accurate signal. The text scan remains as a fallback for a build without a
+ * source map.
+ */
+function readSourceMapSources() {
+  if (!existsSync(BUNDLE_MAP_PATH)) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(BUNDLE_MAP_PATH, "utf8"));
+    return Array.isArray(parsed.sources) ? parsed.sources : [];
+  } catch {
+    return [];
+  }
+}
+
+function findBundledModules() {
+  const bundled = new Set();
+
+  {
+    const sources = readSourceMapSources();
+
+    for (const source of sources) {
+      const index = source.lastIndexOf("node_modules/");
+      if (index < 0) {continue;}
+      const rest = source.slice(index + "node_modules/".length);
+      const parts = rest.split("/");
+      bundled.add(rest.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]);
+    }
+
+    if (bundled.size > 0) {
+      return bundled;
+    }
+  }
+
+  if (existsSync(BUNDLE_PATH)) {
+    const pattern = /node_modules\/((?:@[^/\s"']+\/)?[^/\s"']+)\//g;
+    for (const match of readFileSync(BUNDLE_PATH, "utf8").matchAll(pattern)) {
+      bundled.add(match[1]);
+    }
+  }
+
+  return bundled;
+}
 
 /**
  * Runtime dependencies of `gateway-vscode`.
@@ -40,13 +108,18 @@ const SHIPPED_ROOTS = new Set([
 const REGISTRY = process.env.WEBCODE_AUDIT_REGISTRY ?? "https://registry.npmjs.org/";
 
 function parseArgs(argv) {
-  const options = { input: null, report: false };
+  const options = { input: null, report: false, requireBundle: false };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--input") {
       options.input = argv[index + 1] ?? null;
       index += 1;
     } else if (argv[index] === "--report") {
       options.report = true;
+    } else if (argv[index] === "--require-bundle") {
+      // CI must not silently skip the bundle scan: without a built bundle the
+      // classification-conflict check cannot run, so a green result would be
+      // meaningless.
+      options.requireBundle = true;
     }
   }
   return options;
@@ -195,20 +268,95 @@ function reportShippedAdvisories(shipped) {
   }
 }
 
+/**
+ * Advisories classified as build/test whose module is nonetheless inside the
+ * shipped bundle.
+ *
+ * A non-empty result means the layer classification is wrong for this repo
+ * state: the exemption it relies on no longer holds. This is a distinct failure
+ * from "a shipped dependency has an advisory" and gets its own exit code so the
+ * cause is unambiguous.
+ */
+function collectClassificationConflicts(advisories, layers) {
+  if (!existsSync(BUNDLE_PATH) && !existsSync(BUNDLE_MAP_PATH)) {
+    return { bundled: null, conflicts: [] };
+  }
+
+  const bundled = findBundledModules();
+  const conflicts = [];
+  const seen = new Set();
+
+  for (const layerName of ["build", "test", "other"]) {
+    for (const { id, advisory, path } of layers[layerName]) {
+      const moduleName = advisory.module_name;
+      if (!bundled.has(moduleName)) {
+        continue;
+      }
+      const key = `${id}|${moduleName}|${layerName}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      conflicts.push({ id, advisory, path, layerName });
+    }
+  }
+
+  return { bundled, conflicts };
+}
+
+function reportClassificationConflicts(conflicts) {
+  for (const { id, advisory, path, layerName } of conflicts) {
+    console.error(
+      `  ${advisory.severity.toUpperCase()} ${advisory.module_name} ${id} classified ${layerName} but bundled via ${path}`
+    );
+  }
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const advisories = parseAuditPayload(readAuditPayload(options.input));
 
   if (options.report) {
-    reportLayers(advisories, groupByLayer(advisories));
+    const layers = groupByLayer(advisories);
+    reportLayers(advisories, layers);
+    const { bundled, conflicts } = collectClassificationConflicts(advisories, layers);
+    if (bundled === null) {
+      console.log(`  bundle scan: ${BUNDLE_PATH} not found, skipped`);
+      return;
+    }
+    console.log(`  bundle scan: ${bundled.size} packages inlined`);
+    if (conflicts.length > 0) {
+      console.log(`  bundle scan: ${conflicts.length} classification conflicts`);
+      reportClassificationConflicts(conflicts);
+    }
     return;
   }
 
   const shipped = collectShippedAdvisories(advisories);
+  const { bundled, conflicts } = collectClassificationConflicts(advisories, groupByLayer(advisories));
 
   console.log(
     `audit: ${Object.keys(advisories).length} advisories total, ${shipped.length} on shipped dependency paths`
   );
+
+  if (conflicts.length > 0) {
+    console.error(
+      `audit: ${conflicts.length} advisories were classified build/test but the module is inlined in the bundle`
+    );
+    reportClassificationConflicts(conflicts);
+    console.error("audit: fix the dependency or correct the layer classification before shipping");
+    process.exit(3);
+  }
+
+  if (bundled === null) {
+    if (options.requireBundle) {
+      console.error("audit: --require-bundle was set but no built bundle exists; build before auditing");
+      process.exit(4);
+    }
+    console.log("audit: no built bundle found, bundle scan skipped (build before shipping)");
+  } else {
+    console.log(`audit: bundle scan checked ${bundled.size} inlined packages, no classification conflicts`);
+  }
 
   if (shipped.length === 0) {
     console.log("audit: no advisories affect the shipped extension bundle");

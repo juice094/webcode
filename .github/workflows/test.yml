@@ -39,8 +39,15 @@ jobs:
       - name: Check token contrast
         run: pnpm check:contrast
 
+      # The audit gate scans the built bundle for modules that were classified
+      # build/test but actually got inlined. dist/ is gitignored, so the bundle
+      # must exist before the gate runs; --require-bundle turns a missing bundle
+      # into a failure instead of a silent skip.
+      - name: Build extension bundle for audit
+        run: pnpm --filter gateway-vscode run compile
+
       - name: Audit shipped dependencies
-        run: pnpm audit:shipped
+        run: node scripts/audit-shipped-deps.mjs --require-bundle
 
       - name: Upload full audit report
         if: always()
