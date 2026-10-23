@@ -140,7 +140,7 @@ function installBrowserGlobals(): void {
 }
 
 function flushNextTimer(): void {
-  const entry = timers.entries().next().value as [number, () => void] | undefined;
+  const entry = timers.entries().next().value;
   if (!entry) {throw new Error("missing scheduled auto-send timer");}
   timers.delete(entry[0]);
   entry[1]();

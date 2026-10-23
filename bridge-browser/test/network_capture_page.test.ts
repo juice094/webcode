@@ -14,7 +14,7 @@ class FakeWindow {
 
   public addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
     if (type === "message" && typeof listener === "function") {
-      this.messageListeners.add(listener as MessageListener);
+      this.messageListeners.add(listener);
     }
   }
 

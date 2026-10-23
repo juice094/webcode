@@ -6,8 +6,7 @@ import * as path from 'path';
 import {
     APPROVAL_AUDIT_VERSION,
     MAX_AUDIT_COMMAND_LENGTH,
-    formatApprovalAuditEvent,
-    type ApprovalAuditEvent
+    formatApprovalAuditEvent
 } from '../gateway/approvalAudit';
 import { auditEvent } from '../gateway/approvalAuditEvents';
 import { createApprovalAuditLog } from '../extension/approvalAuditLog';
@@ -82,7 +81,7 @@ suite('Approval audit log', () => {
     test('drops fields outside the whitelist, including an approval token', () => {
         const event = auditEvent('grant_issued', null, { challengeId: 'challenge-1' });
         const polluted = { ...event, approvalToken: 'token-SECRET', arguments: { command: 'rm -rf /' } };
-        const line = formatApprovalAuditEvent(polluted as ApprovalAuditEvent);
+        const line = formatApprovalAuditEvent(polluted);
 
         assert.ok(!line.includes('token-SECRET'), 'the approval token must never be serialized');
         assert.ok(!line.includes('rm -rf'), 'tool arguments must never be serialized');
