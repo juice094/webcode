@@ -19,11 +19,15 @@ const SLOW_COMMAND = 'sleep 2';
 const REMOTE_TOOL_NAME = 'srv:slow';
 
 suite('Gateway timeout enforcement', () => {
-    test('reports a timeout for an overrunning local tool without cancelling it', async () => {
+    test('aborts an overrunning local tool at the deadline', async () => {
         const pending = createDeferred<ToolResult>();
+        let receivedSignal: AbortSignal | undefined;
         const options = createHandlerOptions({
             toolCallTimeoutMs: TOOL_CALL_DEADLINE_MS,
-            localTool: createLocalTool(() => pending.promise)
+            localTool: createLocalTool((_signal?: AbortSignal) => {
+                receivedSignal = _signal;
+                return pending.promise;
+            })
         });
 
         const response = await invokeHandler(createToolCallHandler(options), {
@@ -34,19 +38,52 @@ suite('Gateway timeout enforcement', () => {
         assert.strictEqual(response.statusCode, 504);
         const text = readContentText(response.body);
         assert.ok(text.includes(`timed out after ${TOOL_CALL_DEADLINE_MS} ms`), text);
-        assert.ok(text.includes('gateway deadline is not a cancellation'), text);
-        assert.ok(text.includes('may still be running'), text);
+        assert.ok(text.includes('aborted the call'), text);
+        assert.ok(text.includes('signalled to terminate'), text);
+        assert.strictEqual(receivedSignal?.aborted, true, 'the deadline must abort the tool signal');
 
-        // The tool keeps running after the gateway gave up. Settling it later
-        // must not throw, answer twice, or surface as an unhandled rejection.
+        // Settling the abandoned work later must not throw, answer twice, or
+        // surface as an unhandled rejection.
         pending.resolve({ content: [{ type: 'text', text: 'late result' }] });
         await settle();
         assert.strictEqual(response.statusCode, 504);
     });
 
-    test('applies the same deadline to remote MCP tools', async () => {
+    test('aborts the signal when the client disconnects', async () => {
+        const pending = createDeferred<ToolResult>();
+        let receivedSignal: AbortSignal | undefined;
+        const options = createHandlerOptions({
+            toolCallTimeoutMs: DISABLED_DEADLINE_MS,
+            localTool: createLocalTool((signal?: AbortSignal) => {
+                receivedSignal = signal;
+                return pending.promise;
+            })
+        });
+
+        const handler = createToolCallHandler(options);
+        const response = createFakeResponse();
+        const run = Promise.resolve(handler(
+            { body: { name: 'slow_tool', arguments: {} } } as express.Request,
+            response as unknown as express.Response,
+            () => undefined
+        ));
+
+        await settle();
+        response.emitClose();
+        await settle();
+
+        assert.strictEqual(receivedSignal?.aborted, true, 'a disconnect must abort the tool signal');
+        pending.resolve({ content: [] });
+        await run;
+    });
+
+    test('applies the same deadline to remote MCP tools and aborts them', async () => {
         const pending = createDeferred<unknown>();
-        const callTool = () => pending.promise;
+        let receivedSignal: AbortSignal | undefined;
+        const callTool = (_params: unknown, _schema: unknown, options?: { signal?: AbortSignal }) => {
+            receivedSignal = options?.signal;
+            return pending.promise;
+        };
         const options = createHandlerOptions({
             toolCallTimeoutMs: TOOL_CALL_DEADLINE_MS,
             remoteRoute: createRemoteRoute(callTool)
@@ -60,7 +97,8 @@ suite('Gateway timeout enforcement', () => {
         assert.strictEqual(response.statusCode, 504);
         const text = readContentText(response.body);
         assert.ok(text.includes(`timed out after ${TOOL_CALL_DEADLINE_MS} ms`), text);
-        assert.ok(text.includes('MCP server may still be processing'), text);
+        assert.ok(text.includes('abort request was sent to the MCP server'), text);
+        assert.strictEqual(receivedSignal?.aborted, true, 'the deadline must abort the MCP call');
 
         pending.resolve({ content: [] });
         await settle();
@@ -119,18 +157,20 @@ suite('Gateway timeout enforcement', () => {
     });
 });
 
-function createLocalTool(execute: () => Promise<ToolResult>): LocalTool {
+function createLocalTool(execute: (signal?: AbortSignal) => Promise<ToolResult>): LocalTool {
     return {
         definition: {
             name: 'slow_tool',
             description: 'test tool that outlives the deadline',
             inputSchema: { type: 'object', properties: {} }
         },
-        execute
+        execute: (args, context, signal) => execute(signal)
     };
 }
 
-function createRemoteRoute(callTool: () => Promise<unknown>): RemoteToolRoute {
+function createRemoteRoute(
+    callTool: (params: unknown, schema: unknown, options?: { signal?: AbortSignal }) => Promise<unknown>
+): RemoteToolRoute {
     return {
         client: { callTool } as unknown as RemoteToolRoute['client'],
         definition: {
@@ -141,6 +181,42 @@ function createRemoteRoute(callTool: () => Promise<unknown>): RemoteToolRoute {
         serverId: 'srv',
         toolName: 'slow'
     };
+}
+
+/**
+ * Fake response that can emit `close`, which a real express response does. The
+ * handler uses that event to abort a call whose client went away.
+ */
+function createFakeResponse(): {
+    status: (code: number) => unknown;
+    json: (value: unknown) => unknown;
+    once: (event: string, listener: () => void) => void;
+    emitClose: () => void;
+    statusCode: number;
+} {
+    const listeners: Array<() => void> = [];
+    const response = {
+        statusCode: 200,
+        status(code: number) {
+            response.statusCode = code;
+            return response;
+        },
+        json(value: unknown) {
+            void value;
+            return response;
+        },
+        once(event: string, listener: () => void) {
+            if (event === 'close') {
+                listeners.push(listener);
+            }
+        },
+        emitClose() {
+            for (const listener of listeners) {
+                listener();
+            }
+        }
+    };
+    return response;
 }
 
 function createHandlerOptions(params: {

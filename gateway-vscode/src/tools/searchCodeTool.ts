@@ -7,6 +7,8 @@ import { createSearchCodeFallbackNotice, searchCodeInProcess } from './searchCod
 import { formatSearchCodeOutput, type SearchCodeResult } from './searchCodeOutput';
 import { appendRipgrepMatch } from './searchCodeRipgrepOutput';
 import { createRipgrepStartError, resolveRipgrepCommand, RipgrepUnavailableError } from './ripgrep';
+import { killProcessTree } from '../servers/processTree';
+import { getAbortReasonText } from './abortUtils';
 import { createSearchCodeRipgrepArgs } from './searchCodeRipgrepArgs';
 import {
     DEFAULT_MATCH_LINE_MAX_CHARS,
@@ -77,7 +79,10 @@ export const searchCodeTool: LocalTool = {
         },
         annotations: { readOnlyHint: true }
     },
-    async execute(args, context) {
+    async execute(args, context, signal) {
+        if (signal?.aborted) {
+            throw new Error(`search_code aborted: ${getAbortReasonText(signal)}`);
+        }
         const searchRoot = (await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.')).absolutePath;
         const workspaceRoot = context.workspaceRoot ?? searchRoot;
         const query = String(args.query);
@@ -92,7 +97,7 @@ export const searchCodeTool: LocalTool = {
             useRegex: getSearchCodeMatchMode(args.match) === 'regex',
             matchLineMaxChars: getBoundedSearchLineMaxChars(args.max_line_chars)
         };
-        const result = await runRipgrepWithFallback(options, context.outputChannel);
+        const result = await runRipgrepWithFallback(options, context.outputChannel, signal);
 
         return textResult(formatSearchCodeOutput(result, options));
     }
@@ -100,10 +105,11 @@ export const searchCodeTool: LocalTool = {
 
 async function runRipgrepWithFallback(
     options: SearchCodeOptions,
-    outputChannel: vscode.OutputChannel
+    outputChannel: vscode.OutputChannel,
+    signal?: AbortSignal
 ): Promise<SearchCodeResult> {
     try {
-        return await runRipgrep(options);
+        return await runRipgrep(options, signal);
     } catch (error) {
         if (error instanceof RipgrepUnavailableError) {
             logRipgrepFallback(outputChannel, error);
@@ -125,7 +131,7 @@ function logRipgrepFallback(outputChannel: vscode.OutputChannel, error: RipgrepU
     }
 }
 
-async function runRipgrep(options: SearchCodeOptions): Promise<SearchCodeResult> {
+async function runRipgrep(options: SearchCodeOptions, signal?: AbortSignal): Promise<SearchCodeResult> {
     const rgCommand = resolveRipgrepCommand();
     const args = createSearchCodeRipgrepArgs(options);
     const matches: string[] = [];
@@ -134,29 +140,67 @@ async function runRipgrep(options: SearchCodeOptions): Promise<SearchCodeResult>
     let stderr = '';
 
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (action: () => void): void => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            signal?.removeEventListener('abort', onAbort);
+            action();
+        };
+
         const child = spawn(rgCommand.command, args, {
             cwd: options.searchRoot,
-            windowsHide: true
+            windowsHide: true,
+            // POSIX: lead a process group so an abort reaches ripgrep and any
+            // worker it forked. Windows has no group signal; the helper falls
+            // back to taskkill /T there.
+            detached: process.platform !== 'win32'
         });
         let spawnFailed = false;
+
+        const onAbort = (): void => {
+            if (child.pid) {
+                killProcessTree(child.pid);
+            }
+            finish(() => reject(new Error(`search_code aborted: ${getAbortReasonText(signal)}`)));
+        };
+
+        if (signal) {
+            if (signal.aborted) {
+                onAbort();
+                return;
+            }
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
 
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
             stdoutBuffer += chunk;
 
+            // Consume with a cursor instead of re-slicing the whole buffer per
+            // line: JSON match lines can be large, so slicing inside the loop
+            // is O(chunk^2) on dense matches.
+            let consumed = 0;
             let newlineIndex = stdoutBuffer.indexOf('\n');
             while (newlineIndex >= 0) {
-                const line = stdoutBuffer.slice(0, newlineIndex);
-                stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+                const line = stdoutBuffer.slice(consumed, newlineIndex);
                 appendRipgrepMatch(line, options, matches);
+                consumed = newlineIndex + 1;
 
                 if (matches.length >= options.maxResults) {
                     limitReached = true;
-                    child.kill();
+                    if (child.pid) {
+                        killProcessTree(child.pid);
+                    }
                     break;
                 }
 
-                newlineIndex = stdoutBuffer.indexOf('\n');
+                newlineIndex = stdoutBuffer.indexOf('\n', consumed);
+            }
+            if (consumed > 0) {
+                stdoutBuffer = stdoutBuffer.slice(consumed);
             }
         });
 
@@ -167,7 +211,7 @@ async function runRipgrep(options: SearchCodeOptions): Promise<SearchCodeResult>
 
         child.on('error', error => {
             spawnFailed = true;
-            reject(createRipgrepStartError(error, rgCommand));
+            finish(() => reject(createRipgrepStartError(error, rgCommand)));
         });
         child.on('close', code => {
             if (spawnFailed) {
@@ -178,14 +222,14 @@ async function runRipgrep(options: SearchCodeOptions): Promise<SearchCodeResult>
             }
 
             if (code === 0 || code === 1 || limitReached) {
-                resolve({
+                finish(() => resolve({
                     matches: matches.slice(0, options.maxResults),
                     limited: limitReached
-                });
+                }));
                 return;
             }
 
-            reject(new Error(`search_code failed: ${stderr.trim() || `ripgrep exited with code ${code ?? 'unknown'}`}`));
+            finish(() => reject(new Error(`search_code failed: ${stderr.trim() || `ripgrep exited with code ${code ?? 'unknown'}`}`)));
         });
     });
 }

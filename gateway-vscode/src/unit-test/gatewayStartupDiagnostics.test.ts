@@ -11,7 +11,12 @@ import type { ResolvedAiSiteConfig } from '../platforms';
 const BRIDGE_EXTENSION_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
 const TEST_EXTENSION_VERSION = '1.3.0';
 const IDLE_TIMEOUT_NEVER_MS = 60 * 60 * 1000;
-const TEST_PORT = 45411;
+/**
+ * Port 0 lets the OS pick a free port. Hard-coded ports are unreliable on
+ * Windows, where Hyper-V/WSL2 reserve dynamic port ranges that netstat does
+ * not show but that reject bind() with EADDRINUSE.
+ */
+const TEST_PORT = 0;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 const TEST_SITE: ResolvedAiSiteConfig = {

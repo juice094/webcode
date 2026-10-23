@@ -13,6 +13,8 @@ import {
     walkWorkspaceFiles
 } from './filesystemUtils';
 import { createRipgrepStartError, resolveRipgrepCommand, RipgrepUnavailableError } from './ripgrep';
+import { killProcessTree } from '../servers/processTree';
+import { getAbortReasonText } from './abortUtils';
 import { listGitSearchFiles } from './searchCodeGitFiles';
 import { isGitMetadataPath } from './searchCodeUtils';
 import { createRipgrepFilesArgs } from './searchFilesRipgrepArgs';
@@ -52,7 +54,10 @@ export const searchFilesTool: LocalTool = {
         },
         annotations: { readOnlyHint: true }
     },
-    async execute(args, context) {
+    async execute(args, context, signal) {
+        if (signal?.aborted) {
+            throw new Error(`search_files aborted: ${getAbortReasonText(signal)}`);
+        }
         const searchRoot = (await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.')).absolutePath;
         const workspaceRoot = context.workspaceRoot ?? searchRoot;
         const options: SearchFilesOptions = {
@@ -63,7 +68,7 @@ export const searchFilesTool: LocalTool = {
             caseSensitive: args.case_sensitive === true,
             maxResults: getNumberArg(args.max_results, 200)
         };
-        const result = await searchFilePathsWithFallback(options, context.outputChannel);
+        const result = await searchFilePathsWithFallback(options, context.outputChannel, signal);
 
         return textResult(formatSearchFilesOutput(result, options));
     }
@@ -103,10 +108,11 @@ function formatSearchFilesOutput(result: SearchFilesResult, options: SearchFiles
 
 async function searchFilePathsWithFallback(
     options: SearchFilesOptions,
-    outputChannel: vscode.OutputChannel
+    outputChannel: vscode.OutputChannel,
+    signal?: AbortSignal
 ): Promise<SearchFilesResult> {
     try {
-        return await runRipgrepFiles(options);
+        return await runRipgrepFiles(options, signal);
     } catch (error) {
         if (!(error instanceof RipgrepUnavailableError)) {
             throw error;
@@ -120,7 +126,7 @@ async function searchFilePathsWithFallback(
     }
 }
 
-async function runRipgrepFiles(options: SearchFilesOptions): Promise<SearchFilesResult> {
+async function runRipgrepFiles(options: SearchFilesOptions, signal?: AbortSignal): Promise<SearchFilesResult> {
     const rgCommand = resolveRipgrepCommand();
     const args = createRipgrepFilesArgs();
     const matches: string[] = [];
@@ -129,29 +135,61 @@ async function runRipgrepFiles(options: SearchFilesOptions): Promise<SearchFiles
     let limitReached = false;
 
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (action: () => void): void => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            signal?.removeEventListener('abort', onAbort);
+            action();
+        };
+
         const child = spawn(rgCommand.command, args, {
             cwd: options.searchRoot,
-            windowsHide: true
+            windowsHide: true,
+            detached: process.platform !== 'win32'
         });
         let spawnFailed = false;
+
+        const onAbort = (): void => {
+            if (child.pid) {
+                killProcessTree(child.pid);
+            }
+            finish(() => reject(new Error(`search_files aborted: ${getAbortReasonText(signal)}`)));
+        };
+
+        if (signal) {
+            if (signal.aborted) {
+                onAbort();
+                return;
+            }
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
 
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
             stdoutBuffer += chunk;
 
+            let consumed = 0;
             let newlineIndex = stdoutBuffer.indexOf('\n');
             while (newlineIndex >= 0) {
-                const line = stdoutBuffer.slice(0, newlineIndex);
-                stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+                const line = stdoutBuffer.slice(consumed, newlineIndex);
                 appendFileSearchMatch(line, options, matches);
+                consumed = newlineIndex + 1;
 
                 if (matches.length >= options.maxResults) {
                     limitReached = true;
-                    child.kill();
+                    if (child.pid) {
+                        killProcessTree(child.pid);
+                    }
                     break;
                 }
 
-                newlineIndex = stdoutBuffer.indexOf('\n');
+                newlineIndex = stdoutBuffer.indexOf('\n', consumed);
+            }
+            if (consumed > 0) {
+                stdoutBuffer = stdoutBuffer.slice(consumed);
             }
         });
 
@@ -162,7 +200,7 @@ async function runRipgrepFiles(options: SearchFilesOptions): Promise<SearchFiles
 
         child.on('error', error => {
             spawnFailed = true;
-            reject(createRipgrepStartError(error, rgCommand));
+            finish(() => reject(createRipgrepStartError(error, rgCommand)));
         });
         child.on('close', code => {
             if (spawnFailed) {
@@ -173,14 +211,14 @@ async function runRipgrepFiles(options: SearchFilesOptions): Promise<SearchFiles
             }
 
             if (code === 0 || code === 1 || limitReached) {
-                resolve({
+                finish(() => resolve({
                     matches: matches.slice(0, options.maxResults),
                     limited: limitReached
-                });
+                }));
                 return;
             }
 
-            reject(new Error(`search_files failed: ${stderr.trim() || `ripgrep exited with code ${code ?? 'unknown'}`}`));
+            finish(() => reject(new Error(`search_files failed: ${stderr.trim() || `ripgrep exited with code ${code ?? 'unknown'}`}`)));
         });
     });
 }

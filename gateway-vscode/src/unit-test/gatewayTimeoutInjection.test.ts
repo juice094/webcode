@@ -92,7 +92,9 @@ suite('Gateway timeout injection', () => {
         assert.strictEqual(calls.length, 1);
         assert.deepStrictEqual(calls[0][0], { name: 'fast', arguments: {} });
         assert.strictEqual(calls[0][1], undefined);
-        assert.deepStrictEqual(calls[0][2], { timeout: MCP_TIMEOUT_FIXTURE_MS });
+        const callOptions = readCallOptions(calls[0]);
+        assert.strictEqual(callOptions?.timeout, MCP_TIMEOUT_FIXTURE_MS);
+        assert.ok(callOptions?.signal instanceof AbortSignal, 'the call must carry an abort signal');
     });
 
     test('leaves the MCP request timeout unset when the route has none', async () => {
@@ -100,7 +102,9 @@ suite('Gateway timeout injection', () => {
         const response = await invokeRemoteTool(calls, undefined);
 
         assert.strictEqual(response.statusCode, 200);
-        assert.deepStrictEqual(calls[0][2], { timeout: undefined });
+        const callOptions = readCallOptions(calls[0]);
+        assert.strictEqual(callOptions?.timeout, undefined);
+        assert.ok(callOptions?.signal instanceof AbortSignal, 'the call must carry an abort signal');
     });
 
     test('reports an MCP request timeout with the same deadline wording', async () => {
@@ -117,7 +121,7 @@ suite('Gateway timeout injection', () => {
         const text = readContentText(response.body);
         assert.ok(text.includes(`timed out after ${MCP_TIMEOUT_FIXTURE_MS} ms`), text);
         assert.ok(text.includes('MCP request deadline'), text);
-        assert.ok(text.includes('MCP server may still be processing'), text);
+        assert.ok(text.includes('abort request was sent to the MCP server'), text);
     });
 
     test('reads the browser launch wait from the gateway settings', () => {
@@ -138,6 +142,14 @@ suite('Gateway timeout injection', () => {
         }
     });
 });
+
+/** Reads the third callTool argument, which carries the timeout and signal. */
+function readCallOptions(call: unknown[]): { signal?: AbortSignal; timeout?: number } | undefined {
+    const options = call[2];
+    return typeof options === 'object' && options !== null
+        ? options as { signal?: AbortSignal; timeout?: number }
+        : undefined;
+}
 
 async function invokeRemoteTool(
     calls: unknown[][],

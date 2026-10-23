@@ -39,18 +39,22 @@ export function listenOnAvailablePort(deps: PortListenerDeps): Promise<StartResu
             }
 
             const server = app.listen(currentPort, '127.0.0.1', () => {
-                onBound(currentPort, server);
-                log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
-                if (currentPort < BRIDGE_PORT_RANGE_START || currentPort > BRIDGE_PORT_RANGE_END) {
-                    log(`⚠️ Port ${currentPort} is outside the browser bridge supported range ${BRIDGE_PORT_RANGE_START}-${BRIDGE_PORT_RANGE_END}. The browser extension will not inject on this port; check the webcodeGateway.port setting.`);
+                // With port 0 the OS picks the port, so the requested number is
+                // not the bound one. Every downstream consumer (status bar,
+                // trace, StartResult, onBound) must see the resolved port.
+                const boundPort = readBoundPort(server, currentPort);
+                onBound(boundPort, server);
+                log(`🌐 Gateway running on http://127.0.0.1:${boundPort}`);
+                if (boundPort < BRIDGE_PORT_RANGE_START || boundPort > BRIDGE_PORT_RANGE_END) {
+                    log(`⚠️ Port ${boundPort} is outside the browser bridge supported range ${BRIDGE_PORT_RANGE_START}-${BRIDGE_PORT_RANGE_END}. The browser extension will not inject on this port; check the webcodeGateway.port setting.`);
                 }
                 trace({
                     event: 'gateway_started',
                     status: 'success',
-                    details: { port: currentPort }
+                    details: { port: boundPort }
                 });
-                vscode.window.setStatusBarMessage(`MCP Gateway: On (${currentPort})`, 5000);
-                resolve({ port: currentPort });
+                vscode.window.setStatusBarMessage(`MCP Gateway: On (${boundPort})`, 5000);
+                resolve({ port: boundPort });
             });
 
             server.on('error', (e: NodeJS.ErrnoException) => {
@@ -68,10 +72,23 @@ export function listenOnAvailablePort(deps: PortListenerDeps): Promise<StartResu
             });
         };
 
+        // A configured port of 0 asks the OS for any free port. There is no
+        // preferred port to try first and no adjacent port to scan on failure,
+        // so the request goes straight to the kernel.
+        if (config.port === 0) {
+            tryListen(0, 0);
+            return;
+        }
+
         if (config.preferredPort && config.preferredPort !== config.port) {
             tryListen(config.preferredPort, 0);
         } else {
             tryListen(config.port, 0);
         }
     });
+}
+
+function readBoundPort(server: HttpServer, requestedPort: number): number {
+    const address = server.address();
+    return address !== null && typeof address === 'object' ? address.port : requestedPort;
 }

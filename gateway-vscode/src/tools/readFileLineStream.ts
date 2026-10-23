@@ -1,6 +1,8 @@
 import * as fs from 'fs/promises';
 import { StringDecoder } from 'string_decoder';
 
+import { getAbortReasonText } from './abortUtils';
+
 const STREAM_READ_CHUNK_BYTES = 64 * 1024;
 
 export type LineSelectionOptions = {
@@ -23,20 +25,22 @@ type StreamLinesResult = {
 
 export async function readSelectedFileLines(
     filePath: string,
-    options: LineSelectionOptions
+    options: LineSelectionOptions,
+    signal?: AbortSignal
 ): Promise<SelectedFileLines> {
     return options.tail !== undefined
-        ? readTailFileLines(filePath, options.tail)
-        : readForwardSelectedFileLines(filePath, options);
+        ? readTailFileLines(filePath, options.tail, signal)
+        : readForwardSelectedFileLines(filePath, options, signal);
 }
 
 async function readForwardSelectedFileLines(
     filePath: string,
-    options: LineSelectionOptions
+    options: LineSelectionOptions,
+    signal?: AbortSignal
 ): Promise<SelectedFileLines> {
     const startLine = options.head !== undefined ? 1 : options.startLine ?? 1;
     const stopAfterLine = options.head ?? options.endLine;
-    const streamResult = await streamForwardSelectedLines(filePath, startLine, stopAfterLine);
+    const streamResult = await streamForwardSelectedLines(filePath, startLine, stopAfterLine, signal);
 
     return {
         lines: streamResult.lines,
@@ -48,7 +52,8 @@ async function readForwardSelectedFileLines(
 async function streamForwardSelectedLines(
     filePath: string,
     startLine: number,
-    stopAfterLine?: number
+    stopAfterLine: number | undefined,
+    signal?: AbortSignal
 ): Promise<StreamLinesResult & { lines: string[] }> {
     const handle = await fs.open(filePath, 'r');
     try {
@@ -94,6 +99,7 @@ async function streamForwardSelectedLines(
         };
 
         while (true) {
+            throwIfAborted(signal);
             const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
             if (bytesRead === 0) {
                 break;
@@ -126,26 +132,52 @@ async function streamForwardSelectedLines(
     }
 }
 
-async function readTailFileLines(filePath: string, tail: number): Promise<SelectedFileLines> {
-    const selectedLines: string[] = [];
+/**
+ * Reads the last `tail` lines.
+ *
+ * Uses a fixed-size ring buffer instead of `Array.shift()`. The previous
+ * implementation moved the whole array on every line once the window was full,
+ * which is O(lines × tail) — a `tail=2000` read of a 500k-line file moved
+ * roughly a billion elements on the extension host's single thread.
+ */
+async function readTailFileLines(
+    filePath: string,
+    tail: number,
+    signal?: AbortSignal
+): Promise<SelectedFileLines> {
+    const limit = Math.max(1, Math.floor(tail));
+    const ring: string[] = new Array<string>(limit);
+    let count = 0;
+    let writeIndex = 0;
+
     const streamResult = await streamFileLines(filePath, line => {
-        selectedLines.push(line);
-        if (selectedLines.length > tail) {
-            selectedLines.shift();
+        ring[writeIndex] = line;
+        writeIndex = (writeIndex + 1) % limit;
+        if (count < limit) {
+            count += 1;
         }
         return false;
-    });
+    }, signal);
+
+    // The oldest entry is the next write slot once the ring wrapped; before
+    // that the buffer is still filled from index 0.
+    const start = count < limit ? 0 : writeIndex;
+    const lines: string[] = new Array<string>(count);
+    for (let index = 0; index < count; index++) {
+        lines[index] = ring[(start + index) % limit];
+    }
 
     return {
-        lines: selectedLines,
-        startLine: streamResult.lineCount - selectedLines.length + 1,
+        lines,
+        startLine: streamResult.lineCount - count + 1,
         lineCount: streamResult.lineCount
     };
 }
 
 async function streamFileLines(
     filePath: string,
-    onLine: (line: string, lineNumber: number) => boolean
+    onLine: (line: string, lineNumber: number) => boolean,
+    signal?: AbortSignal
 ): Promise<StreamLinesResult> {
     const handle = await fs.open(filePath, 'r');
     try {
@@ -179,6 +211,7 @@ async function streamFileLines(
         };
 
         while (true) {
+            throwIfAborted(signal);
             const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
             if (bytesRead === 0) {
                 break;
@@ -204,5 +237,11 @@ async function streamFileLines(
         return { completed, lineCount };
     } finally {
         await handle.close();
+    }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+        throw new Error(`read_file aborted: ${getAbortReasonText(signal)}`);
     }
 }

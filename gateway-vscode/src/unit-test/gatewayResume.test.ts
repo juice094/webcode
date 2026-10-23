@@ -14,6 +14,13 @@ const TEST_EXTENSION_VERSION = '1.3.0';
 const IDLE_TIMEOUT_NEVER_MS = 60 * 60 * 1000;
 const PERSISTED_TOKEN = 'persisted-bridge-token-0123456789abcdef';
 
+/**
+ * Port 0 lets the OS pick a free port. Hard-coded ports are unreliable on
+ * Windows, where Hyper-V/WSL2 reserve dynamic port ranges that netstat does
+ * not show but that reject bind() with EADDRINUSE.
+ */
+const DYNAMIC_PORT = 0;
+
 const TEST_SITE: ResolvedAiSiteConfig = {
     id: 'chatgpt',
     name: 'ChatGPT',
@@ -129,7 +136,7 @@ suite('Gateway resume across restarts', () => {
         let port: number;
 
         try {
-            const started = await first.start(createTestConfig(45530));
+            const started = await first.start(createTestConfig(DYNAMIC_PORT));
             port = started.port;
             const token = await redeemBridgeToken(first, port);
             assert.strictEqual(token, PERSISTED_TOKEN, 'redemption must return the seeded token');
@@ -161,7 +168,7 @@ suite('Gateway resume across restarts', () => {
         let token: string;
 
         try {
-            const started = await first.start(createTestConfig(45531));
+            const started = await first.start(createTestConfig(DYNAMIC_PORT));
             port = started.port;
             token = await redeemBridgeToken(first, port);
             assert.notStrictEqual(token, PERSISTED_TOKEN);
@@ -188,7 +195,7 @@ suite('Gateway resume across restarts', () => {
         manager.setResumeState({ tokenProvider: createProvider(), lastInterrupted: null });
 
         try {
-            const started = await manager.start(createTestConfig(45532));
+            const started = await manager.start(createTestConfig(DYNAMIC_PORT));
             manager.markShuttingDown();
 
             const response = await requestStatus(started.port, PERSISTED_TOKEN);
@@ -206,7 +213,7 @@ suite('Gateway resume across restarts', () => {
         manager.setResumeState({ tokenProvider: createProvider(), lastInterrupted });
 
         try {
-            const started = await manager.start(createTestConfig(45533));
+            const started = await manager.start(createTestConfig(DYNAMIC_PORT));
             assert.strictEqual(typeof started.instanceId, 'string');
             const body = (await requestStatus(started.port, PERSISTED_TOKEN)).body ?? {};
             const firstInstanceId = typeof body.gatewayInstanceId === 'string' ? body.gatewayInstanceId : null;

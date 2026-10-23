@@ -24,6 +24,7 @@ import { registerConfigRoutes } from './gateway/initRoutes';
 import type { InFlightToolCall } from './extension/shutdownSnapshot';
 import { seedSessionToken, type SessionTokenSource } from './extension/sessionToken';
 import { InFlightCallRegistry } from './gateway/inFlightCalls';
+import { DEFAULT_MAX_CONCURRENT_TOOL_CALLS, ToolConcurrencyGate } from './gateway/toolConcurrency';
 import { DEFAULT_IDLE_TIMEOUT_MINUTES, formatIdleTimeoutMinutes } from './gateway/idleTimeout';
 import * as timeouts from './gateway/timeouts';
 import {
@@ -56,12 +57,7 @@ import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pair
 import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { listenOnAvailablePort } from './gateway/portListener';
 
-/**
- * QA-calibrated value: covers the worst case of one long MCP tool call
- * spanning 4 idle periods. Calibration method: once the Phase 1 timeout
- * configuration lands, re-verify this bound against the default toolCallMs
- * budget.
- */
+/** QA-calibrated: one long MCP call spanning 4 idle periods; re-verify once Phase 1 config lands. */
 const MAX_WATCHDOG_POSTPONEMENTS = 3;
 
 export interface GatewayLifecycleOptions {
@@ -117,9 +113,8 @@ export class GatewayManager {
     private shuttingDown = false;
     private bridgeSessionTokenProvider: SessionTokenSource | null = null;
     private lastInterrupted: { count: number; savedAt: string } | null = null;
-    private readonly inFlightCalls = new InFlightCallRegistry(
-        toolName => this.toolRouter.get(toolName)?.serverId
-    );
+    private readonly inFlightCalls = new InFlightCallRegistry(toolName => this.toolRouter.get(toolName)?.serverId);
+    private readonly toolConcurrencyGate = new ToolConcurrencyGate(DEFAULT_MAX_CONCURRENT_TOOL_CALLS);
 
     constructor(
         outputChannel: vscode.OutputChannel,
@@ -350,6 +345,7 @@ export class GatewayManager {
 
         const toolCallOptions: ToolCallHandlerOptions = {
             audit: this.approvalAuditSink,
+            concurrencyGate: this.toolConcurrencyGate,
             commandApprovalManager: this.commandApprovalManager,
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
@@ -480,6 +476,8 @@ export class GatewayManager {
             });
         }
         this.connectedClients = [];
+        // Abort before clear so a still-running call performs its own cleanup.
+        this.inFlightCalls.abortAll(new Error('gateway stopped'));
         this.inFlightCalls.clear();
         this.commandApprovalManager.clear();
         if (!options?.preserveBridgeSession) {

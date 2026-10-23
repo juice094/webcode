@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, type ChildProcess } from 'child_process';
 import type { LocalTool, ToolDefinition, ToolExecutionContext, ToolRiskPreflight } from './types';
 import { errorResult, jsonResult } from './result';
 import { WORKSPACE_COMMAND_PATH_DESCRIPTION, resolveWorkspaceRelativeDirectory } from './workspacePath';
@@ -19,6 +19,8 @@ import {
     resolveCommandExecutionTimeoutMs
 } from '../gateway/timeouts';
 import { buildExecuteCommandTimeoutSchema } from './executeCommandTimeout';
+import { killProcessTree } from '../servers/processTree';
+import { getAbortReasonText } from './abortUtils';
 
 export const executeCommandTool: LocalTool = {
     serverId: 'internal',
@@ -43,7 +45,7 @@ export const executeCommandTool: LocalTool = {
         }
     },
     getDefinition(context) {
-        return createExecuteCommandDefinition(
+        return getCachedExecuteCommandDefinition(
             context.commandShellPath,
             context.commandExecutionMs,
             context.commandExecutionMaxMs
@@ -52,9 +54,12 @@ export const executeCommandTool: LocalTool = {
     async assessRisk(args, context) {
         return (await resolveExecuteCommandRequest(args, context)).risk;
     },
-    async execute(args, context) {
+    async execute(args, context, signal) {
         if (!context.workspaceRoot) {
             return errorResult('Security Error: A VS Code workspace folder is required to run commands.');
+        }
+        if (signal?.aborted) {
+            return errorResult(`Execution aborted: ${getAbortReasonText(signal)}`);
         }
 
         try {
@@ -76,7 +81,8 @@ export const executeCommandTool: LocalTool = {
                 request.execution.file,
                 request.execution.args,
                 request.absolutePath,
-                timeout
+                timeout,
+                signal
             );
             const isError = result.exitCode !== 0;
             const stdout = result.stdout.trim();
@@ -106,6 +112,9 @@ export const executeCommandTool: LocalTool = {
                 status
             }, isError);
         } catch (error: unknown) {
+            if (signal?.aborted) {
+                return errorResult(`Execution aborted: ${getAbortReasonText(signal)}`);
+            }
             return errorResult(`Execution System Error: ${getErrorMessage(error)}`);
         }
     }
@@ -235,17 +244,56 @@ async function runCommand(
     file: string,
     args: string[],
     cwd: string,
-    timeout: number
+    timeout: number,
+    signal?: AbortSignal
 ): Promise<{ stdout: string; stderr: string; exitCode: number; signal: NodeJS.Signals | null; timedOut: boolean }> {
     return new Promise((resolve, reject) => {
-        execFile(file, args, {
+        let settled = false;
+        // A holder keeps `child` const for lint while still letting the abort
+        // listener registered before spawn read the pid once spawn returns.
+        const holder: { child?: ChildProcess } = {};
+
+        const finish = (action: () => void): void => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            signal?.removeEventListener('abort', onAbort);
+            action();
+        };
+
+        const onAbort = (): void => {
+            // The deadline is a watchdog: the caller stopped waiting, so the
+            // command must not keep running. Kill the whole tree instead of the
+            // shell only, because `bash -lc` forks the real work.
+            if (holder.child?.pid) {
+                killProcessTree(holder.child.pid);
+            }
+            finish(() => resolve({
+                stdout: '',
+                stderr: `Aborted: ${getAbortReasonText(signal)}`,
+                exitCode: 124,
+                signal: 'SIGKILL',
+                timedOut: true
+            }));
+        };
+
+        if (signal) {
+            if (signal.aborted) {
+                onAbort();
+                return;
+            }
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        holder.child = execFile(file, args, {
             cwd,
             timeout,
             maxBuffer: 1024 * 1024 * 10,
             windowsHide: true
         }, (error, stdout, stderr) => {
             if (!error) {
-                resolve({ stdout, stderr, exitCode: 0, signal: null, timedOut: false });
+                finish(() => resolve({ stdout, stderr, exitCode: 0, signal: null, timedOut: false }));
                 return;
             }
 
@@ -255,20 +303,50 @@ async function runCommand(
                 killed?: boolean;
             };
             if (execError.code === 'ENOENT') {
-                reject(new Error(`Command shell not found: ${file}`));
+                finish(() => reject(new Error(`Command shell not found: ${file}`)));
                 return;
             }
 
-            resolve({
+            finish(() => resolve({
                 stdout: stdout || '',
                 stderr: stderr || execError.message,
                 exitCode: typeof execError.code === 'number' ? execError.code : 1,
                 signal: execError.signal ?? null,
-                // The only kill source in this tool is the execFile timeout, so a
+                // The only kill source on this path is the execFile timeout, so a
                 // reported kill identifies an overrun. Only the shell process is
                 // stopped; children it spawned may keep running.
                 timedOut: execError.killed === true && execError.signal != null
-            });
+            }));
         });
     });
 }
+
+const definitionCache = new Map<string, ToolDefinition>();
+
+function getCachedExecuteCommandDefinition(
+    commandShellPath?: string,
+    commandExecutionMs?: number,
+    commandExecutionMaxMs?: number
+): ToolDefinition {
+    const key = [
+        commandShellPath ?? '',
+        commandExecutionMs ?? DEFAULT_COMMAND_EXECUTION_MS,
+        commandExecutionMaxMs ?? ''
+    ].join('\0');
+
+    const cached = definitionCache.get(key);
+    if (cached) {
+        return cached;
+    }
+
+    // The description embeds the resolved shell profiles, so a definition is
+    // rebuilt only when the caller's context changes. A small bound keeps a
+    // pathological settings churn from growing the cache without limit.
+    const definition = createExecuteCommandDefinition(commandShellPath, commandExecutionMs, commandExecutionMaxMs);
+    if (definitionCache.size >= 16) {
+        definitionCache.clear();
+    }
+    definitionCache.set(key, definition);
+    return definition;
+}
+

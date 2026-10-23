@@ -2,18 +2,22 @@ import { buildArgsPreview, digestToolArguments, type InFlightToolCall } from '..
 
 /**
  * Tracks the tool calls running right now so `deactivate()` can tell the next
- * session what it interrupted. Kept out of GatewayManager to stay inside the
- * file-size budget, and deliberately dumb: no persistence, no replay, and the
- * arguments are reduced to a digest plus a short redacted preview.
+ * session what it interrupted, and so `stop()` can abort work that is still in
+ * flight. Kept out of GatewayManager to stay inside the file-size budget, and
+ * deliberately dumb: no persistence, no replay, and the arguments are reduced
+ * to a digest plus a short redacted preview.
  */
-type TrackedCall = InFlightToolCall & { startedAtMs: number };
+type TrackedCall = InFlightToolCall & {
+    startedAtMs: number;
+    controller?: AbortController;
+};
 
 export class InFlightCallRegistry {
     private readonly calls = new Map<string, TrackedCall>();
 
     constructor(private readonly resolveServerId: (toolName: string) => string | undefined) { }
 
-    start(info: { callId: string; toolName: string; args: unknown }): void {
+    start(info: { callId: string; toolName: string; args: unknown; controller?: AbortController }): void {
         const startedAtMs = Date.now();
         this.calls.set(info.callId, {
             callId: info.callId,
@@ -23,12 +27,25 @@ export class InFlightCallRegistry {
             elapsedMs: 0,
             startedAtMs,
             argsDigest: digestToolArguments(info.args),
-            argsPreview: buildArgsPreview(info.args)
+            argsPreview: buildArgsPreview(info.args),
+            controller: info.controller
         });
     }
 
+    /**
+     * The single place a call stops being tracked. Called from the route's
+     * `finally`, so a success, a timeout, a failure, and a client disconnect all
+     * converge here and the registry cannot leak an entry.
+     */
     end(callId: string): void {
         this.calls.delete(callId);
+    }
+
+    /** Aborts every tracked call. Used by `stop()` before clearing the map. */
+    abortAll(reason: unknown): void {
+        for (const call of this.calls.values()) {
+            call.controller?.abort(reason);
+        }
     }
 
     snapshot(now = Date.now()): InFlightToolCall[] {

@@ -26,8 +26,12 @@ const vscodeStub = {
     workspace: {
         workspaceFolders: [] as unknown[],
         // Terminal profile discovery reads terminal.integrated settings; outside
-        // the extension host there are no configured profiles to report.
-        getConfiguration: () => ({ get: () => undefined })
+        // the extension host there are no configured profiles to report. `get`
+        // must still honour its default value: settings readers call
+        // `.get(key, '')` and then use the string directly.
+        getConfiguration: () => ({
+            get: <T>(_key: string, defaultValue?: T): T | undefined => defaultValue
+        })
     },
     window: {
         setStatusBarMessage: () => ({ dispose: () => undefined })

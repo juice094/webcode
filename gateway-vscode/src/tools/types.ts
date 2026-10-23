@@ -51,7 +51,17 @@ export type LocalTool = {
         args: Record<string, unknown>,
         context: ToolExecutionContext
     ) => Promise<ToolRiskPreflight>;
-    execute: (args: Record<string, unknown>, context: ToolExecutionContext) => Promise<ToolResult>;
+    /**
+     * `signal` MUST be honoured once the gateway wires real cancellation:
+     * abort ⇒ stop spawning processes, close file handles, and reject with the
+     * abort reason. It is optional today so existing tool implementations keep
+     * compiling while the gateway still passes a never-aborting signal.
+     */
+    execute: (
+        args: Record<string, unknown>,
+        context: ToolExecutionContext,
+        signal?: AbortSignal
+    ) => Promise<ToolResult>;
 };
 
 export type ToolRiskPreflight = {
