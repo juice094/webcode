@@ -12,7 +12,7 @@
 
 | 文档 | 归档原因 | 替代文档 |
 | --- | --- | --- |
-| [UI 现代化改造阶段性 QA 报告](UI_MODERNIZATION_QA_REPORT.md) | 记录第 2 轮 `qa:start` 会话的中间状态，结论为「未得出结论性验收意见」。其后 R8–R13 已完成审批 e2e、键盘断言、对比度实测与浅色/桥接页验证 | [UI 现代化改造计划](../plans/UI_MODERNIZATION_PLAN.md) |
+| [UI 现代化改造阶段性 QA 报告](UI_MODERNIZATION_QA_REPORT.md) | 记录第 2 轮 `qa:start` 会话的中间状态，结论为「未得出结论性验收意见」。其后 R8–R13 已完成审批 e2e、键盘断言、对比度实测与浅色/桥接页验证；后续轮次已补齐验证 | [UI 现代化改造计划](../plans/UI_MODERNIZATION_PLAN.md) |
 | [VS Code 扩展脚手架模板](vsc-extension-quickstart.md) | VS Code 扩展生成器自动产出的 Hello World 模板，与 webcode 实际结构不符；独有信息仅为 Extension Host 测试环境变量说明 | [Evals 指南](../../evals/README.md)、[构建指南](../getting-started/BUILD_GUIDE.md) |
 
 ## 判定标准

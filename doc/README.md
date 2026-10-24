@@ -49,9 +49,8 @@
 
 ## 归档与工作流
 
-完整说明见 [归档索引](archive/index.md)。
+完整说明见 [归档文档](archive/README.md)：已作废但保留历史价值的文档及其替代关系。
 
-- [归档文档](archive/README.md)：已作废但保留历史价值的文档及其替代关系。
 - [UI/UX 开发 Agent Skill](../.codex/skills/ui-ux-development/SKILL.md)：后续 agent 实施 UI 改动时必须遵循的工作流。
 
 ## 相关入口

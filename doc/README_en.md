@@ -38,7 +38,7 @@ See the [architecture index](architecture/index.md).
 
 ## Plans and Reports
 
-See the [plans index](plans/index.md) and the [dependency remediation chain](plans/dependency/index.md).
+See the [plans index](plans/index.md) and the [dependency remediation chain](plans/dependency/index.md) (Chinese only).
 
 - [UI and interaction development plan](plans/UI_UX_DEVELOPMENT_PLAN.md) (Chinese): scope, phases, baseline, acceptance, rollback, and Rust re-evaluation triggers.
 - [UI modernization plan](plans/UI_MODERNIZATION_PLAN.md) (Chinese): token and primitive layers, performance budget, and per-surface rollout, including the R1-R13 record.
@@ -49,9 +49,8 @@ See the [plans index](plans/index.md) and the [dependency remediation chain](pla
 
 ## Archive and Agent Workflow
 
-See the [archive index](archive/index.md).
+See [archived documents](archive/README.md) (Chinese): superseded documents and what replaced them.
 
-- [Archived documents](archive/README.md) (Chinese): superseded documents and what replaced them.
 - [UI/UX development Agent Skill](../.codex/skills/ui-ux-development/SKILL.md) (Chinese): workflow for future UI implementation tasks.
 
 ## Related Entries

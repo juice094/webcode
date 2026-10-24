@@ -69,6 +69,10 @@
 | T3 | `workspace 相对路径` 是否批量改为 `工作区相对路径` | 改 | `reference/` 四篇共 17 处 |
 | — | 同类文档章节顺序是否统一 | 不统一，登记为遗留 | `getting-started/` 四篇分属模式说明、Q&A、构建流程、安装约定四种体例 |
 | — | `doc/getting-started/MANUAL_BRIDGE_GUIDE.md` 标题是否改「桥接」为「扩展」 | 保留「浏览器桥接」 | 该文档强调的是桥接机制，不是扩展产物 |
+| T4 | `doc/archive/` 是否保留 `index.md` 与 `README.md` 双入口 | 只保留 `README.md` | `index.md` 独有内容已并入 `README.md` 后删除；`doc/README.md`、`doc/README_en.md` 只链 `README.md` |
+| T5 | `doc/` 子目录文档命名风格是否统一 | 不统一：指南类用 `SCREAMING_SNAKE_CASE`，索引与工具类用 lowercase | 改名会波及约 60 处交叉链接与外部书签，收益不抵风险 |
+| T6 | 5 个子目录索引是否补英文版 | 不补英文索引，在各索引顶部标注「仅提供中文版本」 | 避免每次改索引维护两份；英文入口 `doc/README_en.md` 已在链接处标注 |
+| T7 | 根目录 `CLAUDE.md` 与 `AGENTS.md` 内容重复如何处理 | `AGENTS.md` 为唯一正文 | `CLAUDE.md` 被 `.gitignore` 忽略，属本地文件，不纳入仓库治理；本地副本已改为指向 `AGENTS.md` 的指针，不构成第二份真相 |
 
 ## 5. 已知待办
 
