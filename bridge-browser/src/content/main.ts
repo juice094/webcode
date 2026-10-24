@@ -21,6 +21,7 @@ import { createNetworkCaptureRuntime } from "./network_capture_runtime";
 import { ResultDeliveryController } from "./result_delivery_controller";
 import { getCurrentStatus, getStorage } from "./runtime_helpers";
 import { logToolSummary, ToolCallTracker } from "./tool_call_tracker";
+import { reportNativeSyntaxDrift } from "./native_syntax_notice";
 import { ToolActivityTracker } from "./tool_activity";
 import { ToolActivityOverlay } from "./tool_activity_overlay";
 import { ToolExecutor } from "./tool_executor";
@@ -33,7 +34,6 @@ const CONFIG = { pollInterval: 1000, autoSend: true, ...createApprovalModeConfig
 // [State] Connection Guard
 let isClientConnected = false;
 let currentWorkspaceId = "global";
-
 let approvalState: ApprovalState = createApprovalState();
 
 function loadWorkspaceData(workspaceId: string): Promise<void> {
@@ -46,9 +46,8 @@ function loadWorkspaceData(workspaceId: string): Promise<void> {
   });
 }
 
-// Initially load prompts from local storage in case we are already connected
+// 先按已连接的情况预载提示词与默认工作区放行规则。
 void loadPromptsFromStorage();
-// Load default workspace data
 void loadWorkspaceData(currentWorkspaceId);
 
 type RuntimeSendResponse = (response?: unknown) => void;
@@ -59,9 +58,8 @@ let currentSiteName: string | null = null;
 let currentSiteId: string | null = null;
 
 // 监听消息 (日志开关 & 状态同步)
-chrome.runtime.onMessage.addListener((request: unknown, _sender, sendResponse): boolean | void => (
-  handleRuntimeMessage(request, sendResponse)
-));
+chrome.runtime.onMessage.addListener(
+  (request: unknown, _sender, sendResponse): boolean | void => handleRuntimeMessage(request, sendResponse));
 
 function handleRuntimeMessage(request: unknown, sendResponse: RuntimeSendResponse): boolean | void {
   if (!isMessageRequest(request)) {return;}
@@ -107,9 +105,7 @@ function handleStatusUpdate(request: StatusUpdateMessageRequest): void {
     }
   }
 
-  if (isClientConnected && currentSiteId !== wasSiteId) {
-    initDOMConfig();
-  }
+  if (isClientConnected && currentSiteId !== wasSiteId) { initDOMConfig(); }
 
   if (isClientConnected && (isClientConnected !== wasConnected || currentWorkspaceId !== wasWorkspaceId)) {
     void refreshConnectedState();
@@ -427,11 +423,13 @@ function runMainLoop() {
 
   // 只处理当前轮次里还没有写回过的请求。已 flush 的 requestKey 不会再次写入输入框。
   const unflushedBatch = domToolTurns.getUnflushedBatch();
-
+  // 协议漂移保护：生成结束后若出现平台原生工具语法且无有效 JSON 调用，说明整轮静默失败。
+  if (isActiveDomTurn && DOM && !UI.isStopButtonVisible(DOM)) {
+    reportNativeSyntaxDrift(messageElement, unflushedBatch.hasRequests);
+  }
   if (unflushedBatch.hasRequests) {
     // 工具完成的判定由 registry 统一计算：已不在执行中，并且已经有结果可回填。
-    const completedCount = unflushedBatch.completedCount;
-    const totalCount = unflushedBatch.totalCount;
+    const { completedCount, totalCount } = unflushedBatch;
 
     // 只有本轮所有待回填工具都完成后，才合并结果；否则继续等待，避免分批打断 AI 上下文。
     if (unflushedBatch.isComplete) {
