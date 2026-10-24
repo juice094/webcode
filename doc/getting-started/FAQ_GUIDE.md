@@ -8,7 +8,7 @@
 
 - 安装 [VS Code](https://code.visualstudio.com/) 1.106.1 或更新版本。
 - 在 VS Code 中打开一个本地项目文件夹或工作区，不要只打开单个文件。
-- 默认浏览器模式是 Edge 独立保活模式，不需要手动安装浏览器插件；Windows 通常自带 Edge，macOS 需要先安装 [Microsoft Edge](https://www.microsoft.com/edge/download)。
+- 默认浏览器模式是 Edge 独立保活模式，不需要手动安装浏览器扩展；Windows 通常自带 Edge，macOS 需要先安装 [Microsoft Edge](https://www.microsoft.com/edge/download)。
 - Windows 上 `execute_command` 的默认 POSIX 模式需要 Git Bash；如果 Git Bash 在自定义路径，可以把 `webcodeGateway.commandShell.path` 指向 `bash.exe`。也可以显式选择检测到的 `pwsh` 或 `powershell` profile 执行 PowerShell 命令。
 - 准备好目标网页 AI 账号，并确认当前网络能访问对应站点。首次打开独立 Edge profile 时需要登录一次。
 
@@ -20,7 +20,7 @@
 读取当前项目结构。 /webcode
 ```
 
-如果网页仍然没有触发，可以刷新当前网页，确认浏览器插件 popup 显示已连接，然后重新输入触发词。新对话的第一条消息即使忘记写触发词，在点击发送或按 Enter 时也会弹出初始化确认。
+如果网页仍然没有触发，可以刷新当前网页，确认浏览器扩展 popup 显示已连接，然后重新输入触发词。新对话的第一条消息即使忘记写触发词，在点击发送或按 Enter 时也会弹出初始化确认。
 
 ## AI 返回了工具调用，工具也显示执行成功，但页面没反应怎么办？
 
@@ -34,7 +34,7 @@
 
 ## 想看历史上 AI 调用了哪些工具怎么办？
 
-点击浏览器插件 popup，开启日志。日志里的“摘要”一栏会记录每次工具调用，方便回看 AI 调用了哪些工具以及调用顺序。
+点击浏览器扩展 popup，开启日志。日志里的“摘要”一栏会记录每次工具调用，方便回看 AI 调用了哪些工具以及调用顺序。
 
 ## 网关日志保存在哪里？连接断开后如何排查？
 

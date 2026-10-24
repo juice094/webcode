@@ -2,7 +2,7 @@
 
 Language: English | [中文](README.md)
 
-Project: https://github.com/three-water666/webcode
+Project: https://github.com/juice094/webcode (forked from [three-water666/webcode](https://github.com/three-water666/webcode))
 
 > **IMPORTANT**
 > This extension is a companion for **webcode gateway**.
@@ -23,8 +23,8 @@ Project: https://github.com/three-water666/webcode
 ## Related Documentation
 
 - [Project quick start and full documentation](../README_en.md)
-- [Browser mode guide](../doc/BROWSER_MODE_GUIDE_en.md)
-- [FAQ](../doc/FAQ_GUIDE_en.md)
+- [Browser mode guide](../doc/getting-started/BROWSER_MODE_GUIDE_en.md)
+- [FAQ](../doc/getting-started/FAQ_GUIDE_en.md)
 - [中文 README](README.md)
 
 ## Session Status

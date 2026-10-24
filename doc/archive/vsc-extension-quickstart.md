@@ -1,3 +1,7 @@
+> **已归档（2026-10-24）**。本文件是 VS Code 扩展生成器自动产出的 Hello World 模板，与 webcode 实际项目结构不符，请勿按本文操作。
+> 其中关于 Extension Host 测试环境变量（`WEBCODE_EVAL_VSCODE_PATH` / `VSCODE_TEST_VERSION`）的说明已并入
+> [Evals 指南](../../evals/README.md)；当前有效的构建与测试说明见 [构建指南](../getting-started/BUILD_GUIDE.md)。
+
 # Welcome to your VS Code Extension
 
 ## What's in the folder

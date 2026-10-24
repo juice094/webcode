@@ -23,14 +23,14 @@ webcode 的浏览器模式决定了用哪个浏览器、哪个 profile、是否�
 | 模式 | 使用的 profile | 是否保活 | bridge 安装方式 | 适合场景 |
 | --- | --- | --- | --- | --- |
 | `Edge 独立保活模式` | webcode 专用 Edge profile | 是 | 自动加载内置 bridge | 默认推荐，想少配置、稳定使用 |
-| 普通 `Chrome` / `Edge` | 你的常用浏览器 profile | 否 | 需要手动安装浏览器插件 | 想直接使用已有登录态，不需要保活 |
-| `Chrome` / `Edge` 用户配置保活模式 | 你的常用浏览器 profile | 是 | 需要手动安装浏览器插件 | 想使用已有登录态，同时希望降低后台冻结影响 |
+| 普通 `Chrome` / `Edge` | 你的常用浏览器 profile | 否 | 需要手动安装浏览器扩展 | 想直接使用已有登录态，不需要保活 |
+| `Chrome` / `Edge` 用户配置保活模式 | 你的常用浏览器 profile | 是 | 需要手动安装浏览器扩展 | 想使用已有登录态，同时希望降低后台冻结影响 |
 
 系统默认浏览器接近普通浏览器模式：它交给系统打开链接，不附带保活参数，也不会自动加载 bridge。
 
 ## 如何使用其他模式
 
-Gateway 启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`，选择 `自定义启动...`。
+网关（代码与设置项中称 Gateway）启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`，选择 `自定义启动...`。
 
 1. 先选择目标 AI 站点。
 2. 再选择浏览器模式。
@@ -57,7 +57,7 @@ Gateway 启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`�
 
 注意点：
 
-- 不需要手动安装浏览器插件。
+- 不需要手动安装浏览器扩展。
 - 登录态和你的日常 Edge profile 分开，首次使用需要在这个独立 profile 里登录目标 AI 站点。
 - 独立 profile 默认储存在本机应用数据目录，不随 VS Code 插件卸载自动删除：
   - Windows：`%LOCALAPPDATA%\webcode\isolated-browser-profiles\edge`
@@ -81,8 +81,8 @@ Gateway 启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`�
 
 注意点：
 
-- 需要先手动安装 webcode bridge 浏览器插件。
-- 可从 [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) 或 [GitHub Releases](https://github.com/three-water666/webcode/releases) 下载插件。
+- 需要先手动安装 webcode bridge 浏览器扩展。
+- 可从 [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) 或 [GitHub Releases](https://github.com/juice094/webcode/releases) 下载插件。
 - 适合想复用常用浏览器登录态的场景。
 - 如果网页 AI 被浏览器后台冻结，工具调用结果可能不会及时写回页面。
 
@@ -92,7 +92,7 @@ Gateway 启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`�
 
 注意点：
 
-- 需要先手动安装 webcode bridge 浏览器插件。
+- 需要先手动安装 webcode bridge 浏览器扩展。
 - 如果目标浏览器已经在运行，webcode 仍会继续打开页面，但新的保活参数通常不会生效；完全退出浏览器（包括后台进程）后重新打开，才能确保保活参数生效。
 - 适合必须使用常用浏览器登录态，但又希望减少后台冻结影响的场景。
 - 这个模式会启动你的常用浏览器 profile，可能恢复已有标签页或受到现有浏览器设置影响。

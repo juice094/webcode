@@ -5,7 +5,7 @@ description: 按 webcode 已批准的 UI 体验开发计划执行界面基线、
 
 # webcode UI/UX 开发
 
-开始任何 UI 相关实现前，先阅读 [UI 开发计划](../../../doc/UI_UX_DEVELOPMENT_PLAN.md)，并按以下流程执行。
+开始任何 UI 相关实现前，先阅读 [UI 开发计划](../../../doc/plans/UI_UX_DEVELOPMENT_PLAN.md)，并按以下流程执行。
 
 ## 工作流
 

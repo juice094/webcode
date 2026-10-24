@@ -82,7 +82,7 @@ Regular mode opens your normal Chrome or Edge without keepalive flags.
 Notes:
 
 - Install the webcode bridge browser extension manually first.
-- Download it from the [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) or [GitHub Releases](https://github.com/three-water666/webcode/releases).
+- Download it from the [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) or [GitHub Releases](https://github.com/juice094/webcode/releases).
 - This mode is useful when you want to reuse your normal browser sign-in state.
 - If the web AI page is frozen in the background, tool-call results may not be written back promptly.
 

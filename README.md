@@ -12,19 +12,20 @@
 
 <p align="center">
   <a href="README_en.md">English</a> ·
-  <a href="#快速开始">快速开始</a> ·
   <a href="doc/README.md">文档</a> ·
-  <a href="CONTRIBUTING.md">参与贡献</a>
+  <a href="CONTRIBUTING.md">参与贡献</a> ·
+  <a href="SUPPORT.md">获取帮助</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/three-water666/webcode/actions/workflows/release.yml">
-    <img alt="release workflow" src="https://img.shields.io/github/actions/workflow/status/three-water666/webcode/release.yml?label=release&color=22c55e">
+  <a href="https://github.com/juice094/webcode/actions/workflows/release.yml">
+    <img alt="release workflow" src="https://img.shields.io/github/actions/workflow/status/juice094/webcode/release.yml?label=release&color=22c55e">
   </a>
-  <img alt="browser bridge version" src="https://img.shields.io/github/package-json/v/three-water666/webcode?filename=bridge-browser%2Fpackage.json&label=bridge&color=f97316">
+  <img alt="browser bridge version" src="https://img.shields.io/github/package-json/v/juice094/webcode?filename=bridge-browser%2Fpackage.json&label=bridge&color=f97316">
   <a href="LICENSE">
     <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a34a">
   </a>
+  <img alt="VS Code engine" src="https://img.shields.io/badge/VS%20Code-%5E1.106.1-007ACC">
 </p>
 
 <p align="center">
@@ -41,10 +42,32 @@
 
 1. 在 VS Code 扩展商店搜索并安装 `webcode gateway`。
 2. 在 VS Code 打开项目文件夹，点击状态栏中的 `webcode: 关闭`，选择“启动 webcode”。
-3. 从启动菜单选择目标 AI 站点。默认使用 [Edge 独立保活模式](doc/BROWSER_MODE_GUIDE.md)，首次需要在独立浏览器 profile 中登录。
+3. 从启动菜单选择目标 AI 站点。默认使用 [Edge 独立保活模式](doc/getting-started/BROWSER_MODE_GUIDE.md)，首次需要在独立浏览器 profile 中登录。
 4. 在新对话中输入任务，并在末尾添加 `/webcode` 或 `@webcode`；确认初始化上下文后，由你手动发送。
 
 当 bridge 显示 `ON` 时连接就绪。如果初始化上下文超出网页输入限制，webcode 会将完整内容作为 TXT 附件添加。
+
+## 从源码运行
+
+需要 Node.js 22 与 pnpm 10.25.0，在仓库根目录依次执行：
+
+```bash
+pnpm install
+pnpm --filter @webcode/shared run build
+pnpm build
+```
+
+打包 VSIX 与浏览器扩展见[构建指南](doc/getting-started/BUILD_GUIDE.md)。
+
+## 技术栈
+
+| 层 | 技术 | 说明 |
+| ------ | ------ | ------ |
+| VS Code 扩展 | TypeScript、webpack | `engines.vscode` 为 `^1.106.1`；打包为单文件 `dist/extension.js` |
+| 浏览器扩展 | TypeScript、Vite 5、`@crxjs/vite-plugin` 2.4.0 | 含 `MAIN` world content script，需要 Chromium 111 或更高版本 |
+| 共享包 | TypeScript（`tsc`） | `@webcode/shared`，协议常量与跨包共享类型 |
+| 运行时依赖 | Express、cors、zod、MCP SDK | 本地 Gateway 与第三方 MCP 接入 |
+| 工程 | pnpm 10.25.0 workspace、Node.js 22 | 三包 monorepo |
 
 ## 使用示例
 
@@ -57,18 +80,18 @@
 
 | 能力 | 说明 |
 | ------ | ------ |
-| 内置工具 | 文件读写、附件、代码搜索、命令和终端会话，见[内置工具说明](doc/BUILTIN_TOOLS.md)。 |
-| MCP | 通过 `webcodeGateway.servers` 配置第三方服务，见[MCP 指南](doc/MCP_GUIDE.md)。 |
-| Skills | 暴露工作区 Skills；扩展也提供开发类内置 Skills，见[Skills 指南](doc/SKILLS_GUIDE.md)。 |
-| AI 平台 | 内置支持 ChatGPT、Gemini、Google AI Studio、DeepSeek、GLM、Claude 和 Qwen；可配置其他站点，见[站点指南](doc/PLATFORM_GUIDE.md)。 |
+| 内置工具 | 文件读写、附件、代码搜索、命令和终端会话，见[内置工具说明](doc/reference/BUILTIN_TOOLS.md)。 |
+| MCP | 通过 `webcodeGateway.servers` 配置第三方服务，见[MCP 指南](doc/guides/MCP_GUIDE.md)。 |
+| Skills | 暴露工作区 Skills；扩展也提供开发类内置 Skills，见[Skills 指南](doc/guides/SKILLS_GUIDE.md)。 |
+| AI 平台 | 内置支持 ChatGPT、Gemini、Google AI Studio、DeepSeek、GLM、Claude 和 Qwen；可配置其他站点，见[站点指南](doc/guides/PLATFORM_GUIDE.md)。 |
 | 项目规则 | 初始化时读取根目录 `USER_RULES.md` 及 `AGENTS.md` 或 `CLAUDE.md`；二者并存时优先 `AGENTS.md`。 |
 
 ## 文档
 
-- [文档目录](doc/README.md)：构建、浏览器模式、MCP、Skills、站点接入和工具说明。
-- [构建指南](doc/BUILD_GUIDE.md)：源码构建、打包和本地安装。
-- [常见问题](doc/FAQ_GUIDE.md)：首次启动、触发词和工具结果回填。
-- [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [变更记录](CHANGELOG.md)
+- [文档目录](doc/README.md)：按快速上手、使用指南、参考、架构、计划与报告分层的完整索引。
+- [构建指南](doc/getting-started/BUILD_GUIDE.md)：源码构建、打包和本地安装。
+- [常见问题](doc/getting-started/FAQ_GUIDE.md)：首次启动、触发词和工具结果回填。
+- [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [变更记录](CHANGELOG.md) · [获取帮助](SUPPORT.md)
 
 ## 开发与测试
 
@@ -82,6 +105,8 @@ pnpm test
 pnpm test:extension
 pnpm lint
 ```
+
+浏览器端到端测试与交互式 QA 见 [Evals 指南](evals/README.md)。
 
 ## 项目结构
 
@@ -98,6 +123,10 @@ pnpm lint
 欢迎提交 Issue 和 Pull Request。提交前请阅读[贡献指南](CONTRIBUTING.md)。
 安全问题请参阅[安全策略](SECURITY.md)；[行为准则](CODE_OF_CONDUCT.md)目前为待维护者确认的草案。
 
+## 来源说明
+
+本项目基于 [three-water666/webcode](https://github.com/three-water666/webcode) 二次开发与技术迭代，原作者已停止维护。当前仓库为 [juice094/webcode](https://github.com/juice094/webcode)，后续开发、发布与问题反馈均以该仓库为准。
+
 ## 许可证
 
-本仓库采用 [MIT License](LICENSE)。感谢 [LINUX DO](https://linux.do/) 社区提供技术交流与开源分享的平台。
+本仓库采用 [MIT License](LICENSE)，原始版权归 three-water666 所有。感谢 [LINUX DO](https://linux.do/) 社区提供技术交流与开源分享的平台。

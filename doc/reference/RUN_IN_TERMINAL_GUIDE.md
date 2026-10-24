@@ -22,7 +22,7 @@ bash.exe -lc "<command>"
 
 ### execute_command
 
-`execute_command` 用于后台执行短生命周期命令，并直接返回 stdout、stderr 和 exitCode。它支持用 workspace 相对 `path` 指定执行目录，默认 `.`；也可以用 `profile` 选择已发现的 Git Bash、PowerShell 或 POSIX shell。省略 `profile` 时保留原有 POSIX/Git Bash 行为。
+`execute_command` 用于后台执行短生命周期命令，并直接返回 stdout、stderr 和 exitCode。它支持用工作区相对 `path` 指定执行目录，默认 `.`；也可以用 `profile` 选择已发现的 Git Bash、PowerShell 或 POSIX shell。省略 `profile` 时保留原有 POSIX/Git Bash 行为。
 
 适合：
 
@@ -34,7 +34,7 @@ bash.exe -lc "<command>"
 
 ### run_in_terminal
 
-`run_in_terminal` 用于在可见 VS Code 终端中运行命令，并立即返回 `session_id`。它支持用 workspace 相对 `path` 指定执行目录，默认 `.`。它适合长时间运行、需要用户看见过程，或者可能需要交互的命令。
+`run_in_terminal` 用于在可见 VS Code 终端中运行命令，并立即返回 `session_id`。它支持用工作区相对 `path` 指定执行目录，默认 `.`。它适合长时间运行、需要用户看见过程，或者可能需要交互的命令。
 
 适合：
 
@@ -57,9 +57,9 @@ bash.exe -lc "<command>"
 
 ### 执行目录参数
 
-`execute_command` 和 `run_in_terminal` 使用 `path` 表示命令执行目录。`path` 必须是 workspace 相对目录，默认 `.`，不接受绝对路径、`~` home 路径或反斜杠。
+`execute_command` 和 `run_in_terminal` 使用 `path` 表示命令执行目录。`path` 必须是工作区相对目录，默认 `.`，不接受绝对路径、`~` home 路径或反斜杠。
 
-`path` 由 webcode 在 shell 选择前解析，不是 shell 命令文本的一部分，因此所有 terminal profile 使用同一种格式。无论选择 `default`、`git-bash`、`pwsh` 还是 `powershell`，都优先使用 `/` 分隔的 workspace 相对路径，例如 `packages/app`。
+`path` 由 webcode 在 shell 选择前解析，不是 shell 命令文本的一部分，因此所有 terminal profile 使用同一种格式。无论选择 `default`、`git-bash`、`pwsh` 还是 `powershell`，都优先使用 `/` 分隔的工作区相对路径，例如 `packages/app`。
 
 ```json
 {
@@ -68,7 +68,7 @@ bash.exe -lc "<command>"
 }
 ```
 
-扩展内部会把 `path` 解析为 VS Code 终端或子进程需要的真实目录，但工具入参和 `run_in_terminal`、`terminal_session` 返回的 session summary 只暴露 workspace 相对 `path`。
+扩展内部会把 `path` 解析为 VS Code 终端或子进程需要的真实目录，但工具入参和 `run_in_terminal`、`terminal_session` 返回的 session summary 只暴露工作区相对 `path`。
 
 命令文本中的文件参数采用另一套策略：workspace 内路径默认允许；workspace 外字面量路径和无法静态确认的动态路径需要逐次审批。用户可以通过 `webcodeGateway.command.allowedRoots` 增加可信绝对目录，支持 `~` 和 `${workspaceFolder}`。外部递归删除、系统级 PowerShell provider 等高风险目标仍会拒绝。
 
@@ -128,7 +128,7 @@ terminal.sendText(commandLine, true);
 
 ## profile 发现与去重
 
-工具列表初始化时，浏览器插件会调用 `list_tools`。网关会在这一步动态生成 `run_in_terminal` 和 `execute_command` 的工具描述，把当前环境检测到的 profile 写进 description 和字段说明里。
+工具列表初始化时，浏览器扩展会调用 `list_tools`。Gateway 会在这一步动态生成 `run_in_terminal` 和 `execute_command` 的工具描述，把当前环境检测到的 profile 写进 description 和字段说明里。
 
 来源优先级：
 
@@ -271,9 +271,9 @@ POSIX 和 PowerShell 使用结构化词法解析识别顶层命令、连接符�
 
 PowerShell 另外拒绝 `Invoke-Expression`、encoded command、非文件系统 provider 和系统管理命令。后台 PowerShell profile 使用 `-NoProfile -NonInteractive`，降低用户 profile、alias 和交互提示带来的不确定性。
 
-用户可以在 `webcodeGateway.command.denyRules` 里声明「一律拒绝」的命令。规则与命令行都先折叠空白、转小写，再做子串匹配，所以嵌套写法也会命中（`bash -c 'git push --force'`），代价是短规则会误伤无关命令——长度小于 4 个字符的规则会在网关日志里给出警告。命中直接进入 `blocked`：不弹审批、不签发凭据，浏览器侧的永久授权也无法覆盖。修改这一项走热重载，不会踢掉已连接的标签页。
+用户可以在 `webcodeGateway.command.denyRules` 里声明「一律拒绝」的命令。规则与命令行都先折叠空白、转小写，再做子串匹配，所以嵌套写法也会命中（`bash -c 'git push --force'`），代价是短规则会误伤无关命令——长度小于 4 个字符的规则会在 Gateway 日志里给出警告。命中直接进入 `blocked`：不弹审批、不签发凭据，浏览器侧的永久授权也无法覆盖。修改这一项走热重载，不会踢掉已连接的标签页。
 
-`webcodeGateway.timeouts.commandExecutionMaxMs` 给 `execute_command` 加一道天花板：生效截止时间是「模型请求值」与「上限」的较小者，`0`（默认）表示不设上限，工具 schema 里的 `maximum` 会同步收紧到该值，模型看到的就是真实上限。它只约束 `execute_command`；`run_in_terminal` 没有截止时间。若 `toolCallMs` 小于这个上限，网关会先超时，想让上限真正生效就把 `toolCallMs` 保持 `0` 或不低于上限。
+`webcodeGateway.timeouts.commandExecutionMaxMs` 给 `execute_command` 加一道天花板：生效截止时间是「模型请求值」与「上限」的较小者，`0`（默认）表示不设上限，工具 schema 里的 `maximum` 会同步收紧到该值，模型看到的就是真实上限。它只约束 `execute_command`；`run_in_terminal` 没有截止时间。若 `toolCallMs` 小于这个上限，Gateway 会先超时，想让上限真正生效就把 `toolCallMs` 保持 `0` 或不低于上限。
 
 这些检查是风险防护，不是操作系统沙箱。脚本、包管理器生命周期、编译器和 workspace 内程序仍可能访问其进程权限允许的资源；deny 规则同样只是护栏：引号拆分、脚本内容和编译产物仍可能绕开它。如果需要严格文件系统隔离，需要单独的容器或 OS sandbox 执行模式。
 

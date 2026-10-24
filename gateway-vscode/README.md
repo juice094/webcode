@@ -9,5 +9,5 @@
 
 开发、构建和测试：
 
-- [构建指南](../doc/BUILD_GUIDE.md)
+- [构建指南](../doc/getting-started/BUILD_GUIDE.md)
 - [文档目录](../doc/README.md)

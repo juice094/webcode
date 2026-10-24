@@ -72,7 +72,7 @@
 
 - 常规门禁按改动范围运行：`pnpm lint`、`pnpm test`；VS Code 集成受影响时运行 `pnpm test:extension`。
 - 浏览器 bridge、popup 或注入 overlay 改动应运行相关包测试；必要时运行 `pnpm test:e2e:minimal`。该确定性 E2E 不等同于真实 UI 交互验收。
-- 交互式 QA 只在用户明确授权后运行，且必须使用 `qa:start` 创建的隔离工作区与配置；遵循 [webcode-browser-qa Skill](../.codex/skills/webcode-browser-qa/SKILL.md)。
+- 交互式 QA 只在用户明确授权后运行，且必须使用 `qa:start` 创建的隔离工作区与配置；遵循 [webcode-browser-qa Skill](../../.codex/skills/webcode-browser-qa/SKILL.md)。
 - PR 记录受影响的 surface、测试结果、键盘/a11y 检查、对比基线和未覆盖风险。不得把未运行的检查描述为通过。
 
 ## 风险与回滚

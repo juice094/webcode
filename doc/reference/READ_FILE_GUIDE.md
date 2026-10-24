@@ -40,7 +40,7 @@
 
 | 参数 | 说明 |
 | --- | --- |
-| `path` | 必填。workspace 相对文件路径，使用 `/` 分隔；不接受绝对路径、`~` home 路径或反斜杠。内置 Skill 可使用 `.webcode/builtin-skills/...` 只读虚拟路径。 |
+| `path` | 必填。工作区相对文件路径，使用 `/` 分隔；不接受绝对路径、`~` home 路径或反斜杠。内置 Skill 可使用 `.webcode/builtin-skills/...` 只读虚拟路径。 |
 | `head` | 可选。读取文件开头 N 行。 |
 | `tail` | 可选。读取文件末尾 N 行。 |
 | `start_line` | 可选。1-based 起始行，必须和 `end_line` 一起使用。 |

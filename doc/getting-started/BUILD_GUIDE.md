@@ -2,13 +2,13 @@
 
 语言：中文 | [English](BUILD_GUIDE_en.md)
 
-您可以使用项目内置的脚本一键打包 VS Code 插件 (`.vsix`) 和浏览器插件 (`.zip`)。
+您可以使用项目内置的脚本一键打包 VS Code 插件 (`.vsix`) 和浏览器扩展 (`.zip`)。
 
 ## 环境要求
 
 - Git
-- Node.js 18+
-- pnpm 10+
+- Node.js 22
+- pnpm 10.25.0（与 `package.json` 的 `packageManager` 字段一致）
 - VS Code
 - macOS / Linux 需要可用的 `zip`
 - Windows 需要系统自带的 `tar.exe`（Windows 10/11 默认包含）
@@ -18,14 +18,14 @@
 如果已配置 GitHub SSH key：
 
 ```bash
-git clone git@github.com:three-water666/webcode.git
+git clone git@github.com:juice094/webcode.git
 cd webcode
 ```
 
 也可以使用 HTTPS：
 
 ```bash
-git clone https://github.com/three-water666/webcode.git
+git clone https://github.com/juice094/webcode.git
 cd webcode
 ```
 
@@ -75,7 +75,7 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 | `bridge-browser/manifest.json` | 浏览器扩展 manifest 版本（`prebuild` 会校验与 `package.json` 一致） |
 
 `gateway-vscode/browser-extension/` 是生成目录（已 gitignore），由
-`scripts/copy-browser-extension.mjs` 在打包时重建，并写入 `bridge-build.json`
+`gateway-vscode/scripts/copy-browser-extension.mjs` 在打包时重建，并写入 `bridge-build.json`
 （`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`）。**不要手改这个目录**，
 版本号改完重新打包即可。
 
@@ -99,5 +99,5 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
   - 安装方法：VS Code 扩展侧边栏 -> 点击右上角 `...` -> `Install from VSIX...`
 
 - `webcode-bridge-browser-x.x.x.zip`
-  - 浏览器插件压缩包。
+  - 浏览器扩展压缩包。
   - 安装方法：解压后 -> Chrome/Edge 扩展管理页 -> 打开“开发者模式” -> `加载已解压的扩展程序`。

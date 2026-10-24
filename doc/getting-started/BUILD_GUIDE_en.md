@@ -7,8 +7,8 @@ You can use the built-in scripts to package the VS Code extension (`.vsix`) and 
 ## Requirements
 
 - Git
-- Node.js 18+
-- pnpm 10+
+- Node.js 22
+- pnpm 10.25.0 (matches the `packageManager` field in `package.json`)
 - VS Code
 - macOS / Linux needs a working `zip` command
 - Windows needs the built-in `tar.exe` command included with Windows 10/11
@@ -18,14 +18,14 @@ You can use the built-in scripts to package the VS Code extension (`.vsix`) and 
 If you have a GitHub SSH key configured:
 
 ```bash
-git clone git@github.com:three-water666/webcode.git
+git clone git@github.com:juice094/webcode.git
 cd webcode
 ```
 
 You can also use HTTPS:
 
 ```bash
-git clone https://github.com/three-water666/webcode.git
+git clone https://github.com/juice094/webcode.git
 cd webcode
 ```
 
@@ -75,7 +75,7 @@ Before a release, exactly three version fields are edited by hand; everything el
 | `bridge-browser/manifest.json` | browser manifest version (the `prebuild` hook asserts it matches `package.json`) |
 
 `gateway-vscode/browser-extension/` is a generated directory (gitignored). It is rebuilt during
-packaging by `scripts/copy-browser-extension.mjs`, which also writes `bridge-build.json`
+packaging by `gateway-vscode/scripts/copy-browser-extension.mjs`, which also writes `bridge-build.json`
 (`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`). **Never edit it by hand** —
 bump the versions and repackage.
 

@@ -22,7 +22,7 @@ webcode 早期的文件查找和代码查找采用了两套不同实现：
 
 ### search_files
 
-`search_files` 用于按文件名或 workspace 相对路径查找文件。它不读取文件内容，只返回匹配文件路径。
+`search_files` 用于按文件名或工作区相对路径查找文件。它不读取文件内容，只返回匹配文件路径。
 
 适合：
 
@@ -33,7 +33,7 @@ webcode 早期的文件查找和代码查找采用了两套不同实现：
 
 ### search_code
 
-`search_code` 用于搜索文件内容。它返回 workspace 相对路径、行号和命中行。
+`search_code` 用于搜索文件内容。它返回工作区相对路径、行号和命中行。
 
 适合：
 
@@ -48,7 +48,7 @@ webcode 早期的文件查找和代码查找采用了两套不同实现：
 
 | 参数 | 说明 |
 | --- | --- |
-| `path` | 搜索根目录，默认 `.`。必须是 workspace 相对目录，使用 `/` 分隔。 |
+| `path` | 搜索根目录，默认 `.`。必须是工作区相对目录，使用 `/` 分隔。 |
 | `query` | 文件名或相对路径查询，默认 `*`，表示列出 `path` 下文件。 |
 | `match` | query 解释方式：`auto`、`substring`、`glob`，默认 `auto`。 |
 | `case_sensitive` | 是否区分大小写，默认 `false`。 |
@@ -72,7 +72,7 @@ webcode 早期的文件查找和代码查找采用了两套不同实现：
 支持：
 
 - `.`：workspace 根目录。
-- `gateway-vscode/src/tools`：workspace 相对目录。
+- `gateway-vscode/src/tools`：工作区相对目录。
 
 不支持：
 
@@ -156,7 +156,7 @@ webcode 早期的文件查找和代码查找采用了两套不同实现：
 
 | 参数 | 说明 |
 | --- | --- |
-| `path` | 搜索根目录，默认 `.`。必须是 workspace 相对目录，使用 `/` 分隔。 |
+| `path` | 搜索根目录，默认 `.`。必须是工作区相对目录，使用 `/` 分隔。 |
 | `query` | 要搜索的文本。 |
 | `match` | query 解释方式：`substring` 或 `regex`，默认 `substring`。 |
 | `include` | 可选 include glob，例如 `**/*.ts`。 |
@@ -311,14 +311,14 @@ workspace 范围 + ignore 文件 + .git 元数据排除
 
 ### search_files
 
-返回匹配文件的 workspace 相对路径，每行一个：
+返回匹配文件的工作区相对路径，每行一个：
 
 ```text
 gateway-vscode/src/tools/searchFilesTool.ts
 gateway-vscode/src/unit-test/searchFilesTool.test.ts
 ```
 
-结果按 workspace 相对路径排序。
+结果按工作区相对路径排序。
 
 无匹配时，会返回搜索参数摘要和常见误用提示。例如：
 
@@ -345,7 +345,7 @@ Hint: query "." matches a literal dot. Use query "*" to list files.
 relative/path.ts:123: matching line text
 ```
 
-结果按 workspace 相对路径排序，同一文件内按行号升序返回。
+结果按工作区相对路径排序，同一文件内按行号升序返回。
 
 长行会围绕命中位置截断，并提示省略字符数量，避免大文件或打包文件撑爆上下文。
 

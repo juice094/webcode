@@ -226,7 +226,7 @@ Gateway `/v1/init` 返回的数据形如：
 }
 ```
 
-如果平台还不是内置站点，需要先按 [PLATFORM_GUIDE.md](PLATFORM_GUIDE.md) 增加内置站点支持，或者在 `webcodeGateway.aiSites` 中配置一个新的完整站点。
+如果平台还不是内置站点，需要先按 [PLATFORM_GUIDE.md](../guides/PLATFORM_GUIDE.md) 增加内置站点支持，或者在 `webcodeGateway.aiSites` 中配置一个新的完整站点。
 
 ### 第二步：新增双语 md 文件
 

@@ -12,7 +12,7 @@
 这些工具由 `gateway-vscode/src/tools/` 直接实现，并注入到初始化提示词的 Available Tools 列表中。文件能力不再通过 `@modelcontextprotocol/server-filesystem` 启动。
 裸工具名只属于这些本地工具；第三方 MCP server 暴露的工具会以 `serverId:toolName` 的形式出现在工具列表中。
 
-本地工具的 `path` 入参统一使用 workspace 相对路径和 `/` 分隔符，不接受绝对路径、`~` home 路径或反斜杠。
+本地工具的 `path` 入参统一使用工作区相对路径和 `/` 分隔符，不接受绝对路径、`~` home 路径或反斜杠。
 
 | 工具名 | 作用 |
 | --- | --- |
@@ -24,7 +24,7 @@
 | `search_code` | 基于 ripgrep 在 workspace 文本文件中搜索代码内容，返回相对路径、行号和命中行；使用正则语法时需传 `match: "regex"`。 |
 | `execute_command` | 在后台执行短生命周期命令并返回 stdout/stderr/exitCode，适用于构建、测试、git、包管理器和项目脚本；可用 `path` 指定执行目录，用 `profile` 选择 Git Bash、PowerShell 或 POSIX shell。省略 `profile` 时保留 POSIX/Git Bash 行为。读取或搜索文件应优先使用专用文件工具。 |
 | `run_in_terminal` | 在真实 VS Code 集成终端中运行命令，立即返回 `session_id`，适合常驻任务或需要用户可见输出的流程；可用 `path` 指定执行目录，并支持动态发现的 `default`、`git-bash`、`pwsh`、`powershell` 等 profile。命令按允许、逐次确认、拒绝三级策略预检。 |
-| `terminal_session` | 管理由 `run_in_terminal` 创建的终端会话：`action=list` 查看状态，`action=read` 读取输出并可用 `delay_seconds` 等待 0 到 10 秒后再读，`action=stop` 发送 `Ctrl+C` 请求中断当前命令并保留终端窗口，`action=close` 关闭终端标签页；会话摘要中的 `path` 为 workspace 相对目录。 |
+| `terminal_session` | 管理由 `run_in_terminal` 创建的终端会话：`action=list` 查看状态，`action=read` 读取输出并可用 `delay_seconds` 等待 0 到 10 秒后再读，`action=stop` 发送 `Ctrl+C` 请求中断当前命令并保留终端窗口，`action=close` 关闭终端标签页；会话摘要中的 `path` 为工作区相对目录。 |
 
 `run_in_terminal` 和 `terminal_session` 的 profile 发现、shell integration 输出采集、`stop`/`close` 语义和安全策略见 [run_in_terminal 与 terminal_session 设计说明](RUN_IN_TERMINAL_GUIDE.md)。
 
@@ -34,7 +34,7 @@
 
 ## 2. Bootstrap-only tools
 
-这些工具只供 VS Code 网关和浏览器插件初始化会话时使用，不会出现在 Available Tools 中，模型直接调用时会被浏览器插件拒绝。
+这些工具只供 VS Code 端的 Gateway 和浏览器扩展初始化会话时使用，不会出现在 Available Tools 中，模型直接调用时会被浏览器扩展拒绝。
 
 | 工具名 | 作用 |
 | --- | --- |
@@ -55,6 +55,6 @@
 
 - 用户通过 `webcodeGateway.servers` 配置挂载的第三方 MCP servers。
 - 第三方 MCP server 提供的 Git、数据库、浏览器自动化、远程 API 等工具。调用时使用 `serverId:toolName`，例如 `github:search_repositories`。
-- VS Code 命令面板命令、状态栏操作、浏览器插件 UI 操作。
+- VS Code 命令面板命令、状态栏操作、浏览器扩展 UI 操作。
 
 模型可用的当前运行时工具清单以初始化提示词中的 Available Tools 为准。

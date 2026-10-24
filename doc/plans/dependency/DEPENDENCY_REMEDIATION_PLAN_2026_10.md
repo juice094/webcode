@@ -8,7 +8,7 @@
 
 即：审计门槛只覆盖产物内依赖（当前 0 条，真实通过），而构建期与测试期的漏洞既未修复，也未产出待审 PR。
 
-关联文档：[依赖漏洞治理与加固计划](DEPENDENCY_HARDENING_PLAN.md)、[依赖审计豁免清单](DEPENDENCY_AUDIT_EXEMPTIONS.md)。
+关联文档：[依赖漏洞治理与加固计划](DEPENDENCY_HARDENING_PLAN.md)、[依赖审计豁免清单](../../reference/DEPENDENCY_AUDIT_EXEMPTIONS.md)。
 
 ## 二、现状核查结论
 
