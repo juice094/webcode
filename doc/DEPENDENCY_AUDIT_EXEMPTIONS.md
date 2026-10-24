@@ -27,6 +27,13 @@
 | `ip-address` / `proxy-addr` | 测试期 | ~6 | 唯一 critical 落在此处，经 `evals` 的 express 传递引入。`evals` 的 MCP 用法是 stdio server，不暴露 HTTP 端点 | 2026-11-22 |
 | `markdown-it` / `linkify-it` | 构建期 | ~7 | 经 `@vscode/vsce` 引入，只在打包时渲染 README | 2026-11-22 |
 
+## 已修复（不再豁免）
+
+| 模块 | 原状态 | 处理 |
+| --- | --- | --- |
+| `body-parser` | 构建期/测试期，override 解析到 1.20.8 | override 下限提到 1.20.9，关闭 advisory 1243073 |
+| `zod` | 测试期，override 解析到 3.25.76 | override 与 workspace 声明提到 4.6.7，关闭 advisory 1243066（v3 无补丁版本） |
+
 ## 变更规则
 
 - 新增豁免必须写明理由与复查日期，不接受「暂时忽略」这类无信息量的说明。

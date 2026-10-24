@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -395,7 +395,7 @@
     "@webcode/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.22.3",
-    "zod": "^3.22.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

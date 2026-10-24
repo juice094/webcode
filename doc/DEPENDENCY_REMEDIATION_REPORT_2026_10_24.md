@@ -87,7 +87,7 @@
 
 - `no-unnecessary-type-assertion` 规则收紧，移除 5 处冗余断言，每处均用 tsc 验证类型仍成立。
 
-## 二、审计门槛抓到的新问题（待处理）
+## 二、审计门槛抓到的新问题（已闭环）
 
 最终验证时 `pnpm run audit:shipped:strict` 退出码 3：
 
@@ -97,9 +97,25 @@ HIGH body-parser 1243073 classified test but bundled via evals>@modelcontextprot
 
 **这正是 P3 机制要抓的那类问题**：`pnpm audit` 把 body-parser 的路径只归到 `evals>`，路径分类判定 shipped 为 0；但产物扫描确认 body-parser 实际被内联进 `dist/extension.js`（express 的一部分）。
 
-当前 lockfile 中 body-parser 为 1.20.8，满足既有 override `>=1.20.6 <2.0.0`。**需确认 advisory 1243073 的 patched_versions 是否高于 1.20.8**——若要求更高版本，则需调整 override 上限。
+### 2.1 body-parser 1243073（已修复）
 
-**这是待办，不是已完成项。**
+advisory 1243073 的修复版本为 1.x 线 `>=1.20.9`、2.x 线 `>=2.4.0`。原 override 下限 1.20.6 解析到 1.20.8，低于修复版本。
+
+处理：override 改为 `>=1.20.9 <2.0.0`，全树解析到 1.20.9。
+
+### 2.2 zod 1243066（已修复）
+
+同一轮严格审计还报出 `HIGH zod 1243066 classified test but bundled via evals>zod`。
+
+- 修复版本只在 v4 线：`zod@4.6.6` 起，v3 无补丁版本。
+- MCP SDK 1.32.1 的 peer 声明为 `^3.25 || ^4.0`，`zod-to-json-schema@3.25.2` 为 `^3.25.28 || ^4`，两者都接受 v4。
+- gateway-vscode 与 shared 源码不直接 import zod，它只作为 SDK 的 peer 存在，因此没有 v3 专有 API 的迁移成本。
+
+处理：override 追加 `zod: >=4.6.7 <5.0.0`，同时把 `gateway-vscode` 与 `evals` 的声明改为 `^4.6.7`，避免残留 nested v3 副本。全树解析到 4.6.7，单一副本。
+
+### 2.3 闭环后状态
+
+lint = 0；test = 0（gateway 384 + evals 4）；build = 0；audit = 0（33 advisories，shipped 0，冲突 0，86 个内联包）。
 
 ## 三、验证状态
 
@@ -108,12 +124,11 @@ lint = 0
  test = 0  (gateway 384 + evals 4)
 build = 0
 
-audit = 3  ← 见第二节
+audit = 0  ← 见第二节 2.3
 ```
 
 ## 四、剩余缺口
 
-- body-parser advisory 1243073 待处理。
 - provenance 验证未做。
 - 可复现构建未做（当前投入产出比不划算）。
 - 构建期依赖的供应链攻击防护仅做到权限收窄与脚本白名单两项。
