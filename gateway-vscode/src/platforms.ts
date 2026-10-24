@@ -105,6 +105,7 @@ const BUILTIN_AI_SITES: ResolvedAiSiteConfig[] = [
             inputArea: 'textarea.ds-scroll-area',
             sendButton: "div[role='button']:has(path[d^='M8.3125'])",
             stopButton: "div[role='button']:has(path[d^='M2 4.88'])",
+            maxInlineChars: 20000,
             virtualizedMessages: true,
         }
     },
