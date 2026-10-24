@@ -27,8 +27,18 @@ if (!(Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
     Write-Error "pnpm is required but not found in PATH."
     exit 1
 }
-if (!(Get-Command "tar" -ErrorAction SilentlyContinue)) {
-    Write-Error "tar (tar.exe) is required but not found in PATH. It is built-in to Windows 10/11."
+# Prefer the Windows bsdtar. When the script runs from a Git Bash environment,
+# PATH can put Git's GNU tar first, and GNU tar treats the drive letter in
+# "C:\..." as a remote host, failing with "Cannot connect to C".
+$tarExe = Join-Path $env:SystemRoot "System32\tar.exe"
+if (!(Test-Path $tarExe)) {
+    $tarCommand = Get-Command "tar" -ErrorAction SilentlyContinue
+    if ($tarCommand) {
+        $tarExe = $tarCommand.Source
+    }
+}
+if (!$tarExe) {
+    Write-Error "tar (tar.exe) is required but not found. It is built-in to Windows 10/11."
     exit 1
 }
 
@@ -70,7 +80,7 @@ if (Test-Path $tempZipPath) {
     Remove-Item $tempZipPath -Force
 }
 Push-Location $distPath
-tar.exe -a -c -f "$tempZipPath" *
+& $tarExe -a -c -f "$tempZipPath" *
 Pop-Location
 
 if (Test-Path $releasePath) {
