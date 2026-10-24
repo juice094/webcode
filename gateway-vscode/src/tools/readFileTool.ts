@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { BUILTIN_SKILL_VIRTUAL_ROOT, isBuiltinSkillVirtualPathCandidate } from '../builtinSkills';
 import type { LocalTool, ToolExecutionContext, ToolResult } from './types';
 import { errorResult } from './result';
@@ -20,6 +21,13 @@ import {
     type LimitedReadFileOutput,
     type ReadFileTruncationReason
 } from './readFileOutputLimit';
+import {
+    ATTACH_FILE_MAX_BYTES,
+    createAttachmentResult,
+    formatBytes as formatAttachmentBytes,
+    hasAttachmentExtension,
+    resolveSupportedAttachment
+} from './attachmentSupport';
 
 export { readFilePrefix } from './readFilePrefix';
 
@@ -31,7 +39,9 @@ export const readFileTool: LocalTool = {
     definition: {
         name: 'read_file',
         description: 'Read a UTF-8 text file inside the current VS Code workspace, or a read-only built-in skill virtual path. ' +
-            'Supports head, tail, start_line/end_line, and show_line_numbers to inspect code without shell commands.',
+            'Supports head, tail, start_line/end_line, and show_line_numbers to inspect code without shell commands. ' +
+            'When path points to a PNG, JPEG, WebP, GIF, or PDF file, the file is delivered as a browser attachment instead of text; ' +
+            'line selection arguments are rejected for those files.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -60,12 +70,52 @@ export const readFileTool: LocalTool = {
         const risk = assessSensitiveFileRisk('read_file', args);
         if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
 
-        const filePath = (await resolveWorkspaceRelativePath(context.workspaceRoot, args.path)).absolutePath;
-        const fileStats = await fs.stat(filePath);
-        const result = await readFileContent(filePath, fileStats.size, args, signal);
+        const resolved = await resolveWorkspaceRelativePath(context.workspaceRoot, args.path);
+        const fileStats = await fs.stat(resolved.absolutePath);
+
+        if (hasAttachmentExtension(resolved.relativePath)) {
+            return readAttachmentResult(resolved.absolutePath, resolved.relativePath, args);
+        }
+
+        const result = await readFileContent(resolved.absolutePath, fileStats.size, args, signal);
         return formatReadFileToolResult(result);
     }
 };
+
+async function readAttachmentResult(
+    filePath: string,
+    relativePath: string,
+    args: Record<string, unknown>
+): Promise<ToolResult> {
+    if (hasLineSelection(getLineSelectionOptions(args))) {
+        throw new Error(
+            'read_file cannot apply line selection to a binary attachment. ' +
+            'Read the full file or use attach_file directly.'
+        );
+    }
+
+    const stats = await fs.stat(filePath);
+    if (stats.size === 0) {
+        throw new Error(`read_file cannot attach an empty file: ${relativePath}`);
+    }
+    if (stats.size > ATTACH_FILE_MAX_BYTES) {
+        throw new Error(`read_file supports attachments up to ${formatAttachmentBytes(ATTACH_FILE_MAX_BYTES)}.`);
+    }
+
+    const content = await fs.readFile(filePath);
+    if (content.byteLength > ATTACH_FILE_MAX_BYTES) {
+        throw new Error(`read_file supports attachments up to ${formatAttachmentBytes(ATTACH_FILE_MAX_BYTES)}.`);
+    }
+
+    const attachment = resolveSupportedAttachment('read_file', relativePath, content);
+    return createAttachmentResult({
+        base64: content.toString('base64'),
+        bytes: content.byteLength,
+        fileName: path.posix.basename(relativePath),
+        mimeType: attachment.mimeType,
+        relativePath
+    });
+}
 
 export function selectReadFileContent(content: string, args: Record<string, unknown>): string {
     return selectReadFileResult(content, args).text;
