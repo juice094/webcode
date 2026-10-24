@@ -5,6 +5,10 @@
   "description": "Connect Web AI to Local VS Code",
   "repository": {
     "type": "git",
+    "url": "https://github.com/juice094/webcode.git"
+  },
+  "upstream": {
+    "type": "git",
     "url": "https://github.com/three-water666/webcode.git"
   },
   "license": "MIT",
