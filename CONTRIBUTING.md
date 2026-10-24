@@ -36,4 +36,4 @@ pnpm lint
 
 ## 文档
 
-用户文档位于仓库根目录和 `doc/`；浏览器插件说明位于 `bridge-browser/`；评测说明位于 `evals/`。Marketplace README 由根目录的中英文 README 生成，不要直接编辑生成文件。
+用户文档位于仓库根目录和 `doc/`；浏览器扩展说明位于 `bridge-browser/`；评测说明位于 `evals/`。Marketplace README 由根目录的中英文 README 生成，不要直接编辑生成文件。

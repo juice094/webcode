@@ -290,7 +290,7 @@ workspace 文件变化和工具事件时间线，Codex 再检查实际文件、�
 pnpm eval:scenarios grade <run-id>
 ```
 
-浏览器插件 Popup 地址可用 `pnpm qa:ctl <run> popup-url` 读取，再通过 browser 会话的 `tab-new`
+浏览器扩展 Popup 地址可用 `pnpm qa:ctl <run> popup-url` 读取，再通过 browser 会话的 `tab-new`
 打开。普通标签页与工具栏 popup 的“当前标签”语义不同，打开后使用仓库里的辅助脚本恢复真实目标：
 
 ```bash
