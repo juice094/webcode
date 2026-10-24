@@ -1,1 +1,3 @@
 [System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "purpose": "reason", "arguments": {...}}. Top-level fields may only be mcp_action, name, purpose, and arguments. name and purpose are required. If a tool has inputs, arguments must exactly match its inputSchema. Tool results are returned in call order.
+
+Put that JSON inside a JSON code block (open with three backticks plus json, close with three backticks), with one blank line before and after it. Do not use plain text or inline JSON. Do not emit platform-native tool syntax such as DeepSeek DSML (<｜｜DSML｜｜ ...>) or Anthropic antml (<antml:invoke>); {{PRODUCT_NAME}} cannot recognise or execute it.
