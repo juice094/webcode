@@ -26,6 +26,12 @@ If the page still does not trigger, refresh the current page, confirm the browse
 
 Refresh the current page. After the refresh, webcode scans the page again and reruns the tool-result delivery flow for tool calls that still need to be handled.
 
+## What if the page only shows text like `<｜｜DSML｜｜>` or `antml:invoke` and no tool runs?
+
+The model emitted platform-native tool syntax (for example DeepSeek DSML or Anthropic antml) instead of the JSON code block webcode requires. webcode does not recognise that text, so the tool never runs. Starting with 1.5.0, the page shows a notice when this happens.
+
+To recover, reply "Please retry the tool call inside a JSON code block". If it keeps happening, it is usually context pressure or a prompt that hard-selects one tool; start a fresh turn, trim the context, and avoid demanding a single specific tool.
+
 ## What if isolated Edge opens an extra new tab when opening an AI page?
 
 Some Microsoft Edge versions may open an extra new tab based on the isolated profile's New Tab settings. In the isolated Edge window opened by webcode, go to `edge://settings/startHomeNTP`, then turn off "Preload the new tab page for a faster experience" under "Start, home, and new tabs".
