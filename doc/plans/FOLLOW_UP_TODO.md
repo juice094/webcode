@@ -5,7 +5,7 @@
 
 ## P0
 
-### 1. 协议漂移检测
+### 1. 协议漂移检测（已实现，待真实会话验收）
 
 **问题**：模型在上下文压力或强制工具选择时，会输出平台原生工具调用语法（如 DeepSeek 的 `<｜｜DSML｜｜>`、Anthropic 的 `antml:`）。这些不是 JSON 代码块，webcode 扫描器看不到，gateway 收不到请求，工作面板停在旧状态，用户只看到一段乱码文本。**全链路静默失败。**
 
@@ -15,13 +15,17 @@
 
 **验收**：构造一次 DSML 输出，确认 UI 出现提示且工作面板状态不误导。
 
-### 2. 强化 train prompt
+**进展**：`nativeToolSyntax.ts` 负责检测，`native_syntax_notice.ts` 负责提示，6 条单测覆盖 DSML 双/单竖线、antml、普通文本、合法 JSON 与空输入；`bridge-browser` 编译、lint 与全部单测通过（commit `e7bda49`）。仍未做真实会话的端到端验收。
+
+### 2. 强化 train prompt（已完成）
 
 **问题**：现有 `prompts/train_zh.md` / `train_en.md` 每 5 次工具调用附加一次协议提醒，但未明确禁止平台原生语法。
 
 **动作**：在两份 train prompt 中加入「禁止使用平台原生工具调用语法（DSML/antml 等），必须用 JSON 代码块」。
 
 **性质**：概率性改善，不保证。
+
+**进展**：两份 train prompt 已补充「必须放在 JSON 代码块中」与「禁止 DSML/antml 原生语法」，网关类型检查与 391 项单测通过（commit `ff79d22`）。
 
 ## P1
 
@@ -33,13 +37,15 @@
 
 **不做**：不追求改变模型的工具选择习惯。强制指定工具会诱发协议漂移（见 P0-1）。
 
+**补充**：`attach_file` 描述已去掉「仅需查看文本时改用 read_file」的反向暗示，改为强调投递能力（commit `caee4ed`）。
+
 ### 4. 文档化协议限制
 
 **动作**：在 FAQ 中说明「强制指定工具可能诱发协议漂移」，以及遇到乱码文本时的处理方式。
 
-### 5. read_file 路由代码提交
+### 5. read_file 路由代码提交（已完成）
 
-**状态**：`attachmentSupport.ts`、`attachFileTool.ts`、`readFileTool.ts`、`readFileAttachmentRouting.test.ts` 已改完，391 项单测全绿，未提交。
+**状态**：`attachmentSupport.ts`、`attachFileTool.ts`、`readFileTool.ts`、`readFileAttachmentRouting.test.ts` 已随 commit `b7ea22f` 提交，391 项单测全绿。
 
 ## 已知失败教训
 
