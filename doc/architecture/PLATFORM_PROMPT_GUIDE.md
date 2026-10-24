@@ -20,7 +20,7 @@ webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具
 
 以 ChatGPT 为例：
 
-1. [gateway-vscode/src/platforms.ts](../gateway-vscode/src/platforms.ts) 中定义内置站点 `id: 'chatgpt'`。
+1. [gateway-vscode/src/platforms.ts](../../gateway-vscode/src/platforms.ts) 中定义内置站点 `id: 'chatgpt'`。
 2. VS Code 从状态栏菜单打开 ChatGPT 时，bridge URL 会携带 `siteId=chatgpt`。
 3. 浏览器 bridge 握手时，把 `siteId` 写入当前 tab 的 `session_<tabId>`。
 4. background 异步请求 `/v1/init`，把 prompts 和 `syncedAiSites` 写入 `chrome.storage.local`。
@@ -57,7 +57,7 @@ webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具
 
 ### 站点定义
 
-[gateway-vscode/src/platforms.ts](../gateway-vscode/src/platforms.ts)
+[gateway-vscode/src/platforms.ts](../../gateway-vscode/src/platforms.ts)
 
 这里定义内置站点：
 
@@ -74,7 +74,7 @@ webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具
 
 ### 平台 prompt 源文件
 
-[gateway-vscode/prompts/platforms/](../gateway-vscode/prompts/platforms/)
+[gateway-vscode/prompts/platforms/](../../gateway-vscode/prompts/platforms/)
 
 当前 ChatGPT prompt 文件：
 
@@ -90,7 +90,7 @@ webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具
 
 ### prompt 打包和下发
 
-[gateway-vscode/src/defaults.ts](../gateway-vscode/src/defaults.ts)
+[gateway-vscode/src/defaults.ts](../../gateway-vscode/src/defaults.ts)
 
 这里导入 markdown 文件，并把它们放进 `PROMPTS`：
 
@@ -103,7 +103,7 @@ platform_prompt_chatgpt_zh
 
 ### `/v1/init` 站点同步
 
-[gateway-vscode/src/gateway/initRoutes.ts](../gateway-vscode/src/gateway/initRoutes.ts)
+[gateway-vscode/src/gateway/initRoutes.ts](../../gateway-vscode/src/gateway/initRoutes.ts)
 
 这里把已解析站点收窄成浏览器运行时需要的字段：
 
@@ -118,12 +118,12 @@ platform_prompt_chatgpt_zh
 
 ### 浏览器端读取和拼接
 
-[bridge-browser/src/content/main.ts](../bridge-browser/src/content/main.ts)
+[bridge-browser/src/content/main.ts](../../bridge-browser/src/content/main.ts)
 
 这里通过 `GET_STATUS` 读取当前 tab session 的 `siteId`，再用 `siteId` 从 `syncedAiSites` 中找到
 selectors 和可选 capture 配置。
 
-[bridge-browser/src/content/prompt_resources.ts](../bridge-browser/src/content/prompt_resources.ts)
+[bridge-browser/src/content/prompt_resources.ts](../../bridge-browser/src/content/prompt_resources.ts)
 
 这里负责：
 
@@ -131,7 +131,7 @@ selectors 和可选 capture 配置。
 - 根据 `siteId + 语言` 生成平台 prompt storage key。
 - 从 `chrome.storage.local` 读取平台 prompt。
 
-[bridge-browser/src/content/init_context.ts](../bridge-browser/src/content/init_context.ts)
+[bridge-browser/src/content/init_context.ts](../../bridge-browser/src/content/init_context.ts)
 
 这里负责构建最终初始化提示词：
 
@@ -215,7 +215,7 @@ Gateway `/v1/init` 返回的数据形如：
 
 ### 第一步：确认站点 id
 
-打开 [gateway-vscode/src/platforms.ts](../gateway-vscode/src/platforms.ts)，确认目标站点已经有稳定 id：
+打开 [gateway-vscode/src/platforms.ts](../../gateway-vscode/src/platforms.ts)，确认目标站点已经有稳定 id：
 
 ```ts
 {
@@ -230,7 +230,7 @@ Gateway `/v1/init` 返回的数据形如：
 
 ### 第二步：新增双语 md 文件
 
-在 [gateway-vscode/prompts/platforms/](../gateway-vscode/prompts/platforms/) 下新增：
+在 [gateway-vscode/prompts/platforms/](../../gateway-vscode/prompts/platforms/) 下新增：
 
 ```text
 gemini_zh.md
@@ -248,7 +248,7 @@ gemini_en.md
 
 ### 第三步：在 defaults.ts 中导入并下发
 
-打开 [gateway-vscode/src/defaults.ts](../gateway-vscode/src/defaults.ts)，新增导入：
+打开 [gateway-vscode/src/defaults.ts](../../gateway-vscode/src/defaults.ts)，新增导入：
 
 ```ts
 import geminiPlatformPromptEn from '../prompts/platforms/gemini_en.md';

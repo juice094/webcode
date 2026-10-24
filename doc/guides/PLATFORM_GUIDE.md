@@ -99,7 +99,7 @@ VS Code 端完整站点结构：
 - 默认 selectors 希望跟随扩展版本维护。
 - 站点需要平台专属 prompt 或长期支持。
 
-主要修改 [gateway-vscode/src/platforms.ts](../gateway-vscode/src/platforms.ts)。
+主要修改 [gateway-vscode/src/platforms.ts](../../gateway-vscode/src/platforms.ts)。
 
 通常需要：
 

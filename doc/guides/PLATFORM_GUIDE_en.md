@@ -92,7 +92,7 @@ Rules:
 
 Use this when the site should be available to all users by default or needs maintained built-in selectors.
 
-Update [gateway-vscode/src/platforms.ts](../gateway-vscode/src/platforms.ts):
+Update [gateway-vscode/src/platforms.ts](../../gateway-vscode/src/platforms.ts):
 
 1. Add the id to `BuiltinPlatformId`.
 2. Add a complete item to the built-in site array.
