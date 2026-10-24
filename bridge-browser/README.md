@@ -2,7 +2,7 @@
 
 语言：中文 | [English](README_en.md)
 
-项目地址：https://github.com/juice094/webcode（基于 [three-water666/webcode](https://github.com/three-water666/webcode) 二次开发）
+项目地址：https://github.com/juice094/webcode（源自 [three-water666/webcode](https://github.com/three-water666/webcode)，独立维护）
 
 > **重要提示**
 > 本扩展是 **webcode gateway** 的配套组件。

@@ -124,7 +124,7 @@ Issues and pull requests are welcome. Read the [contributing guide](CONTRIBUTING
 
 ## Provenance
 
-This project is a fork of [three-water666/webcode](https://github.com/three-water666/webcode) with continued development and iteration. The original author has stopped maintaining it. The current repository is [juice094/webcode](https://github.com/juice094/webcode); ongoing development, releases, and issue reports all happen there.
+This project originated from [three-water666/webcode](https://github.com/three-water666/webcode). The original author has stopped maintaining it, and it is now independently maintained at [juice094/webcode](https://github.com/juice094/webcode). Ongoing development, releases, and issue reports all happen there.
 
 ## License
 

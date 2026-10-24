@@ -125,7 +125,7 @@ pnpm lint
 
 ## 来源说明
 
-本项目基于 [three-water666/webcode](https://github.com/three-water666/webcode) 二次开发与技术迭代，原作者已停止维护。当前仓库为 [juice094/webcode](https://github.com/juice094/webcode)，后续开发、发布与问题反馈均以该仓库为准。
+本项目源自 [three-water666/webcode](https://github.com/three-water666/webcode)，原作者已停止维护，现由 [juice094/webcode](https://github.com/juice094/webcode) 独立维护。后续开发、发布与问题反馈均以当前仓库为准。
 
 ## 许可证
 
