@@ -17,9 +17,9 @@ export const attachFileTool: LocalTool = {
     serverId: 'internal',
     definition: {
         name: 'attach_file',
-        description: 'Attach a UTF-8 TXT, image, or PDF file from the current VS Code workspace to the AI conversation. ' +
-            'Supports TXT, PNG, JPEG, WebP, GIF, and PDF files up to 20 MB. ' +
-            'Use read_file instead when only the text contents need inspection.',
+        description: 'Deliver a file from the current VS Code workspace to the AI conversation as an attachment, ' +
+            'so its binary or non-text content reaches the model intact. ' +
+            'Supports TXT, PNG, JPEG, WebP, GIF, and PDF files up to 20 MB.',
         inputSchema: {
             type: 'object',
             properties: {
