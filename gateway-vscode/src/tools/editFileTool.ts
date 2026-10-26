@@ -6,7 +6,7 @@ import {
     createUnifiedDiff,
     normalizeLineEndings
 } from './filesystemUtils';
-import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { WORKSPACE_FILE_PATH_DESCRIPTION, getContextWorkspaceRoots, resolveWorkspaceRelativePath } from './workspacePath';
 import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 
 type FileEdit = {
@@ -99,7 +99,7 @@ export const editFileTool: LocalTool = {
         const risk = assessSensitiveFileRisk('edit_file', args);
         if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
 
-        const filePath = (await resolveWorkspaceRelativePath(context.workspaceRoot, args.path)).absolutePath;
+        const filePath = (await resolveWorkspaceRelativePath(getContextWorkspaceRoots(context), args.path)).absolutePath;
         const dryRun = args.dryRun === true;
         const rawContent = await fs.readFile(filePath, 'utf8');
         const usesCRLF = rawContent.includes('\r\n');

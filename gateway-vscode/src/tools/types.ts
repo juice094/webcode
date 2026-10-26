@@ -23,6 +23,8 @@ export type ToolDefinition = Record<string, unknown> & {
 
 export type ToolExecutionContext = {
     workspaceRoot: string | null;
+    /** All VS Code workspace folders; path resolution accepts any of them. */
+    workspaceRoots?: readonly string[];
     outputChannel: vscode.OutputChannel;
     skillManager: SkillManager;
     terminalSessionManager: TerminalSessionManager;

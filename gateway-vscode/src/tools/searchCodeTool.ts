@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
+import * as path from 'path';
 import type * as vscode from 'vscode';
-import type { LocalTool } from './types';
+import type { LocalTool, ToolExecutionContext } from './types';
 import { textResult } from './result';
 import { getNumberArg } from './filesystemUtils';
 import { createSearchCodeFallbackNotice, searchCodeInProcess } from './searchCodeFallback';
@@ -18,7 +19,7 @@ import {
     MIN_MATCH_LINE_MAX_CHARS,
 } from './searchCodeUtils';
 import type { SearchCodeOptions } from './searchCodeTypes';
-import { WORKSPACE_SEARCH_PATH_DESCRIPTION, resolveWorkspaceRelativeDirectory } from './workspacePath';
+import { WORKSPACE_SEARCH_PATH_DESCRIPTION, getContextWorkspaceRoots, isDefaultSearchPath, resolveWorkspaceRelativeDirectory, toWorkspaceRootList } from './workspacePath';
 
 export const searchCodeTool: LocalTool = {
     serverId: 'internal',
@@ -83,25 +84,76 @@ export const searchCodeTool: LocalTool = {
         if (signal?.aborted) {
             throw new Error(`search_code aborted: ${getAbortReasonText(signal)}`);
         }
-        const searchRoot = (await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.')).absolutePath;
+        const roots = toWorkspaceRootList(getContextWorkspaceRoots(context));
+        if (roots.length > 1 && isDefaultSearchPath(args.path)) {
+            const result = await searchCodeAcrossRoots(args, roots, context, signal);
+            return textResult(formatSearchCodeOutput(result, buildSearchCodeOptions(args, roots[0], roots[0])));
+        }
+        const searchRoot = (await resolveWorkspaceRelativeDirectory(getContextWorkspaceRoots(context), args.path ?? '.')).absolutePath;
         const workspaceRoot = context.workspaceRoot ?? searchRoot;
-        const query = String(args.query);
-        const maxResults = getNumberArg(args.max_results, 100);
-        const options = {
-            searchRoot,
-            workspaceRoot,
-            query,
-            maxResults,
-            includePattern: typeof args.include === 'string' ? args.include : undefined,
-            caseSensitive: args.case_sensitive === true,
-            useRegex: getSearchCodeMatchMode(args.match) === 'regex',
-            matchLineMaxChars: getBoundedSearchLineMaxChars(args.max_line_chars)
-        };
+        const options = buildSearchCodeOptions(args, searchRoot, workspaceRoot);
         const result = await runRipgrepWithFallback(options, context.outputChannel, signal);
 
         return textResult(formatSearchCodeOutput(result, options));
     }
 };
+
+function buildSearchCodeOptions(
+    args: Record<string, unknown>,
+    searchRoot: string,
+    workspaceRoot: string
+): SearchCodeOptions {
+    return {
+        searchRoot,
+        workspaceRoot,
+        query: String(args.query),
+        maxResults: getNumberArg(args.max_results, 100),
+        includePattern: typeof args.include === 'string' ? args.include : undefined,
+        caseSensitive: args.case_sensitive === true,
+        useRegex: getSearchCodeMatchMode(args.match) === 'regex',
+        matchLineMaxChars: getBoundedSearchLineMaxChars(args.max_line_chars)
+    };
+}
+
+/**
+ * Default whole-workspace search in a multi-root workspace: one pass per
+ * folder, each match line prefixed with the folder name so paths stay
+ * unambiguous ("micro-server/src/app.ts:12: ..."). max_results is shared
+ * across folders.
+ */
+async function searchCodeAcrossRoots(
+    args: Record<string, unknown>,
+    roots: string[],
+    context: ToolExecutionContext,
+    signal?: AbortSignal
+): Promise<SearchCodeResult> {
+    const maxResults = getNumberArg(args.max_results, 100);
+    const matches: string[] = [];
+    const notices: string[] = [];
+    let limited = false;
+
+    for (const root of roots) {
+        if (matches.length >= maxResults) {
+            limited = true;
+            break;
+        }
+        const options = buildSearchCodeOptions(args, root, root);
+        options.maxResults = maxResults - matches.length;
+        const result = await runRipgrepWithFallback(options, context.outputChannel, signal);
+        const prefix = `${path.basename(root)}/`;
+        for (const match of result.matches) {
+            matches.push(prefix + match);
+        }
+        for (const notice of result.notices ?? []) {
+            if (!notices.includes(notice)) {
+                notices.push(notice);
+            }
+        }
+        limited = limited || result.limited;
+    }
+
+    return { matches, limited, notices };
+}
 
 async function runRipgrepWithFallback(
     options: SearchCodeOptions,

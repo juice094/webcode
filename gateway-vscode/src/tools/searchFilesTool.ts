@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
 import type * as vscode from 'vscode';
-import type { LocalTool } from './types';
+import type { LocalTool, ToolExecutionContext } from './types';
 import { textResult } from './result';
 import {
     type FileQueryMatchMode,
@@ -19,7 +19,7 @@ import { listGitSearchFiles } from './searchCodeGitFiles';
 import { isGitMetadataPath } from './searchCodeUtils';
 import { createRipgrepFilesArgs } from './searchFilesRipgrepArgs';
 import { formatSearchResultsLimitedNotice } from './searchResultLimits';
-import { WORKSPACE_SEARCH_PATH_DESCRIPTION, resolveWorkspaceRelativeDirectory } from './workspacePath';
+import { WORKSPACE_SEARCH_PATH_DESCRIPTION, getContextWorkspaceRoots, isDefaultSearchPath, resolveWorkspaceRelativeDirectory, toWorkspaceRootList } from './workspacePath';
 
 export const searchFilesTool: LocalTool = {
     serverId: 'internal',
@@ -58,7 +58,12 @@ export const searchFilesTool: LocalTool = {
         if (signal?.aborted) {
             throw new Error(`search_files aborted: ${getAbortReasonText(signal)}`);
         }
-        const searchRoot = (await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.')).absolutePath;
+        const roots = toWorkspaceRootList(getContextWorkspaceRoots(context));
+        if (roots.length > 1 && isDefaultSearchPath(args.path)) {
+            const output = await searchFilesAcrossRoots(args, roots, context, signal);
+            return textResult(output);
+        }
+        const searchRoot = (await resolveWorkspaceRelativeDirectory(getContextWorkspaceRoots(context), args.path ?? '.')).absolutePath;
         const workspaceRoot = context.workspaceRoot ?? searchRoot;
         const options: SearchFilesOptions = {
             searchRoot,
@@ -87,6 +92,65 @@ type SearchFilesResult = {
     matches: string[];
     limited: boolean;
 };
+
+/**
+ * Default whole-workspace search in a multi-root workspace: one pass per
+ * folder, results prefixed with the folder name so paths stay unambiguous
+ * ("micro-server/src/app.ts"). The max_results budget is shared across
+ * folders; a folder that exhausts the remainder stops the sweep.
+ */
+async function searchFilesAcrossRoots(
+    args: Record<string, unknown>,
+    roots: string[],
+    context: ToolExecutionContext,
+    signal?: AbortSignal
+): Promise<string> {
+    const maxResults = getNumberArg(args.max_results, 200);
+    const matches: string[] = [];
+    let limited = false;
+    let lastQuery = '*';
+
+    for (const root of roots) {
+        if (matches.length >= maxResults) {
+            limited = true;
+            break;
+        }
+        const options: SearchFilesOptions = {
+            searchRoot: root,
+            workspaceRoot: root,
+            query: normalizeSearchFilesQuery(args.query),
+            matchMode: getSearchFilesMatchMode(args.match),
+            caseSensitive: args.case_sensitive === true,
+            maxResults: maxResults - matches.length
+        };
+        lastQuery = options.query;
+        const result = await searchFilePathsWithFallback(options, context.outputChannel, signal);
+        const prefix = `${path.basename(root)}/`;
+        for (const match of result.matches) {
+            matches.push(prefix + match);
+        }
+        limited = limited || result.limited;
+    }
+
+    if (matches.length === 0) {
+        return [
+            'No matches found.',
+            `Searched workspace folders: ${roots.map(root => path.basename(root)).join(', ')}`,
+            `Query: ${lastQuery}`
+        ].join('\n');
+    }
+
+    const lines = [...matches];
+    if (limited) {
+        lines.push(formatSearchResultsLimitedNotice(
+            'search_files',
+            maxResults,
+            'file(s)',
+            'Narrow query/path or raise max_results.'
+        ));
+    }
+    return lines.join('\n');
+}
 
 function formatSearchFilesOutput(result: SearchFilesResult, options: SearchFilesOptions): string {
     if (result.matches.length === 0) {

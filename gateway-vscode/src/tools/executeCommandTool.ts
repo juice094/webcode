@@ -1,7 +1,7 @@
 import { execFile, type ChildProcess } from 'child_process';
 import type { LocalTool, ToolDefinition, ToolExecutionContext, ToolRiskPreflight } from './types';
 import { errorResult, jsonResult } from './result';
-import { WORKSPACE_COMMAND_PATH_DESCRIPTION, resolveWorkspaceRelativeDirectory } from './workspacePath';
+import { WORKSPACE_COMMAND_PATH_DESCRIPTION, getContextWorkspaceRoots, resolveWorkspaceRelativeDirectory } from './workspacePath';
 import { normalizeShellCommand } from '../servers/commandShell';
 import { formatCommandRiskAssessment } from '../servers/commandRisk';
 import { getErrorMessage } from '../gateway/errorUtils';
@@ -138,7 +138,7 @@ async function resolveExecuteCommandRequest(
     }
 
     const commandLine = normalizeShellCommand(args.command);
-    const directory = await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.');
+    const directory = await resolveWorkspaceRelativeDirectory(getContextWorkspaceRoots(context), args.path ?? '.');
     const execution = resolveBackgroundShellExecutionPlan(commandLine, args.profile, {
         platform: process.platform,
         env: process.env,

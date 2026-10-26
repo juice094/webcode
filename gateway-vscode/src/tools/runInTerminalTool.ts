@@ -5,7 +5,7 @@ import type {
     ToolRiskPreflight
 } from './types';
 import { errorResult, jsonResult } from './result';
-import { WORKSPACE_COMMAND_PATH_DESCRIPTION, resolveWorkspaceRelativeDirectory } from './workspacePath';
+import { WORKSPACE_COMMAND_PATH_DESCRIPTION, getContextWorkspaceRoots, resolveWorkspaceRelativeDirectory } from './workspacePath';
 import { normalizeShellCommand } from '../servers/commandShell';
 import { formatCommandRiskAssessment } from '../servers/commandRisk';
 import {
@@ -105,7 +105,7 @@ async function resolveRunInTerminalRequest(
         env: process.env,
         configuredCommandShellPath: context.commandShellPath
     });
-    const directory = await resolveWorkspaceRelativeDirectory(context.workspaceRoot, args.path ?? '.');
+    const directory = await resolveWorkspaceRelativeDirectory(getContextWorkspaceRoots(context), args.path ?? '.');
     const risk = assessCommandToolRisk({
         command: commandLine,
         commandPath: directory.relativePath,

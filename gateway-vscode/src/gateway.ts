@@ -23,6 +23,7 @@ import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/brid
 import { registerConfigRoutes } from './gateway/initRoutes';
 import type { InFlightToolCall } from './extension/shutdownSnapshot';
 import { seedSessionToken, type SessionTokenSource } from './extension/sessionToken';
+import { getPrimaryWorkspaceRoot, getWorkspaceRoots } from './extension/workspaceRoots';
 import { InFlightCallRegistry } from './gateway/inFlightCalls';
 import { DEFAULT_MAX_CONCURRENT_TOOL_CALLS, ToolConcurrencyGate } from './gateway/toolConcurrency';
 import { DEFAULT_IDLE_TIMEOUT_MINUTES, formatIdleTimeoutMinutes } from './gateway/idleTimeout';
@@ -237,13 +238,10 @@ export class GatewayManager {
         this.skillManager.invalidateCache(reason);
     }
 
-    private getPrimaryWorkspaceRoot(): string | null {
-        return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
-    }
-
     private createToolExecutionContext(): ToolExecutionContext {
         return {
-            workspaceRoot: this.getPrimaryWorkspaceRoot(),
+            workspaceRoot: getPrimaryWorkspaceRoot(),
+            workspaceRoots: getWorkspaceRoots(),
             outputChannel: this.outputChannel,
             skillManager: this.skillManager,
             terminalSessionManager: this.terminalSessionManager,
@@ -267,7 +265,7 @@ export class GatewayManager {
             error: this.error.bind(this),
             servers,
             toolRouter: this.toolRouter,
-            workspaceRoot: this.getPrimaryWorkspaceRoot()
+            workspaceRoot: getPrimaryWorkspaceRoot()
         });
     }
 
@@ -307,7 +305,7 @@ export class GatewayManager {
             getGatewayInstanceId: () => this.gatewayInstanceId,
             getIdleTimeoutMs: () => this.idleTimeoutMs,
             getBridgeRequestMs: () => this.bridgeRequestMs,
-            getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
             recordActivity: () => this.resetWatchdog(),
             onSessionActivated: () => this.onBridgeSessionActivated?.()
@@ -320,7 +318,7 @@ export class GatewayManager {
             getAiSites: () => this.currentAiSites,
             getBridgeCodeTtlMs: () => this.bridgeSessionManager.getBridgeCodeTtlMs(),
             getPort: () => this.currentPort,
-            getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             hasActiveSession: () => this.bridgeSessionManager.hasActiveSession(),
             issueBridgeCode: (siteId, targetUrl) => this.issueBridgeCode(siteId, targetUrl),
             requestUserConfirmation: prompt => this.onSessionRequestConfirmation
@@ -351,7 +349,7 @@ export class GatewayManager {
             error: this.error.bind(this),
             getToolCallTimeoutMs: () => this.toolCallMs,
             getToolDefinition: (name: string) => this.getToolDefinition(name),
-            getWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             localTools: this.localTools,
             log: this.log.bind(this),
             onToolCallEnd: callId => this.inFlightCalls.end(callId),

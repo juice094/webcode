@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { LocalTool } from './types';
 import { errorResult } from './result';
-import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { WORKSPACE_FILE_PATH_DESCRIPTION, getContextWorkspaceRoots, resolveWorkspaceRelativePath } from './workspacePath';
 import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 import {
     ATTACH_FILE_MAX_BYTES,
@@ -34,7 +34,7 @@ export const attachFileTool: LocalTool = {
         const risk = assessSensitiveFileRisk('attach_file', args);
         if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
 
-        const resolved = await resolveWorkspaceRelativePath(context.workspaceRoot, args.path);
+        const resolved = await resolveWorkspaceRelativePath(getContextWorkspaceRoots(context), args.path);
         const stats = await fs.stat(resolved.absolutePath);
         if (!stats.isFile()) {
             throw new Error(`path must point to a file: ${resolved.relativePath}`);

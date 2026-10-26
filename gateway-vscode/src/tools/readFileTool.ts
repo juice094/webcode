@@ -12,7 +12,7 @@ import {
     getLineSelectionOptions,
     hasLineSelection
 } from './readFileLineSelection';
-import { WORKSPACE_FILE_PATH_DESCRIPTION, resolveWorkspaceRelativePath } from './workspacePath';
+import { WORKSPACE_FILE_PATH_DESCRIPTION, getContextWorkspaceRoots, resolveWorkspaceRelativePath } from './workspacePath';
 import { assessSensitiveFileRisk, getSensitiveFileApprovalError } from '../servers/sensitivePathPolicy';
 import { getAbortReasonText } from './abortUtils';
 import {
@@ -70,7 +70,7 @@ export const readFileTool: LocalTool = {
         const risk = assessSensitiveFileRisk('read_file', args);
         if (getSensitiveFileApprovalError(risk, context.approvedCommandFingerprint)) { return errorResult(`Approval Required: ${risk.assessment.reasons.join(' ')}`); }
 
-        const resolved = await resolveWorkspaceRelativePath(context.workspaceRoot, args.path);
+        const resolved = await resolveWorkspaceRelativePath(getContextWorkspaceRoots(context), args.path);
         const fileStats = await fs.stat(resolved.absolutePath);
 
         if (hasAttachmentExtension(resolved.relativePath)) {
