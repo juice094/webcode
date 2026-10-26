@@ -4,6 +4,21 @@ All notable changes to the "gateway-vscode" extension will be documented in this
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- Multi-root workspace path resolution: containment checks for file
+  read/write/edit, attachments, and command directories now accept the union
+  of every workspace folder. Paths prefixed with a sibling folder name
+  address that project directly (no more fake subdirectories), `..` reaches
+  sibling roots, and default `search_files`/`search_code` sweep every folder
+  with folder-prefixed results.
+- The browser bridge handshake accepts gateway versions at or above the
+  declared minimum (matching the loader and gateway redemption semantics), so
+  a version skew surfaces the version-mismatch page instead of
+  "Invalid handshake parameters".
+
 ## [1.4.0] - 2026-10-23
 
 ### Changed
