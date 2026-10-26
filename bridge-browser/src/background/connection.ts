@@ -1,4 +1,4 @@
-import { BRANDING, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
+import { BRANDING, BRIDGE_MIN_GATEWAY_VERSION, BRIDGE_PROTOCOL_VERSION, compareExtensionVersions } from '@webcode/shared';
 
 import { type HandshakeMessageRequest, type HandshakeResponse, isStoredSession } from '../types';
 import type { PairingErrorCode } from '../pairing_protocol';
@@ -168,14 +168,29 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/**
+ * The gateway version arrives via the bridge page payload. Accept any gateway
+ * at or above BRIDGE_MIN_GATEWAY_VERSION (the bridge protocol version is
+ * checked separately and must match exactly). When the shared protocol config
+ * does not declare a minimum, fall back to the legacy exact-match behavior.
+ * The browser extension version stays self-consistent with this install.
+ */
 function isCompatibleExtensionVersions(request: HandshakeMessageRequest): boolean {
   const currentBrowserVersion = chrome.runtime.getManifest().version;
 
   return isNonEmptyString(request.vscodeExtensionVersion) &&
     isNonEmptyString(request.browserExtensionVersion) &&
     request.bridgeProtocolVersion === BRIDGE_PROTOCOL_VERSION &&
-    request.vscodeExtensionVersion === currentBrowserVersion &&
+    isGatewayVersionCompatible(request.vscodeExtensionVersion, currentBrowserVersion) &&
     request.browserExtensionVersion === currentBrowserVersion;
+}
+
+export function isGatewayVersionCompatible(gatewayVersion: string, currentBrowserVersion: string): boolean {
+  if (!BRIDGE_MIN_GATEWAY_VERSION) {
+    return gatewayVersion === currentBrowserVersion;
+  }
+
+  return compareExtensionVersions(gatewayVersion, BRIDGE_MIN_GATEWAY_VERSION) >= 0;
 }
 
 async function redeemBridgeCode(
