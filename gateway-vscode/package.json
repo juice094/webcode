@@ -293,6 +293,19 @@
           },
           "description": "Additional absolute directories trusted by command path risk checks. Paths outside trusted roots require per-command approval. Supports ~ and ${workspaceFolder}."
         },
+        "webcodeGateway.command.allowRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Commands exempted from approval prompts. A rule matches as a case-insensitive substring of the command line after whitespace is collapsed, same as deny rules. A matching command skips the approval prompt entirely. This only downgrades `requires_confirmation`: deny rules and hard-blocked commands (for example `sudo`, `rm -rf /`) still apply and can never be exempted."
+        },
+        "webcodeGateway.command.requireApproval": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When false, commands that would normally raise an approval prompt (`command substitution`, interpreter eval such as `node -e`, nested shells, force pushes) run without asking. Deny rules and hard-blocked commands still apply. Only disable on machines where you accept that the AI executes every command without review."
+        },
         "webcodeGateway.command.denyRules": {
           "type": "array",
           "default": [],

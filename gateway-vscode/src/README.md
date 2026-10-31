@@ -79,7 +79,7 @@ src/
 | `shutdownSnapshot.ts` / `deactivateSession.ts` | 关机快照与被中断调用的恢复提示。 |
 | `skillWatchers.ts` / `configurationWatcher.ts` | Skill 目录与配置变更监听。 |
 | `customServers.ts` / `gatewayConfigurationPolicy.ts` | 第三方 server 配置与配置策略校验。 |
-| `commandDenyRules.ts` / `commandAllowedRoots.ts` | 命令拒绝规则与允许根目录。 |
+| `commandDenyRules.ts` / `commandAllowedRoots.ts` / `commandAllowRules.ts` | 命令拒绝规则、允许根目录与审批豁免规则。 |
 
 ### `tools/`（本地工具实现）
 

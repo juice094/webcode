@@ -10,6 +10,7 @@ import { updateGatewayStatusBar } from './statusBar';
 import type { AISiteConfig, ResolvedAiSiteConfig } from './types';
 import { resolveCommandAllowedRoots } from './commandAllowedRoots';
 import { resolveCommandDenyRules } from './commandDenyRules';
+import { resolveCommandAllowRules } from './commandAllowRules';
 import { resolveIdleTimeoutMs } from '../gateway/idleTimeout';
 import {
     resolveApprovalTtlSeconds,
@@ -165,7 +166,7 @@ function createBridgeCodeIssuer(
 
 interface GatewayStartParams {
     idleTimeoutMs: number;
-    commandConfig: { commandAllowedRoots: string[]; commandDenyRules: string[]; commandShellPath?: string };
+    commandConfig: CommandExecutionConfig;
     timeoutConfig: {
         approvalTtlMs: number;
         bridgeCodeTtlMs: number;
@@ -214,10 +215,18 @@ function getCommandShellPath(config: vscode.WorkspaceConfiguration): string | un
     return configuredCommandShellPath === '' ? undefined : configuredCommandShellPath;
 }
 
+export interface CommandExecutionConfig {
+    commandAllowedRoots: string[];
+    commandDenyRules: string[];
+    commandAllowRules: string[];
+    commandRequireApproval: boolean;
+    commandShellPath?: string;
+}
+
 function getCommandExecutionConfig(
     config: vscode.WorkspaceConfiguration,
     outputChannel: vscode.OutputChannel
-): { commandAllowedRoots: string[]; commandDenyRules: string[]; commandShellPath?: string } {
+): CommandExecutionConfig {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     return {
         commandShellPath: getCommandShellPath(config),
@@ -229,7 +238,12 @@ function getCommandExecutionConfig(
         commandDenyRules: resolveCommandDenyRules(
             config.get<string[]>('command.denyRules'),
             outputChannel
-        )
+        ),
+        commandAllowRules: resolveCommandAllowRules(
+            config.get<string[]>('command.allowRules'),
+            outputChannel
+        ),
+        commandRequireApproval: config.get<boolean>('command.requireApproval') ?? true
     };
 }
 

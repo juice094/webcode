@@ -13,6 +13,8 @@ const HOT_RELOAD_KEYS = [
     'webcodeGateway.commandShell.path',
     'webcodeGateway.command.allowedRoots',
     'webcodeGateway.command.denyRules',
+    'webcodeGateway.command.allowRules',
+    'webcodeGateway.command.requireApproval',
     'webcodeGateway.timeouts'
 ] as const;
 

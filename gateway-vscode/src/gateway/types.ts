@@ -38,6 +38,10 @@ export interface GatewayConfig {
     commandExecutionMaxMs?: number;
     /** User rules that hard-block matching commands; they cannot be approved. */
     commandDenyRules?: string[];
+    /** When false, `requires_confirmation` commands run without an approval prompt. `blocked` and deny rules still apply. Default true. */
+    commandRequireApproval?: boolean;
+    /** Rules that exempt matching commands from the approval prompt; substring match, same semantics as deny rules. */
+    commandAllowRules?: string[];
     /** Lifetime of a single-use bridge code in milliseconds. */
     bridgeCodeTtlMs?: number;
     /** Lifetime of a command approval challenge and grant in milliseconds. */

@@ -11,6 +11,13 @@ export interface CommandRiskContext {
     allowedRoots?: string[];
     /** User rules that hard-block matching commands before any other assessment. */
     denyRules?: string[];
+    /**
+     * When true, `requires_confirmation` assessments are downgraded to `allowed`
+     * so no approval prompt is issued. `blocked` assessments are unaffected.
+     */
+    autoApproveConfirmation?: boolean;
+    /** User rules that downgrade `requires_confirmation` to `allowed` on match. */
+    allowRules?: string[];
     platform?: NodeJS.Platform;
 }
 

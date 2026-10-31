@@ -34,6 +34,10 @@ export type ToolExecutionContext = {
     commandExecutionMs?: number;
     commandExecutionMaxMs?: number;
     commandDenyRules?: string[];
+    /** When false, commands that would require confirmation run without approval. */
+    commandRequireApproval?: boolean;
+    /** Rules that exempt matching commands from the approval prompt. */
+    commandAllowRules?: string[];
     approvedCommandFingerprint?: string;
     listTools: () => unknown;
     getToolDefinition: (name: string) => ToolDefinition | null;

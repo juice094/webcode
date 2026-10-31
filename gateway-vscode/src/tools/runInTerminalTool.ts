@@ -117,6 +117,8 @@ async function resolveRunInTerminalRequest(
             cwd: directory.absolutePath,
             allowedRoots: context.commandAllowedRoots,
             denyRules: context.commandDenyRules,
+            autoApproveConfirmation: context.commandRequireApproval === false,
+            allowRules: context.commandAllowRules,
             platform: process.platform
         }
     });

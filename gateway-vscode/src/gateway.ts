@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { getErrorMessage } from './gateway/errorUtils';
+import { resolveCommandConfig } from './gateway/commandConfig';
 import { SkillManager } from './skillManager';
 import { TerminalSessionManager } from './terminalSessionManager';
 import {
@@ -97,6 +98,8 @@ export class GatewayManager {
     private commandShellPath: string | undefined;
     private commandAllowedRoots: string[] = [];
     private commandDenyRules: string[] = [];
+    private commandAllowRules: string[] = [];
+    private commandRequireApproval = true;
     private toolCallMs = timeouts.DEFAULT_TOOL_CALL_MS;
     private commandExecutionMs = timeouts.DEFAULT_COMMAND_EXECUTION_MS;
     private commandExecutionMaxMs = timeouts.DEFAULT_COMMAND_EXECUTION_MAX_MS;
@@ -187,13 +190,6 @@ export class GatewayManager {
         return findToolDefinition(this.toolDefinitionSources(), name);
     }
 
-    private applyCommandConfig(config: GatewayConfig): void {
-        const commandShellPath = config.commandShellPath?.trim();
-        this.commandShellPath = commandShellPath === '' ? undefined : commandShellPath;
-        this.commandAllowedRoots = config.commandAllowedRoots ?? [];
-        this.commandDenyRules = config.commandDenyRules ?? [];
-    }
-
     private resetWatchdog() {
         if (this.watchdogTimer) {clearTimeout(this.watchdogTimer);}
         // Genuine activity starts a fresh idle window, including the budget
@@ -251,6 +247,8 @@ export class GatewayManager {
             commandExecutionMs: this.commandExecutionMs,
             commandExecutionMaxMs: this.commandExecutionMaxMs,
             commandDenyRules: this.commandDenyRules,
+            commandAllowRules: this.commandAllowRules,
+            commandRequireApproval: this.commandRequireApproval,
             listTools: () => listToolDefinitions(this.toolDefinitionSources()),
             getToolDefinition: (name: string) => this.getToolDefinition(name)
         };
@@ -377,7 +375,7 @@ export class GatewayManager {
         this.shuttingDown = false;
         this.gatewayInstanceId = randomUUID();
         this.skillDirectories = config.skillDirectories ?? [];
-        this.applyCommandConfig(config);
+        Object.assign(this, resolveCommandConfig(config));
         this.currentAiSites = config.aiSites ?? [];
         this.idleTimeoutMs = config.idleTimeoutMs;
         // Resolved here as well so a direct GatewayManager caller cannot bypass
@@ -402,7 +400,7 @@ export class GatewayManager {
         // whether a setting was picked up.
         this.log(
             `⏱️ timeouts: toolCallMs=${this.toolCallMs} commandExecutionMs=${this.commandExecutionMs} ` +
-            `commandExecutionMaxMs=${this.commandExecutionMaxMs} commandDenyRules=${this.commandDenyRules.length} ` +
+            `commandExecutionMaxMs=${this.commandExecutionMaxMs} commandDenyRules=${this.commandDenyRules.length} commandAllowRules=${this.commandAllowRules.length} requireApproval=${this.commandRequireApproval} ` +
             `bridgeRequestMs=${this.bridgeRequestMs} bridgeCodeTtlMs=${this.bridgeSessionManager.getBridgeCodeTtlMs()} ` +
             `approvalTtlMs=${this.commandApprovalManager.getTtlMs()} browserLaunchWaitMs=${this.browserLaunchWaitMs} ` +
             `idleTimeoutMs=${this.idleTimeoutMs}`
