@@ -4,6 +4,22 @@ All notable changes to the "gateway-vscode" extension will be documented in this
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.5.2] - 2026-10-31
+
+### Added
+
+- `command.requireApproval` switch (default `true`): when `false`, commands
+  that would require confirmation are downgraded to allowed; blocked results
+  and `command.denyRules` still apply.
+- `command.allowRules` whitelist: substring rules that exempt matching
+  commands from the approval prompt only, never from the blocking layer.
+
+### Changed
+
+- Prompt hardening: write operations must run serially; commands estimated
+  over 10 seconds must be sent individually; truncated results must not be
+  concluded from; destructive edits require a prior read and prefer dryRun.
+
 ## [1.5.1] - 2026-10-26
 
 ### Fixed
