@@ -5,10 +5,11 @@ import type { Server as HttpServer } from 'http';
 import * as vscode from 'vscode';
 import { BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
-import { getErrorMessage } from './gateway/errorUtils';
+import { getErrorMessage, formatLogLine } from './gateway/errorUtils';
 import { resolveCommandConfig } from './gateway/commandConfig';
 import { SkillManager } from './skillManager';
 import { TerminalSessionManager } from './terminalSessionManager';
+import { GatewayWatchdog } from './gateway/watchdog';
 import {
     createLocalToolMap,
     type LocalTool,
@@ -17,18 +18,18 @@ import {
 } from './tools';
 import {
     registerBridgeRoute,
-    resolveAllowedBridgeTarget,
-    resolveBridgeSite
+    issueBridgeCodeForLaunch
 } from './gateway/bridgeRoute';
 import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/bridgeSession';
 import { registerConfigRoutes } from './gateway/initRoutes';
 import type { InFlightToolCall } from './extension/shutdownSnapshot';
-import { seedSessionToken, type SessionTokenSource } from './extension/sessionToken';
+import { SessionMaintenance, type SessionPersistenceState } from './gateway/sessionMaintenance';
 import { getPrimaryWorkspaceRoot, getWorkspaceRoots } from './extension/workspaceRoots';
 import { InFlightCallRegistry } from './gateway/inFlightCalls';
 import { DEFAULT_MAX_CONCURRENT_TOOL_CALLS, ToolConcurrencyGate } from './gateway/toolConcurrency';
-import { DEFAULT_IDLE_TIMEOUT_MINUTES, formatIdleTimeoutMinutes } from './gateway/idleTimeout';
+import { DEFAULT_IDLE_TIMEOUT_MINUTES, resolveSessionIdleTimeoutMinutes } from './gateway/idleTimeout';
 import * as timeouts from './gateway/timeouts';
+import { WriteLock } from './gateway/writeLock';
 import {
     createAuthMiddleware,
     createCorsMiddleware,
@@ -49,7 +50,6 @@ import type {
     ConnectedClient,
     GatewayConfig,
     RemoteToolRoute,
-    ServerConfig,
     StartResult
 } from './gateway/types';
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
@@ -59,9 +59,6 @@ import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pair
 import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { listenOnAvailablePort } from './gateway/portListener';
 
-/** QA-calibrated: one long MCP call spanning 4 idle periods; re-verify once Phase 1 config lands. */
-const MAX_WATCHDOG_POSTPONEMENTS = 3;
-
 export interface GatewayLifecycleOptions {
     /**
      * Deactivate path only: skip the MCP client shutdown handshake so the whole
@@ -69,10 +66,10 @@ export interface GatewayLifecycleOptions {
      */
     fast?: boolean;
     /**
-     * Keep the browser bridge session token (and pending launch codes) across
-     * this stop/start cycle. Used by hot configuration reloads so connected
-     * browser tabs keep working with the token they already hold. Cold starts
-     * and cold configuration changes always revoke the token.
+     * Keep the browser bridge sessions (and pending launch codes) across this
+     * stop/start cycle. Used by hot configuration reloads so connected browser
+     * tabs keep working with the tokens they already hold. Cold starts and cold
+     * configuration changes always revoke the sessions.
      */
     preserveBridgeSession?: boolean;
 }
@@ -86,10 +83,8 @@ export class GatewayManager {
     private outputChannel: vscode.OutputChannel;
     private extensionPath: string;
     private context: vscode.ExtensionContext;
-    private watchdogTimer: NodeJS.Timeout | null = null;
     private idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MINUTES * 60 * 1000;
     private inFlightRequestCount = 0;
-    private watchdogPostponements = 0;
     private onAutoStop: ((idleTimeoutMs: number) => void) | null = null;
     private skillManager: SkillManager;
     private terminalSessionManager: TerminalSessionManager;
@@ -115,10 +110,26 @@ export class GatewayManager {
     private gatewayInstanceId = randomUUID();
     private browserLaunchWaitMs = timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS;
     private shuttingDown = false;
-    private bridgeSessionTokenProvider: SessionTokenSource | null = null;
     private lastInterrupted: { count: number; savedAt: string } | null = null;
     private readonly inFlightCalls = new InFlightCallRegistry(toolName => this.toolRouter.get(toolName)?.serverId);
     private readonly toolConcurrencyGate = new ToolConcurrencyGate(DEFAULT_MAX_CONCURRENT_TOOL_CALLS);
+    private readonly writeLock = new WriteLock({
+        timeoutMs: timeouts.DEFAULT_WRITE_LOCK_TIMEOUT_MS,
+        audit: event => this.approvalAuditSink?.(event)
+    });
+    private readonly sessionMaintenance = new SessionMaintenance(this.bridgeSessionManager, this.writeLock, {
+        log: message => this.log(message),
+        error: (message, err) => this.error(message, err)
+    });
+    private readonly watchdog = new GatewayWatchdog({
+        idleTimeoutMs: () => this.idleTimeoutMs,
+        inFlightCount: () => this.inFlightRequestCount,
+        onIdle: idleTimeoutMs => {
+            void this.stop();
+            this.onAutoStop?.(idleTimeoutMs);
+        },
+        log: message => this.log(message)
+    });
 
     constructor(
         outputChannel: vscode.OutputChannel,
@@ -149,6 +160,24 @@ export class GatewayManager {
         return this.bridgeSessionManager.hasActiveSession();
     }
 
+    /** Live browser session count, after an idle-expiry sweep. */
+    getBridgeSessionCount(): number {
+        return this.bridgeSessionManager.getSessionCount();
+    }
+
+    /**
+     * Rotates every browser session token (the disconnect-browsers command):
+     * all connected tabs must re-pair. Returns how many sessions were revoked.
+     */
+    disconnectAllBridgeSessions(): number {
+        return this.sessionMaintenance.disconnectAll();
+    }
+
+    /** Extension hook: refresh UI that shows the connected-session count. */
+    setBridgeSessionsChangedHandler(handler: (() => void) | null): void {
+        this.sessionMaintenance.setOnChanged(handler);
+    }
+
     /**
      * Extension hook: asks the user to approve a pairing request. With no handler
      * registered the pairing route declines, so an unwired gateway cannot pair.
@@ -159,12 +188,16 @@ export class GatewayManager {
         this.onSessionRequestConfirmation = handler;
     }
 
-    /** Extension hook: persisted token source plus the previous session's loss report. */
-    setResumeState(state: {
-        tokenProvider: SessionTokenSource | null;
+    /**
+     * Extension hook: session persistence plus the legacy-token migration
+     * source and the previous session's loss report. The Memento-backed store
+     * is the primary restart-continuity source; SecretStorage is only read
+     * once to import the pre-upgrade single token.
+     */
+    setResumeState(state: SessionPersistenceState & {
         lastInterrupted: { count: number; savedAt: string } | null;
     }): void {
-        this.bridgeSessionTokenProvider = state.tokenProvider;
+        this.sessionMaintenance.configure(state);
         this.lastInterrupted = state.lastInterrupted;
     }
 
@@ -190,40 +223,12 @@ export class GatewayManager {
         return findToolDefinition(this.toolDefinitionSources(), name);
     }
 
-    private resetWatchdog() {
-        if (this.watchdogTimer) {clearTimeout(this.watchdogTimer);}
-        // Genuine activity starts a fresh idle window, including the budget
-        // of in-flight postponements.
-        this.watchdogPostponements = 0;
-        this.watchdogTimer = setTimeout(() => this.handleWatchdogFired(), this.idleTimeoutMs);
-    }
-
-    private handleWatchdogFired() {
-        if (this.inFlightRequestCount > 0 && this.watchdogPostponements < MAX_WATCHDOG_POSTPONEMENTS) {
-            this.watchdogPostponements += 1;
-            this.log(`⏳ ${this.inFlightRequestCount} request(s) still in flight. Postponing idle shutdown (${this.watchdogPostponements}/${MAX_WATCHDOG_POSTPONEMENTS}).`);
-            this.watchdogTimer = setTimeout(() => this.handleWatchdogFired(), this.idleTimeoutMs);
-            return;
-        }
-
-        if (this.inFlightRequestCount > 0) {
-            this.log(`⚠️ Forcing idle shutdown with ${this.inFlightRequestCount} request(s) still in flight after ${MAX_WATCHDOG_POSTPONEMENTS} postponements.`);
-        }
-        this.log(`💤 No activity for ${formatIdleTimeoutMinutes(this.idleTimeoutMs)} minutes. Shutting down...`);
-        void this.stop();
-        if (this.onAutoStop) {this.onAutoStop(this.idleTimeoutMs);}
-    }
-
     private log(message: string) {
-        const now = new Date();
-        const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-        this.outputChannel.appendLine(`[${time}] ${message}`);
+        this.outputChannel.appendLine(formatLogLine(message));
     }
 
     private error(message: string, err?: unknown) {
-        const now = new Date();
-        const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-        this.outputChannel.appendLine(`[${time}] ❌ ${message} ${getErrorMessage(err)}`);
+        this.outputChannel.appendLine(formatLogLine(`❌ ${message} ${getErrorMessage(err)}`));
     }
 
     private trace(event: Parameters<GatewayRuntimeTraceSink>[0]): void {
@@ -254,34 +259,11 @@ export class GatewayManager {
         };
     }
 
-    async connectToServers(servers: Record<string, ServerConfig>) {
-        this.connectedClients = await connectToConfiguredServers({
-            connectedClients: this.connectedClients,
-            extensionPath: this.extensionPath,
-            clientVersion: this.getExtensionVersion(),
-            log: this.log.bind(this),
-            error: this.error.bind(this),
-            servers,
-            toolRouter: this.toolRouter,
-            workspaceRoot: getPrimaryWorkspaceRoot()
-        });
-    }
-
     issueBridgeCode(siteId: string, targetUrl: string): string {
         if (!this.server) {
             throw new Error('Gateway server is not running.');
         }
-
-        const site = resolveBridgeSite(siteId, this.currentAiSites);
-        const resolvedTarget = site ? resolveAllowedBridgeTarget(targetUrl, site) : null;
-        if (!site || !resolvedTarget) {
-            throw new Error('Bridge target does not match a configured AI site.');
-        }
-
-        return this.bridgeSessionManager.issueBridgeCode({
-            siteId: site.id,
-            targetUrl: resolvedTarget
-        });
+        return issueBridgeCodeForLaunch(this.bridgeSessionManager, this.currentAiSites, siteId, targetUrl);
     }
 
     private registerRoutes(config: GatewayConfig): void {
@@ -295,7 +277,7 @@ export class GatewayManager {
         this.app.use(createCorsMiddleware(config, this.log.bind(this)));
         this.app.use(createRequestLoggerMiddleware(this.log.bind(this)));
         registerBridgeRoute(this.app, {
-            activateSession: () => this.bridgeSessionManager.activateSession(),
+            activateSession: identity => this.bridgeSessionManager.activateSession(identity),
             consumeBridgeCode: code => this.bridgeSessionManager.consumeBridgeCode(code),
             getBridgeLaunch: code => this.bridgeSessionManager.getBridgeLaunch(code),
             getAiSites: () => config.aiSites ?? [],
@@ -305,8 +287,11 @@ export class GatewayManager {
             getBridgeRequestMs: () => this.bridgeRequestMs,
             getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
-            recordActivity: () => this.resetWatchdog(),
-            onSessionActivated: () => this.onBridgeSessionActivated?.()
+            recordActivity: () => this.watchdog.reset(),
+            onSessionActivated: () => {
+                this.onBridgeSessionActivated?.();
+                this.sessionMaintenance.persist();
+            }
         });
         // Discovery and pairing are the only unauthenticated surface: a browser
         // without a session cannot present a token yet. Their own guard rails
@@ -318,6 +303,7 @@ export class GatewayManager {
             getPort: () => this.currentPort,
             getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             hasActiveSession: () => this.bridgeSessionManager.hasActiveSession(),
+            getSessionCount: () => this.bridgeSessionManager.getSessionCount(),
             issueBridgeCode: (siteId, targetUrl) => this.issueBridgeCode(siteId, targetUrl),
             requestUserConfirmation: prompt => this.onSessionRequestConfirmation
                 ? this.onSessionRequestConfirmation(prompt)
@@ -325,10 +311,14 @@ export class GatewayManager {
             log: this.log.bind(this)
         });
         this.app.use(createAuthMiddleware(
-            token => this.bridgeSessionManager.isSessionTokenValid(token),
-            this.log.bind(this)
+            token => this.bridgeSessionManager.lookupSession(token),
+            this.log.bind(this),
+            {
+                sweepExpired: () => this.sessionMaintenance.sweepExpired(),
+                onSessionsRevoked: tokens => this.writeLock.releaseForTokens(tokens)
+            }
         ));
-        this.app.use(createGatewayActivityMiddleware(() => this.resetWatchdog()));
+        this.app.use(createGatewayActivityMiddleware(() => this.watchdog.reset()));
 
         registerConfigRoutes(this.app, config, this.log.bind(this), {
             extensionVersion: this.getExtensionVersion(),
@@ -353,7 +343,8 @@ export class GatewayManager {
             onToolCallEnd: callId => this.inFlightCalls.end(callId),
             onToolCallStart: info => this.inFlightCalls.start(info),
             trace: this.trace.bind(this),
-            toolRouter: this.toolRouter
+            toolRouter: this.toolRouter,
+            writeLock: this.writeLock
         };
         registerToolRoutes({
             app: this.app,
@@ -388,10 +379,13 @@ export class GatewayManager {
         this.browserLaunchWaitMs = config.browserLaunchWaitMs === undefined
             ? timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS
             : timeouts.resolveBrowserLaunchWaitMs(config.browserLaunchWaitMs);
+        this.bridgeSessionManager.setSessionIdleTimeoutMs(
+            resolveSessionIdleTimeoutMinutes(config.sessionIdleTimeoutMinutes) * 60 * 1000
+        );
+        this.writeLock.setTimeoutMs(timeouts.resolveWriteLockTimeoutMs(config.writeLockTimeoutMs));
         // TTLs arrive already clamped in milliseconds (the extension resolves
         // seconds-native settings), and are retargeted instead of recreating the
-        // managers: a hot reload must keep the bridge session token that
-        // connected tabs already hold.
+        // managers: a hot reload must keep the bridge sessions being preserved.
         this.bridgeSessionManager.setBridgeCodeTtlMs(config.bridgeCodeTtlMs ?? DEFAULT_BRIDGE_CODE_TTL_MS);
         this.commandApprovalManager.setTtlMs(config.approvalTtlMs ?? DEFAULT_APPROVAL_TTL_MS);
         this.commandApprovalManager.clear();
@@ -403,30 +397,42 @@ export class GatewayManager {
             `commandExecutionMaxMs=${this.commandExecutionMaxMs} commandDenyRules=${this.commandDenyRules.length} commandAllowRules=${this.commandAllowRules.length} requireApproval=${this.commandRequireApproval} ` +
             `bridgeRequestMs=${this.bridgeRequestMs} bridgeCodeTtlMs=${this.bridgeSessionManager.getBridgeCodeTtlMs()} ` +
             `approvalTtlMs=${this.commandApprovalManager.getTtlMs()} browserLaunchWaitMs=${this.browserLaunchWaitMs} ` +
-            `idleTimeoutMs=${this.idleTimeoutMs}`
+            `idleTimeoutMs=${this.idleTimeoutMs} sessionIdleTimeoutMinutes=${resolveSessionIdleTimeoutMinutes(config.sessionIdleTimeoutMinutes)} ` +
+            `writeLockTimeoutMs=${timeouts.resolveWriteLockTimeoutMs(config.writeLockTimeoutMs)}`
         );
         this.startedAt = new Date().toISOString();
-        // Bridge session token lifecycle: the token is revoked on every cold
-        // start (fresh launch, manual stop/start, cold configuration keys such
-        // as port or idleTimeoutMinutes). Hot configuration reloads (servers,
+        // Bridge session lifecycle: sessions are revoked on every cold start
+        // (fresh launch, manual stop/start, cold configuration keys such as
+        // port or idleTimeoutMinutes). Hot configuration reloads (servers,
         // skillDirectories, commandShell.path, command.allowedRoots) pass
         // preserveBridgeSession so connected browser tabs keep using the
-        // token they already hold instead of being logged out mid-session.
+        // tokens they already hold instead of being logged out mid-session.
         if (!preserveBridgeSession) {
             this.bridgeSessionManager.clear();
         }
         // Re-seed from the persisted source on every start (including cold
-        // starts): this is what lets a reconnecting tab keep its token.
-        await seedSessionToken(this.bridgeSessionManager, this.bridgeSessionTokenProvider, message => this.error(message));
+        // starts): the session table from workspaceState keeps every connected
+        // tab working, and a legacy single token is imported on first start.
+        await this.sessionMaintenance.restore();
+        this.sessionMaintenance.startSweep();
         this.trace({
             event: 'gateway_starting',
             status: 'started',
             details: { requestedPort: config.port }
         });
-        await this.connectToServers(config.mcpServers);
+        this.connectedClients = await connectToConfiguredServers({
+            connectedClients: this.connectedClients,
+            extensionPath: this.extensionPath,
+            clientVersion: this.getExtensionVersion(),
+            log: this.log.bind(this),
+            error: this.error.bind(this),
+            servers: config.mcpServers,
+            toolRouter: this.toolRouter,
+            workspaceRoot: getPrimaryWorkspaceRoot()
+        });
 
         // Start Watchdog
-        this.resetWatchdog();
+        this.watchdog.reset();
 
         this.app = express();
         this.app.use(express.json());
@@ -451,11 +457,8 @@ export class GatewayManager {
 
     // eslint-disable-next-line @typescript-eslint/require-await
     async stop(options?: GatewayLifecycleOptions) {
-        if (this.watchdogTimer) {
-            clearTimeout(this.watchdogTimer);
-            this.watchdogTimer = null;
-        }
-        this.watchdogPostponements = 0;
+        this.watchdog.stop();
+        this.sessionMaintenance.stopSweep();
         this.startedAt = null;
         if (this.server) {
             this.server.close();

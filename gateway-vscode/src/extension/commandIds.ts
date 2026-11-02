@@ -5,3 +5,4 @@
  */
 export const GATEWAY_CONNECT_COMMAND = 'webcode-gateway.connect';
 export const GATEWAY_RESTART_COMMAND = 'gateway-vscode.restart';
+export const GATEWAY_DISCONNECT_BROWSERS_COMMAND = 'webcode-gateway.disconnectBrowsers';

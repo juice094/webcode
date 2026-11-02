@@ -21,7 +21,12 @@ export type ApprovalAuditEventName =
     | 'grant_rejected'
     | 'blocked'
     | 'approval_required'
-    | 'execution_finished';
+    | 'execution_finished'
+    | 'write_lock_acquired'
+    | 'write_lock_queued'
+    | 'write_lock_released'
+    | 'write_lock_timeout'
+    | 'write_lock_revoked';
 
 export interface ApprovalAuditEvent {
     v: number;
@@ -39,6 +44,13 @@ export interface ApprovalAuditEvent {
     durationMs?: number;
     status?: 'success' | 'error';
     error?: string;
+    /**
+     * Write-lock attribution: a short digest of the session token, never the
+     * token itself, plus lock state. No tool arguments are ever recorded here.
+     */
+    sessionRef?: string;
+    queueLength?: number;
+    waitMs?: number;
 }
 
 export type ApprovalAuditSink = (event: ApprovalAuditEvent) => void;
@@ -59,9 +71,23 @@ export function formatApprovalAuditEvent(event: ApprovalAuditEvent): string {
         }
     }
 
-    copyOptional(record, event, ['requestId', 'path', 'profile', 'level', 'reasons', 'challengeId', 'status', 'error']);
+    copyOptional(record, event, [
+        'requestId',
+        'path',
+        'profile',
+        'level',
+        'reasons',
+        'challengeId',
+        'status',
+        'error',
+        'sessionRef',
+        'queueLength'
+    ]);
     if (typeof event.durationMs === 'number' && Number.isFinite(event.durationMs)) {
         record.durationMs = Math.max(0, Math.trunc(event.durationMs));
+    }
+    if (typeof event.waitMs === 'number' && Number.isFinite(event.waitMs)) {
+        record.waitMs = Math.max(0, Math.trunc(event.waitMs));
     }
 
     return JSON.stringify(record);

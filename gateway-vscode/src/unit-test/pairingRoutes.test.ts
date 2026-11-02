@@ -53,6 +53,7 @@ suite('Gateway pairing routes', () => {
                 'product',
                 'schema',
                 'sessionActive',
+                'sessionCount',
                 'workspaceId',
                 'workspaceName'
             ]);
@@ -245,6 +246,7 @@ async function startPairingServer(overrides: Partial<PairingRoutesOptions>): Pro
         getPort: () => port,
         getWorkspaceRoot: () => WORKSPACE_ROOT,
         hasActiveSession: () => false,
+        getSessionCount: () => 0,
         issueBridgeCode: (siteId, targetUrl) => {
             issued.push({ siteId, targetUrl });
             return 'stub-bridge-code';

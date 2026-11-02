@@ -9,13 +9,13 @@ import type { GatewayConfig } from '../gateway/types';
 const TEST_EXTENSION_VERSION = '1.0.1';
 
 /**
- * The watchdog internals (inFlightRequestCount / watchdogPostponements) are
+ * The watchdog internals (inFlightRequestCount / postponement budget) are
  * private; tests adjust them through these typed views instead of growing
  * the production API surface.
  */
 type WatchdogInternals = {
     inFlightRequestCount: number;
-    watchdogPostponements: number;
+    watchdog: { postponementCount: number };
 };
 
 suite('GatewayManager idle watchdog', () => {
@@ -31,7 +31,7 @@ suite('GatewayManager idle watchdog', () => {
 
             const postponed = await waitFor(() => hasLog(logs, 'Postponing idle shutdown (1/3)'), 3000);
             assert.ok(postponed, 'watchdog should log the first postponement');
-            assert.strictEqual(internals(manager).watchdogPostponements, 1);
+            assert.strictEqual(internals(manager).watchdog.postponementCount, 1);
             assert.strictEqual(autoStops, 0, 'gateway must not auto-stop while a request is in flight');
             assert.strictEqual(await isGatewayReachable(port), true);
         } finally {

@@ -1,103 +1,115 @@
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 
 import {
-    createSessionTokenSource,
+    createWorkspaceSessionStore,
+    migrateLegacySessionToken,
+    sessionStateKey,
     sessionTokenKey,
-    type SecretStorageLike
+    type MementoLike,
+    type SecretStorageLike,
+    type StoredBridgeSession
 } from '../extension/sessionToken';
+
+type FakeMemento = MementoLike & { values: Map<string, unknown> };
+
+function createFakeMemento(): FakeMemento {
+    const values = new Map<string, unknown>();
+    return {
+        values,
+        get: key => values.get(key),
+        update: (key, value) => {
+            values.set(key, value);
+            return Promise.resolve();
+        }
+    };
+}
 
 type FakeSecrets = SecretStorageLike & { values: Map<string, string> };
 
-function createFakeSecrets(options: { failOnGet?: boolean; failOnStore?: boolean } = {}): FakeSecrets {
+function createFakeSecrets(): FakeSecrets {
     const values = new Map<string, string>();
     return {
         values,
-        get: (key: string) => {
-            if (options.failOnGet) {
-                return Promise.reject(new Error('secret storage unavailable'));
-            }
-            return Promise.resolve(values.get(key));
-        },
-        store: (key: string, value: string) => {
-            if (options.failOnStore) {
-                return Promise.reject(new Error('secret storage read-only'));
-            }
-            values.set(key, value);
-            return Promise.resolve();
-        },
-        delete: (key: string) => {
+        get: key => Promise.resolve(values.get(key)),
+        delete: key => {
             values.delete(key);
             return Promise.resolve();
         }
     };
 }
 
-function createTempDir(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'webcode-token-'));
+function createTarget(): { setSessionToken: (token: string) => void; tokens: string[] } {
+    const tokens: string[] = [];
+    return {
+        tokens,
+        setSessionToken: token => {
+            tokens.push(token);
+        }
+    };
 }
 
-suite('Bridge session token source', () => {
-    test('generates once, persists, and survives a restart', async () => {
+const SESSION_ROW: StoredBridgeSession = {
+    token: 'token-one',
+    siteId: 'chatgpt',
+    connectedAt: 1000,
+    lastSeenAt: 2000
+};
+
+suite('Bridge session store', () => {
+    test('returns null when nothing is stored', async () => {
+        const store = createWorkspaceSessionStore({ memento: createFakeMemento(), workspaceId: 'ws-a' });
+        assert.strictEqual(await store.load(), null);
+    });
+
+    test('round-trips the session table under the workspace key', async () => {
+        const memento = createFakeMemento();
+        const store = createWorkspaceSessionStore({ memento, workspaceId: 'ws-a' });
+
+        await store.save([SESSION_ROW]);
+        assert.deepStrictEqual(await store.load(), [SESSION_ROW]);
+        assert.ok(memento.values.has(sessionStateKey('ws-a')), 'the table must be stored per workspace');
+
+        // A second store instance models the next extension host.
+        const nextHost = createWorkspaceSessionStore({ memento, workspaceId: 'ws-a' });
+        assert.deepStrictEqual(await nextHost.load(), [SESSION_ROW], 'the table must survive a restart');
+    });
+
+    test('isolates session tables per workspace', async () => {
+        const memento = createFakeMemento();
+        await createWorkspaceSessionStore({ memento, workspaceId: 'ws-a' }).save([SESSION_ROW]);
+
+        const other = createWorkspaceSessionStore({ memento, workspaceId: 'ws-b' });
+        assert.strictEqual(await other.load(), null);
+    });
+
+    test('treats a malformed stored table as absent instead of crashing', async () => {
+        const memento = createFakeMemento();
+        memento.values.set(sessionStateKey('ws-a'), [{ token: 42 }]);
+        const store = createWorkspaceSessionStore({ memento, workspaceId: 'ws-a' });
+        assert.strictEqual(await store.load(), null);
+    });
+});
+
+suite('Legacy single-token migration', () => {
+    test('imports the legacy SecretStorage token as a session and deletes the old key', async () => {
         const secrets = createFakeSecrets();
-        const first = await createSessionTokenSource({ secrets, workspaceId: 'ws-a' });
-        const initial = await first.get();
+        secrets.values.set(sessionTokenKey('ws-a'), 'legacy-token');
+        const target = createTarget();
 
-        assert.strictEqual(first.mode, 'secret-storage');
-        assert.ok(initial.length >= 32, 'token must be long enough to be unguessable');
-        assert.strictEqual(secrets.values.get(sessionTokenKey('ws-a')), initial);
+        const migrated = await migrateLegacySessionToken(target, { secrets, workspaceId: 'ws-a' });
 
-        // A second source instance models the next extension host.
-        const second = await createSessionTokenSource({ secrets, workspaceId: 'ws-a' });
-        assert.strictEqual(await second.get(), initial, 'a restart must reuse the persisted token');
+        assert.strictEqual(migrated, true);
+        assert.deepStrictEqual(target.tokens, ['legacy-token']);
+        assert.ok(!secrets.values.has(sessionTokenKey('ws-a')), 'the legacy key must be retired after the import');
     });
 
-    test('isolates tokens per workspace', async () => {
+    test('does nothing when no legacy token exists', async () => {
         const secrets = createFakeSecrets();
-        const a = await createSessionTokenSource({ secrets, workspaceId: 'ws-a' });
-        const b = await createSessionTokenSource({ secrets, workspaceId: 'ws-b' });
+        const target = createTarget();
 
-        assert.notStrictEqual(await a.get(), await b.get());
-        assert.strictEqual(secrets.values.size, 2);
-    });
+        const migrated = await migrateLegacySessionToken(target, { secrets, workspaceId: 'ws-a' });
 
-    test('rotate issues a new token and persists it', async () => {
-        const secrets = createFakeSecrets();
-        const source = await createSessionTokenSource({ secrets, workspaceId: 'ws-a' });
-        const initial = await source.get();
-        const rotated = await source.rotate();
-
-        assert.notStrictEqual(rotated, initial);
-        assert.strictEqual(await source.get(), rotated);
-        assert.strictEqual(secrets.values.get(sessionTokenKey('ws-a')), rotated);
-
-        const nextHost = await createSessionTokenSource({ secrets, workspaceId: 'ws-a' });
-        assert.strictEqual(await nextHost.get(), rotated);
-    });
-
-    test('falls back to a derived token when SecretStorage is unavailable', async () => {
-        const storageDir = createTempDir();
-        const secrets = createFakeSecrets({ failOnGet: true });
-        const first = await createSessionTokenSource({ secrets, workspaceId: 'ws-a', storageDir });
-        const token = await first.get();
-
-        assert.strictEqual(first.mode, 'derived');
-        assert.ok(fs.existsSync(path.join(storageDir, 'machine-secret')), 'the machine secret must be persisted');
-
-        const second = await createSessionTokenSource({ secrets, workspaceId: 'ws-a', storageDir });
-        assert.strictEqual(await second.get(), token, 'the derived token must be stable across hosts');
-    });
-
-    test('falls back to an in-memory token when nothing can be persisted', async () => {
-        const first = await createSessionTokenSource({ workspaceId: 'ws-a' });
-        const token = await first.get();
-
-        assert.strictEqual(first.mode, 'memory');
-        assert.notStrictEqual(await first.rotate(), token);
-
-        const second = await createSessionTokenSource({ workspaceId: 'ws-a' });
-        assert.notStrictEqual(await second.get(), token, 'without persistence a new host gets a new token');
+        assert.strictEqual(migrated, false);
+        assert.deepStrictEqual(target.tokens, []);
     });
 });

@@ -34,6 +34,10 @@ export const DEFAULT_BRIDGE_REQUEST_MS = 0;
 export const MIN_BRIDGE_REQUEST_MS = 0;
 export const MAX_BRIDGE_REQUEST_MS = 1_800_000;
 
+export const DEFAULT_WRITE_LOCK_TIMEOUT_MS = 30_000;
+export const MIN_WRITE_LOCK_TIMEOUT_MS = 1_000;
+export const MAX_WRITE_LOCK_TIMEOUT_MS = 300_000;
+
 function resolveClampedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
         return fallback;
@@ -136,4 +140,18 @@ export function resolveBrowserLaunchWaitMs(value: unknown): number {
  */
 export function resolveBridgeRequestMs(value: unknown): number {
     return resolveClampedInteger(value, DEFAULT_BRIDGE_REQUEST_MS, MIN_BRIDGE_REQUEST_MS, MAX_BRIDGE_REQUEST_MS);
+}
+
+/**
+ * How long a queued writer waits for the cross-browser write lock before the
+ * gateway answers with a retryable error (HTTP 423 semantics). The AI site is
+ * expected to retry; this bounds how long one browser can stall another.
+ */
+export function resolveWriteLockTimeoutMs(value: unknown): number {
+    return resolveClampedInteger(
+        value,
+        DEFAULT_WRITE_LOCK_TIMEOUT_MS,
+        MIN_WRITE_LOCK_TIMEOUT_MS,
+        MAX_WRITE_LOCK_TIMEOUT_MS
+    );
 }

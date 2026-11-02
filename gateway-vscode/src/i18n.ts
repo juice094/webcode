@@ -61,6 +61,7 @@ const messages = {
         session_request_allow: 'Allow',
         session_request_deny: 'Deny',
         status_connected: 'Connected',
+        status_connected_sessions: 'Connected ×{count}',
         status_connected_tooltip: 'A browser tab is connected. Click to open the menu.',
         status_online_tooltip: 'Click to connect AI',
         status_offline: `$(circle-slash) ${BRANDING.productName}: OFF`,
@@ -94,6 +95,8 @@ const messages = {
         isolated_profiles_clean_legacy_done: 'Legacy isolated browser profiles deleted.',
         isolated_profiles_reset_in_use: 'Close isolated {browser} windows before deleting profiles: {path}',
         isolated_profiles_reset_failed: 'Failed to delete isolated browser profiles: {message}',
+        disconnect_browsers_done: 'Disconnected {count} browser session(s). Every browser tab must connect again.',
+        disconnect_browsers_not_running: 'The gateway is not running, so there are no browser sessions to disconnect.',
     },
     zh: {
         output_channel_name: 'MCP Gateway',
@@ -150,6 +153,7 @@ const messages = {
         session_request_allow: '允许',
         session_request_deny: '拒绝',
         status_connected: '已连接',
+        status_connected_sessions: '已连接 ×{count}',
         status_connected_tooltip: '已有浏览器标签页连接，点击打开菜单',
         status_online_tooltip: '点击连接 AI',
         status_offline: `$(circle-slash) ${BRANDING.productName}：关闭`,
@@ -183,6 +187,8 @@ const messages = {
         isolated_profiles_clean_legacy_done: '旧版独立浏览器 profile 已删除。',
         isolated_profiles_reset_in_use: '删除 profile 前请先关闭独立 {browser} 窗口：{path}',
         isolated_profiles_reset_failed: '删除独立浏览器 profile 失败：{message}',
+        disconnect_browsers_done: '已断开 {count} 个浏览器会话，各浏览器标签页需重新连接。',
+        disconnect_browsers_not_running: '网关未在运行，没有可断开的浏览器会话。',
     }
 } as const;
 

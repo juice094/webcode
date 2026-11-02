@@ -2,7 +2,17 @@ import cors from 'cors';
 import type express from 'express';
 import { PROTOCOL } from '@webcode/shared';
 
+import type { BridgeSessionRecord } from './bridgeSession';
 import type { GatewayConfig, GatewayLogger } from './types';
+
+/**
+ * Request extension set by the auth middleware after a successful session
+ * lookup. Downstream routes (the write lock in particular) read the token to
+ * attribute mutating tool calls to the browser session that issued them.
+ */
+export interface BridgeSessionRequest extends express.Request {
+    bridgeSession?: BridgeSessionRecord;
+}
 
 export function createCorsMiddleware(config: GatewayConfig, log: GatewayLogger): express.RequestHandler {
     return cors({
@@ -145,9 +155,31 @@ export function createInFlightRequestMiddleware(
     };
 }
 
+export interface AuthMiddlewareOptions {
+    /**
+     * Lazy idle sweep, invoked only when a request arrives with a token that
+     * is not in the table: an expired session is evicted on first touch. Must
+     * return the tokens it revoked.
+     */
+    sweepExpired?: () => string[];
+    /**
+     * Called with the tokens the sweep revoked, so the owner can force-release
+     * the write locks those sessions held (their holders will never come back
+     * to release them).
+     */
+    onSessionsRevoked?: (tokens: readonly string[]) => void;
+}
+
+/**
+ * Authenticates against the session registry instead of a single latched
+ * token: any registered session token passes, a hit refreshes `lastSeenAt`
+ * (so idle expiry measures gateway silence per session), and the session is
+ * attached to the request for downstream attribution.
+ */
 export function createAuthMiddleware(
-    isTokenValid: (token: string | undefined) => boolean,
-    log: GatewayLogger
+    lookupSession: (token: string | undefined) => BridgeSessionRecord | null,
+    log: GatewayLogger,
+    options: AuthMiddlewareOptions = {}
 ): express.RequestHandler {
     return (req, res, next) => {
         if (req.method === 'OPTIONS') {
@@ -156,13 +188,22 @@ export function createAuthMiddleware(
 
         const rawClientToken = req.headers[PROTOCOL.authHeaderLowerName];
         const clientToken = Array.isArray(rawClientToken) ? rawClientToken[0] : rawClientToken;
-        if (!isTokenValid(clientToken)) {
+        let session = lookupSession(clientToken);
+        if (!session && options.sweepExpired) {
+            const revoked = options.sweepExpired();
+            if (revoked.length > 0) {
+                options.onSessionsRevoked?.(revoked);
+            }
+            session = lookupSession(clientToken);
+        }
+        if (!session) {
             log(`⛔ Unauthorized access attempt (${clientToken ? 'invalid token' : 'missing token'}).`);
             return res.status(403).json({
                 isError: true,
                 content: [{ type: 'text', text: "⛔ Forbidden: Invalid Security Token. Please launch from VS Code." }]
             });
         }
+        (req as BridgeSessionRequest).bridgeSession = session;
         next();
     };
 }

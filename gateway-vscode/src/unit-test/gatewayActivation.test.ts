@@ -37,9 +37,9 @@ suite('Extension activation surface', () => {
 
     test('shows a connected suffix only while a browser session is live', () => {
         const online = createStatusBarItem();
-        updateGatewayStatusBar(online, true, 34568);
+        updateGatewayStatusBar(online, { online: true, port: 34568 });
         const connected = createStatusBarItem();
-        updateGatewayStatusBar(connected, true, 34568, false, true);
+        updateGatewayStatusBar(connected, { online: true, port: 34568, bridgeConnected: true });
 
         assert.ok(online.text.includes('34568'), online.text);
         assert.ok(!online.text.includes('·'), 'the plain online state must not claim a connection');
@@ -49,8 +49,12 @@ suite('Extension activation surface', () => {
         assert.notStrictEqual(connected.tooltip, online.tooltip);
         assert.strictEqual(connected.shown, true);
 
+        const multi = createStatusBarItem();
+        updateGatewayStatusBar(multi, { online: true, port: 34568, bridgeConnected: true, sessionCount: 3 });
+        assert.ok(multi.text.includes('×3'), multi.text);
+
         const offline = createStatusBarItem();
-        updateGatewayStatusBar(offline, false, undefined, false, true);
+        updateGatewayStatusBar(offline, { online: false, bridgeConnected: true });
         assert.ok(!offline.text.includes('·'), 'an offline gateway must not show the connected suffix');
     });
 });

@@ -3,21 +3,30 @@ import * as vscode from 'vscode';
 
 import { t } from '../i18n';
 
+export interface GatewayStatusBarState {
+    online: boolean;
+    port?: number;
+    isLoading?: boolean;
+    bridgeConnected?: boolean;
+    /** Live browser session count; only rendered when more than one. */
+    sessionCount?: number;
+}
+
 export function updateGatewayStatusBar(
     statusBarItem: vscode.StatusBarItem,
-    online: boolean,
-    port?: number,
-    isLoading: boolean = false,
-    bridgeConnected: boolean = false
+    state: GatewayStatusBarState
 ): void {
-    if (isLoading) {
+    if (state.isLoading) {
         statusBarItem.text = t('status_starting');
         statusBarItem.tooltip = t('status_starting_tooltip');
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-    } else if (online && port) {
-        const suffix = bridgeConnected ? ` · ${t('status_connected')}` : '';
-        statusBarItem.text = `$(rocket) ${BRANDING.productName}: ${port}${suffix}`;
-        statusBarItem.tooltip = t(bridgeConnected ? 'status_connected_tooltip' : 'status_online_tooltip');
+    } else if (state.online && state.port) {
+        const sessionCount = state.sessionCount ?? 0;
+        const suffix = state.bridgeConnected
+            ? ` · ${sessionCount > 1 ? t('status_connected_sessions', { count: sessionCount }) : t('status_connected')}`
+            : '';
+        statusBarItem.text = `$(rocket) ${BRANDING.productName}: ${state.port}${suffix}`;
+        statusBarItem.tooltip = t(state.bridgeConnected ? 'status_connected_tooltip' : 'status_online_tooltip');
         statusBarItem.backgroundColor = undefined;
     } else {
         // Default OFF state

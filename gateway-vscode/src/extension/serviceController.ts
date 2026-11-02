@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { GatewayLifecycleOptions, GatewayManager } from '../gateway';
+import type { GatewayConfig } from '../gateway/types';
 import { t } from '../i18n';
 import { getConfiguredAiSites } from '../platforms';
 import { filterCustomServers, type BuiltinServerConfig } from './customServers';
@@ -11,7 +12,7 @@ import type { AISiteConfig, ResolvedAiSiteConfig } from './types';
 import { resolveCommandAllowedRoots } from './commandAllowedRoots';
 import { resolveCommandDenyRules } from './commandDenyRules';
 import { resolveCommandAllowRules } from './commandAllowRules';
-import { resolveIdleTimeoutMs } from '../gateway/idleTimeout';
+import { resolveIdleTimeoutMs, resolveSessionIdleTimeoutMinutes } from '../gateway/idleTimeout';
 import {
     resolveApprovalTtlSeconds,
     resolveBridgeCodeTtlSeconds,
@@ -19,7 +20,8 @@ import {
     resolveBrowserLaunchWaitMs,
     resolveCommandExecutionMaxMs,
     resolveCommandExecutionMs,
-    resolveToolCallMs
+    resolveToolCallMs,
+    resolveWriteLockTimeoutMs
 } from '../gateway/timeouts';
 
 export interface GatewayServiceSnapshot {
@@ -33,6 +35,8 @@ export interface GatewayServiceController {
     stop(): Promise<void>;
     restart(): Promise<void>;
     issueBridgeCode(siteId: string, targetUrl: string): string;
+    /** Rotates every browser session token; returns how many were revoked. */
+    disconnectAllBrowsers(): number;
     markAutoStopped(idleTimeoutMs: number): void;
     markBridgeConnected(): void;
     markOffline(): void;
@@ -52,11 +56,16 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
     let isStarting = false;
     let isRunning = false;
     const getState = () => ({ currentPort, isStarting, isRunning });
-    // The bridge session token is the single source of truth for whether a tab
-    // is connected; hot restarts keep it, cold restarts and stop revoke it.
-    const updateStatus = () =>
-        updateGatewayStatusBar(options.statusBarItem, isRunning, currentPort ?? undefined, false, options.manager.hasActiveBridgeSession());
+    // The bridge session table is the source of truth for how many tabs are
+    // connected; hot restarts keep it, cold restarts and stop revoke it.
+    const updateStatus = () => updateGatewayStatusBar(options.statusBarItem, {
+        online: isRunning,
+        port: currentPort ?? undefined,
+        bridgeConnected: options.manager.hasActiveBridgeSession(),
+        sessionCount: options.manager.getBridgeSessionCount()
+    });
     const issueBridgeCode = createBridgeCodeIssuer(options.manager, getState);
+    const disconnectAllBrowsers = createDisconnectAllBrowsers(options.manager, updateStatus);
 
     const resetToOffline = () => {
         isStarting = false;
@@ -77,24 +86,14 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
 
         // Set Loading State
         isStarting = true;
-        updateGatewayStatusBar(options.statusBarItem, true, undefined, true);
+        updateGatewayStatusBar(options.statusBarItem, { online: false, isLoading: true });
 
         const config = vscode.workspace.getConfiguration('webcodeGateway');
         const portConfig = config.get<number>('port') ?? 34567;
         const startParams = buildStartParams(config, options);
 
         try {
-            const result = await options.manager.start({
-                port: portConfig,
-                idleTimeoutMs: startParams.idleTimeoutMs,
-                preferredPort: startParams.lastUsedPort,
-                mcpServers: startParams.customServers,
-                allowedOrigins: startParams.allowedOrigins,
-                aiSites: startParams.aiSites,
-                skillDirectories: startParams.skillDirectories,
-                ...startParams.commandConfig,
-                ...startParams.timeoutConfig
-            }, startOptions);
+            const result = await options.manager.start(buildGatewayStartConfig(portConfig, startParams), startOptions);
 
             currentPort = result.port;
             if (currentPort !== startParams.lastUsedPort) {
@@ -144,6 +143,7 @@ export function createGatewayServiceController(options: CreateGatewayServiceCont
         stop,
         restart,
         issueBridgeCode,
+        disconnectAllBrowsers,
         markAutoStopped,
         markBridgeConnected,
         markOffline,
@@ -164,8 +164,19 @@ function createBridgeCodeIssuer(
     };
 }
 
+/** Rotates every browser session token, then mirrors the new count in the status bar. */
+function createDisconnectAllBrowsers(manager: GatewayManager, updateStatus: () => void): () => number {
+    return () => {
+        const revoked = manager.disconnectAllBridgeSessions();
+        updateStatus();
+        return revoked;
+    };
+}
+
 interface GatewayStartParams {
     idleTimeoutMs: number;
+    sessionIdleTimeoutMinutes: number;
+    writeLockTimeoutMs: number;
     commandConfig: CommandExecutionConfig;
     timeoutConfig: {
         approvalTtlMs: number;
@@ -190,6 +201,8 @@ function buildStartParams(
     const aiSites = getConfiguredAiSites(config.get<AISiteConfig[]>('aiSites'));
     return {
         idleTimeoutMs: resolveIdleTimeoutMs(config.get<number>('idleTimeoutMinutes')),
+        sessionIdleTimeoutMinutes: resolveSessionIdleTimeoutMinutes(config.get<number>('sessionIdleTimeoutMinutes')),
+        writeLockTimeoutMs: resolveWriteLockTimeoutMs(config.get<number>('writeLockTimeoutMs')),
         commandConfig: getCommandExecutionConfig(config, options.outputChannel),
         timeoutConfig: {
             approvalTtlMs: resolveApprovalTtlSeconds(config.get<number>('timeouts.approvalTtlSeconds')) * 1000,
@@ -244,6 +257,23 @@ function getCommandExecutionConfig(
             outputChannel
         ),
         commandRequireApproval: config.get<boolean>('command.requireApproval') ?? true
+    };
+}
+
+/** Assembles the GatewayConfig for one start from the resolved start params. */
+function buildGatewayStartConfig(portConfig: number, startParams: GatewayStartParams): GatewayConfig {
+    return {
+        port: portConfig,
+        idleTimeoutMs: startParams.idleTimeoutMs,
+        preferredPort: startParams.lastUsedPort,
+        mcpServers: startParams.customServers,
+        allowedOrigins: startParams.allowedOrigins,
+        aiSites: startParams.aiSites,
+        skillDirectories: startParams.skillDirectories,
+        sessionIdleTimeoutMinutes: startParams.sessionIdleTimeoutMinutes,
+        writeLockTimeoutMs: startParams.writeLockTimeoutMs,
+        ...startParams.commandConfig,
+        ...startParams.timeoutConfig
     };
 }
 

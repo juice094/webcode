@@ -1,182 +1,143 @@
-import * as crypto from 'node:crypto';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 /**
- * Where the bridge session token comes from.
+ * Browser session persistence for one workspace.
  *
- * The token used to be a random string held only in memory, so every window
- * reload or extension restart invalidated it and forced a browser re-pair.
- * It is now stable per workspace:
- *
- * - `secret-storage` (preferred): random token stored in VS Code SecretStorage
- *   under `webcode.bridgeToken.<workspaceId>`. Encrypted by the OS keyring,
- *   revocable per workspace, blast radius limited to one workspace.
- * - `derived` (fallback when SecretStorage is unavailable): HMAC-SHA256 over a
- *   machine secret kept in `globalStorage/machine-secret`. Revoking means
- *   rotating the machine secret, which invalidates every workspace.
- * - `memory` (last resort, no persistence possible): the pre-Plan-D behavior,
- *   random per session; a warning is logged once.
+ * The single-latched-token era kept one token in SecretStorage
+ * (`webcode.bridgeToken.<workspaceId>`), which made the first browser hold the
+ * gateway forever and blocked every later pairing. The session table now lives
+ * in `workspaceState` (a Memento), so N browser sessions survive a restart
+ * together. SecretStorage is kept only as a read-once migration source: on the
+ * first start after the upgrade the legacy token is imported as one session
+ * and the old key is deleted, so it cannot resurrect after a disconnect.
  */
+
 export const SESSION_TOKEN_KEY_PREFIX = 'webcode.bridgeToken.';
-export const MACHINE_SECRET_FILE_NAME = 'machine-secret';
+export const SESSION_STATE_KEY_PREFIX = 'webcode.bridgeSessions.';
 
-const TOKEN_BYTES = 32;
-const MACHINE_SECRET_BYTES = 32;
+/** Shape of one row in the persisted session table. */
+export interface StoredBridgeSession {
+    token: string;
+    siteId: string;
+    connectedAt: number;
+    lastSeenAt: number;
+}
 
-export type SessionTokenMode = 'secret-storage' | 'derived' | 'memory';
-
-export interface SessionTokenSource {
-    readonly mode: SessionTokenMode;
-    /** Current token; generates and persists one on first use. */
-    get(): Promise<string>;
-    /** Issues a new token and persists it, invalidating the previous one. */
-    rotate(): Promise<string>;
+/** Narrow view of `vscode.Memento` so tests can pass an in-memory double. */
+export interface MementoLike {
+    get(key: string): unknown;
+    update(key: string, value: unknown): PromiseLike<void> | void;
 }
 
 /** Narrow view of `vscode.SecretStorage` so tests can pass an in-memory double. */
 export interface SecretStorageLike {
-    // VS Code returns Thenable, so accept anything awaitable.
     get(key: string): PromiseLike<string | undefined>;
-    store(key: string, value: string): PromiseLike<void>;
     delete(key: string): PromiseLike<void>;
 }
 
-export interface SessionTokenSourceOptions {
-    secrets?: SecretStorageLike;
-    workspaceId: string;
-    /** Directory for the derived-mode machine secret, usually globalStorage. */
-    storageDir?: string;
-    log?: (message: string) => void;
-}
-
-/** Anything that can hold the active bridge token (the session manager). */
+/** Anything the session manager can hand a restored/imported token to. */
 export type SessionTokenTarget = {
     setSessionToken(token: string): void;
 };
+
+export interface BridgeSessionPersistence {
+    /** Returns the stored table, or null when nothing valid is stored. */
+    load(): Promise<StoredBridgeSession[] | null>;
+    save(sessions: readonly StoredBridgeSession[]): Promise<void>;
+}
+
+export interface CreateSessionStoreOptions {
+    memento: MementoLike;
+    workspaceId: string;
+}
 
 export function sessionTokenKey(workspaceId: string): string {
     return `${SESSION_TOKEN_KEY_PREFIX}${workspaceId}`;
 }
 
-function createRandomToken(): string {
-    return crypto.randomBytes(TOKEN_BYTES).toString('base64url');
-}
-
-function deriveToken(machineSecret: string, workspaceId: string): string {
-    return crypto
-        .createHmac('sha256', machineSecret)
-        .update(sessionTokenKey(workspaceId))
-        .digest('base64url');
-}
-
-function readMachineSecret(filePath: string): string {
-    try {
-        const existing = fs.readFileSync(filePath, 'utf8').trim();
-        if (existing) {
-            return existing;
-        }
-    } catch {
-        // fall through and create one
-    }
-
-    const secret = crypto.randomBytes(MACHINE_SECRET_BYTES).toString('base64url');
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${secret}\n`, { encoding: 'utf8', mode: 0o600 });
-    return secret;
+export function sessionStateKey(workspaceId: string): string {
+    return `${SESSION_STATE_KEY_PREFIX}${workspaceId}`;
 }
 
 /**
- * Resolves the persisted token and hands it to the session manager. Called on
- * every gateway start; a failure is logged but never blocks the start (the
- * session manager simply keeps its in-memory token).
+ * Persists the session table under `webcode.bridgeSessions.<workspaceId>`.
+ * Values are validated on load: anything malformed is treated as "no table"
+ * rather than crashing the gateway start.
  */
-export async function seedSessionToken(
-    target: SessionTokenTarget,
-    provider: SessionTokenSource | null,
-    log?: (message: string) => void
-): Promise<void> {
-    if (!provider) {
-        return;
-    }
-    try {
-        target.setSessionToken(await provider.get());
-    } catch (error: unknown) {
-        log?.(`Failed to resolve the bridge session token: ${formatError(error)}`);
-    }
+export function createWorkspaceSessionStore(options: CreateSessionStoreOptions): BridgeSessionPersistence {
+    const key = sessionStateKey(options.workspaceId);
+    return {
+        load: () => Promise.resolve(normalizeStoredSessions(options.memento.get(key))),
+        save: async sessions => {
+            await options.memento.update(key, sessions.map(session => ({ ...session })));
+        }
+    };
 }
 
-/** Rotates the persisted token, invalidating every connected tab. */
-export async function rotateSessionToken(
-    target: SessionTokenTarget,
-    provider: SessionTokenSource | null
-): Promise<boolean> {
-    if (!provider?.rotate) {
+function normalizeStoredSessions(raw: unknown): StoredBridgeSession[] | null {
+    if (!Array.isArray(raw)) {
+        return null;
+    }
+    const sessions: StoredBridgeSession[] = [];
+    for (const entry of raw) {
+        if (!isStoredSession(entry)) {
+            return null;
+        }
+        sessions.push({ ...entry });
+    }
+    return sessions;
+}
+
+function isStoredSession(value: unknown): value is StoredBridgeSession {
+    if (typeof value !== 'object' || value === null) {
         return false;
     }
-    target.setSessionToken(await provider.rotate());
+    const record = value as Record<string, unknown>;
+    return typeof record.token === 'string' && record.token.length > 0
+        && typeof record.siteId === 'string'
+        && typeof record.connectedAt === 'number' && Number.isFinite(record.connectedAt)
+        && typeof record.lastSeenAt === 'number' && Number.isFinite(record.lastSeenAt);
+}
+
+export interface MigrateLegacySessionOptions {
+    secrets: SecretStorageLike;
+    workspaceId: string;
+    log?: (message: string) => void;
+}
+
+/**
+ * One-time import of the legacy single token. When SecretStorage still holds
+ * `webcode.bridgeToken.<workspaceId>` (a tab connected before the upgrade may
+ * still present it), the token is registered as a session and the old key is
+ * deleted, so a later cold start cannot resurrect it after a disconnect.
+ * Returns true when a legacy token was imported.
+ */
+export async function migrateLegacySessionToken(
+    target: SessionTokenTarget,
+    options: MigrateLegacySessionOptions
+): Promise<boolean> {
+    const key = sessionTokenKey(options.workspaceId);
+    let legacyToken: string | undefined;
+    try {
+        legacyToken = await options.secrets.get(key);
+    } catch (error: unknown) {
+        options.log?.(`Failed to read the legacy bridge session token: ${formatError(error)}`);
+        return false;
+    }
+
+    if (typeof legacyToken !== 'string' || !legacyToken.trim()) {
+        return false;
+    }
+
+    target.setSessionToken(legacyToken);
+    try {
+        await options.secrets.delete(key);
+    } catch (error: unknown) {
+        // The import still stands; the key will be retried (and ignored when
+        // the session table already holds the token) on the next start.
+        options.log?.(`Migrated the legacy bridge session token but could not delete ${key}: ${formatError(error)}`);
+        return true;
+    }
+    options.log?.('Migrated the legacy single bridge token into the session table.');
     return true;
-}
-
-export async function createSessionTokenSource(options: SessionTokenSourceOptions): Promise<SessionTokenSource> {
-    const { secrets, workspaceId, storageDir, log } = options;
-    const key = sessionTokenKey(workspaceId);
-    const machineSecretPath = storageDir ? path.join(storageDir, MACHINE_SECRET_FILE_NAME) : undefined;
-
-    if (secrets) {
-        try {
-            const stored = await secrets.get(key);
-            if (typeof stored === 'string' && stored.trim()) {
-                return createStoredSource(secrets, key, stored);
-            }
-            const fresh = createRandomToken();
-            await secrets.store(key, fresh);
-            return createStoredSource(secrets, key, fresh);
-        } catch (error: unknown) {
-            log?.(`Session token storage unavailable, falling back to a derived token: ${formatError(error)}`);
-        }
-    }
-
-    if (machineSecretPath) {
-        try {
-            const machineSecret = readMachineSecret(machineSecretPath);
-            return {
-                mode: 'derived',
-                get: () => Promise.resolve(deriveToken(machineSecret, workspaceId)),
-                rotate: () => {
-                    const rotated = crypto.randomBytes(MACHINE_SECRET_BYTES).toString('base64url');
-                    fs.writeFileSync(machineSecretPath, `${rotated}\n`, { encoding: 'utf8', mode: 0o600 });
-                    return Promise.resolve(deriveToken(rotated, workspaceId));
-                }
-            };
-        } catch (error: unknown) {
-            log?.(`Derived token fallback failed: ${formatError(error)}`);
-        }
-    }
-
-    log?.('Bridge session token cannot be persisted; connected tabs will need one re-pair after a restart.');
-    let memoryToken = createRandomToken();
-    return {
-        mode: 'memory',
-        get: () => Promise.resolve(memoryToken),
-        rotate: () => {
-            memoryToken = createRandomToken();
-            return Promise.resolve(memoryToken);
-        }
-    };
-}
-
-function createStoredSource(secrets: SecretStorageLike, key: string, initial: string): SessionTokenSource {
-    let token = initial;
-    return {
-        mode: 'secret-storage',
-        get: () => Promise.resolve(token),
-        rotate: async () => {
-            token = createRandomToken();
-            await secrets.store(key, token);
-            return token;
-        }
-    };
 }
 
 function formatError(error: unknown): string {

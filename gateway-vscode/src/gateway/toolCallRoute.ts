@@ -21,6 +21,13 @@ import type { ApprovalAuditSink } from './approvalAudit';
 import { auditEvent } from './approvalAuditEvents';
 import type { ToolConcurrencyGate } from './toolConcurrency';
 import {
+    isWriteLockedTool,
+    WRITE_LOCK_REVOKED_TEXT,
+    WRITE_LOCK_TIMEOUT_TEXT,
+    type WriteLock
+} from './writeLock';
+import type { BridgeSessionRequest } from './middleware';
+import {
     executeWithTelemetry,
     sendToolError,
     type ParsedToolCallRequest,
@@ -50,6 +57,12 @@ export type ToolCallHandlerOptions = {
     onToolCallEnd?: (callId: string) => void;
     trace?: GatewayRuntimeTraceSink;
     toolRouter: Map<string, RemoteToolRoute>;
+    /**
+     * Serializes mutating tool calls across browser sessions. Runs inside
+     * runGated, right before execution; omitted means no locking (tests and
+     * callers that have not been wired yet).
+     */
+    writeLock?: WriteLock;
 };
 
 export function createToolCallHandler(options: ToolCallHandlerOptions): express.RequestHandler {
@@ -90,9 +103,10 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
         };
 
         try {
+            const sessionToken = (req as BridgeSessionRequest).bridgeSession?.token;
             const localTool = options.localTools.get(parsed.name);
             if (localTool) {
-                await executeLocalTool({ controller, deps, localTool, options, request: parsed, res, toolStart });
+                await executeLocalTool({ controller, deps, localTool, options, request: parsed, res, sessionToken, toolStart });
                 return;
             }
 
@@ -115,15 +129,18 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
                 return;
             }
 
-            await runGated(options, controller, () => executeWithTelemetry({
-                backend: { kind: 'remote', route },
-                contextFactory: options.createToolExecutionContext,
-                controller,
-                deps,
-                request: parsed,
-                res,
-                toolStart
-            }));
+            await runGated(options, controller, () => runWriteLocked(
+                { controller, options, request: parsed, res, sessionToken },
+                () => executeWithTelemetry({
+                    backend: { kind: 'remote', route },
+                    contextFactory: options.createToolExecutionContext,
+                    controller,
+                    deps,
+                    request: parsed,
+                    res,
+                    toolStart
+                })
+            ));
         } finally {
             // The single place a tracked call ends. Success, timeout, failure,
             // and disconnect all converge here, so the registry cannot leak.
@@ -202,26 +219,82 @@ type LocalToolExecutionInput = {
     options: ToolCallHandlerOptions;
     request: ParsedToolCallRequest;
     res: Response;
+    sessionToken: string | undefined;
     toolStart: number;
 };
 
 async function executeLocalTool(input: LocalToolExecutionInput): Promise<void> {
-    const { controller, deps, localTool, options, request, res, toolStart } = input;
+    const { controller, deps, localTool, options, request, res, sessionToken, toolStart } = input;
     const context = options.createToolExecutionContext();
     const authorized = await authorizeLocalTool(localTool, request, context, res, options);
     if (!authorized) {
         return;
     }
 
-    await runGated(options, controller, () => executeWithTelemetry({
-        backend: { kind: 'local', tool: localTool },
-        contextFactory: () => context,
-        controller,
-        deps,
-        request,
-        res,
-        toolStart
-    }));
+    await runGated(options, controller, () => runWriteLocked(
+        { controller, options, request, res, sessionToken },
+        () => executeWithTelemetry({
+            backend: { kind: 'local', tool: localTool },
+            contextFactory: () => context,
+            controller,
+            deps,
+            request,
+            res,
+            toolStart
+        })
+    ));
+}
+
+type WriteLockedRunInput = {
+    controller: AbortController;
+    options: ToolCallHandlerOptions;
+    request: ParsedToolCallRequest;
+    res: Response;
+    sessionToken: string | undefined;
+};
+
+/**
+ * Serializes mutating tool calls across browser sessions (design D3). Runs
+ * after runGated and right before execution: read-class tools and third-party
+ * MCP tools pass straight through, writers acquire the per-gateway lock and
+ * queue FIFO. A queued writer that overruns the timeout gets a retryable 423
+ * error; a session revoked while waiting (expiry, disconnect-browsers) gets
+ * 403 so the bridge runs its session_recovery flow; a client that disconnects
+ * while queued is cancelled without executing.
+ */
+async function runWriteLocked(input: WriteLockedRunInput, execute: () => Promise<void>): Promise<void> {
+    const { controller, options, request, res, sessionToken } = input;
+    const lock = options.writeLock;
+    if (!lock || !isWriteLockedTool(request.name) || !sessionToken) {
+        await execute();
+        return;
+    }
+
+    const result = await lock.acquire(sessionToken, controller.signal);
+    if (result.status === 'timeout') {
+        options.log(
+            `   ⏳ Write lock wait timed out for ${request.name} ` +
+            `(holder=${result.holderRef ?? 'none'}, waited ${result.waitMs}ms).`
+        );
+        sendToolError(res, 423, WRITE_LOCK_TIMEOUT_TEXT);
+        return;
+    }
+    if (result.status === 'revoked') {
+        sendToolError(res, 403, WRITE_LOCK_REVOKED_TEXT);
+        return;
+    }
+    if (result.status === 'cancelled') {
+        return;
+    }
+
+    try {
+        if (controller.signal.aborted) {
+            return;
+        }
+        await execute();
+    } finally {
+        lock.release(sessionToken);
+    }
 }
 
 function runGated(

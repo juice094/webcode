@@ -50,6 +50,14 @@ export interface GatewayConfig {
     bridgeRequestMs?: number;
     /** How long a launch waits for the isolated browser bridge process. */
     browserLaunchWaitMs?: number;
+    /**
+     * Minutes of gateway silence after which one browser session is swept.
+     * 0 disables per-session expiry. Falls back to the documented default
+     * when unset.
+     */
+    sessionIdleTimeoutMinutes?: number;
+    /** How long a queued writer waits for the write lock before a retryable error. */
+    writeLockTimeoutMs?: number;
 }
 
 export interface StartResult {

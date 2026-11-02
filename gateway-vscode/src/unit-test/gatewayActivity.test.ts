@@ -47,7 +47,7 @@ async function startActivityServer(
     onActivity: () => void
 ): Promise<{ baseUrl: string; httpServer: HttpServer }> {
     const app = express();
-    app.use(createAuthMiddleware(token => token === VALID_TOKEN, () => undefined));
+    app.use(createAuthMiddleware(token => token === VALID_TOKEN ? { token: VALID_TOKEN, siteId: 'chatgpt', connectedAt: 0, lastSeenAt: 0 } : null, () => undefined));
     app.use(createGatewayActivityMiddleware(onActivity));
     app.get('/v1/status', (_req, res) => {
         res.json({ ok: true });

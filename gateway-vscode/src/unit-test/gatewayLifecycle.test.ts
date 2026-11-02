@@ -9,7 +9,7 @@ import type { GatewayConfig } from '../gateway/types';
 import type { ResolvedAiSiteConfig } from '../platforms';
 
 const BRIDGE_EXTENSION_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
-const TEST_EXTENSION_VERSION = '1.0.1';
+const TEST_EXTENSION_VERSION = '1.6.0';
 const IDLE_TIMEOUT_NEVER_MS = 60 * 60 * 1000;
 
 const TEST_SITE: ResolvedAiSiteConfig = {

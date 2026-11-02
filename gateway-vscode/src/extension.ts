@@ -8,6 +8,7 @@ import { buildBridgeUrl } from './extension/bridgeUrl';
 import { createBrowserExtensionManager } from './extension/browserExtensionManager';
 import { registerGatewayConnectCommand } from './extension/connectCommand';
 import { registerCopyContextCommand } from './extension/copyContextCommand';
+import { GATEWAY_DISCONNECT_BROWSERS_COMMAND } from './extension/commandIds';
 import { registerIsolatedProfileCleanupCommand } from './extension/isolatedProfileCleanupCommand';
 import { createPersistentLogger, TeeOutputChannel, type PersistentLogger } from './extension/persistentLog';
 import { createApprovalAuditLog } from './extension/approvalAuditLog';
@@ -23,7 +24,7 @@ import { GatewayManager } from './gateway';
 import { createWorkspaceId } from './gateway/bridgeRoute';
 import { readShutdownSnapshot, shutdownSnapshotPath } from './extension/shutdownSnapshot';
 import { runDeactivate } from './extension/deactivateSession';
-import { createSessionTokenSource } from './extension/sessionToken';
+import { createWorkspaceSessionStore } from './extension/sessionToken';
 import { formatBuildFingerprint, readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { createGatewayRuntimeTraceSinkFromEnvironment } from './gateway/runtimeTrace';
 import { t } from './i18n';
@@ -47,9 +48,11 @@ function applyActivationBehavior(options: {
     serviceController: GatewayServiceController;
     statusBarItem: vscode.StatusBarItem;
 }): void {
-    updateGatewayStatusBar(options.statusBarItem, false, undefined, false);
-    // 浏览器标签页兑换连接码后刷新状态栏；token 被撤销时状态栏自动回落到未连接。
+    updateGatewayStatusBar(options.statusBarItem, { online: false });
+    // 浏览器标签页兑换连接码后刷新状态栏；会话被清扫/全表轮换时同样刷新，
+    // token 被撤销后状态栏自动回落到未连接。
     options.manager.setBridgeSessionActivatedHandler(() => options.serviceController.markBridgeConnected());
+    options.manager.setBridgeSessionsChangedHandler(() => options.serviceController.markBridgeConnected());
 
     // 配对请求必须由用户在这里当面确认；未注册处理器时网关默认拒绝。
     options.manager.setSessionRequestConfirmationHandler(confirmSessionRequest);
@@ -110,27 +113,22 @@ let resumeSession: {
 
 /**
  * Prepares restart continuity:
- * 1. resolves the persisted bridge token source (SecretStorage, with a derived
- *    and an in-memory fallback) and hands it to the manager, so a reconnecting
- *    browser tab keeps working after the host restarts;
+ * 1. hands the manager the workspaceState-backed session store plus the
+ *    SecretStorage migration source, so every connected browser tab keeps its
+ *    session across a window reload or extension restart;
  * 2. reads the snapshot written by the previous session and exposes the
  *    interrupted-call count on `/v1/status` (notification only, never replayed).
  */
-async function prepareResumeSession(
+function prepareResumeSession(
     context: vscode.ExtensionContext,
     manager: GatewayManager,
     logger: PersistentLogger
-): Promise<void> {
+): void {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
     const workspaceId = createWorkspaceId(workspaceRoot);
     const storageDir = context.globalStorageUri.fsPath;
     const snapshotPath = shutdownSnapshotPath(path.join(storageDir, 'state'), workspaceId);
-    const tokenProvider = await createSessionTokenSource({
-        secrets: context.secrets,
-        workspaceId,
-        storageDir,
-        log: message => logger.warn(message)
-    });
+    const sessionStore = createWorkspaceSessionStore({ memento: context.workspaceState, workspaceId });
     const interrupted = readShutdownSnapshot(snapshotPath);
     const lastInterrupted = interrupted && interrupted.inFlight.length > 0
         ? { count: interrupted.inFlight.length, savedAt: interrupted.savedAt }
@@ -139,7 +137,12 @@ async function prepareResumeSession(
         logger.warn(`Previous session was interrupted with ${lastInterrupted.count} tool call(s) in flight at ${lastInterrupted.savedAt}.`);
     }
 
-    manager.setResumeState({ tokenProvider, lastInterrupted });
+    manager.setResumeState({
+        sessionStore,
+        legacySecrets: context.secrets,
+        workspaceId,
+        lastInterrupted
+    });
     resumeSession = {
         manager,
         logger,
@@ -147,7 +150,25 @@ async function prepareResumeSession(
         workspaceId,
         workspaceName: workspaceRoot ? path.basename(workspaceRoot) : null
     };
-    logger.info(`Bridge session token source: ${tokenProvider.mode}.`);
+    logger.info('Bridge session persistence: workspaceState session table.');
+}
+
+/**
+ * 断开全部浏览器会话：全表轮换令牌，治卡死锁/脏会话，各标签页经
+ * session_recovery 重新配对。
+ */
+function registerDisconnectBrowsersCommand(
+    context: vscode.ExtensionContext,
+    serviceController: GatewayServiceController
+): void {
+    context.subscriptions.push(vscode.commands.registerCommand(GATEWAY_DISCONNECT_BROWSERS_COMMAND, () => {
+        if (!serviceController.getState().isRunning) {
+            void vscode.window.showInformationMessage(t('disconnect_browsers_not_running'));
+            return;
+        }
+        const revoked = serviceController.disconnectAllBrowsers();
+        void vscode.window.showInformationMessage(t('disconnect_browsers_done', { count: revoked }));
+    }));
 }
 
 /**
@@ -197,7 +218,7 @@ export interface GatewayExtensionApi {
  * 保持入口层只做编排，可以让后续修复命令菜单、服务状态或技能监听时，
  * 直接进入对应模块，而不是继续把逻辑堆到 extension.ts 里。
  */
-export async function activate(context: vscode.ExtensionContext): Promise<GatewayExtensionApi> {
+export function activate(context: vscode.ExtensionContext): GatewayExtensionApi {
     // 创建扩展专用输出通道。GatewayManager、服务控制器和命令菜单都会复用它，
     // 这样启动日志、重启日志、错误信息都集中显示在同一个 VS Code Output 面板里。
     // 同时把内容 tee 一份到 globalStorage/logs 下的按天滚动日志文件，窗口关闭后仍可复盘。
@@ -257,7 +278,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
     runtime.serviceController = serviceController;
 
     // 重启可续：持久化 token 源 + 上次中断的调用清单（只告知不重放）。
-    await prepareResumeSession(context, manager, persistentLogger);
+    prepareResumeSession(context, manager, persistentLogger);
 
     // bundled bridge 会先复制到版本无关的用户数据目录。准备过程不阻塞扩展激活；
     // 真正启动隔离浏览器时仍会等待同一个任务完成，并在需要时提示重启旧进程。
@@ -268,6 +289,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Gatewa
     // 该命令和网关服务本身没有运行依赖，所以激活时直接注册。
     registerCopyContextCommand(context);
     registerIsolatedProfileCleanupCommand(context);
+    registerDisconnectBrowsersCommand(context, serviceController);
 
     // 注册状态栏点击后的主菜单命令。菜单会根据 serviceController 当前状态切换：
     // starting 时显示日志，offline 时提供启动/日志/设置，online 时提供打开站点、

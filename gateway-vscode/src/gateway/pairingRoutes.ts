@@ -53,6 +53,8 @@ export type PairingRoutesOptions = {
     getPort: () => number | null;
     getWorkspaceRoot: () => string | null;
     hasActiveSession: () => boolean;
+    /** Live session count for the ping discovery payload. */
+    getSessionCount: () => number;
     issueBridgeCode: (siteId: string, targetUrl: string) => string;
     /**
      * Asks the user to approve one pairing request. Resolving false (or any
@@ -76,7 +78,8 @@ export function registerPairingRoutes(app: express.Express, options: PairingRout
             workspaceName: workspaceRoot ? path.basename(workspaceRoot) : null,
             workspaceId: createWorkspaceId(workspaceRoot),
             port: options.getPort(),
-            sessionActive: options.hasActiveSession()
+            sessionActive: options.hasActiveSession(),
+            sessionCount: options.getSessionCount()
         });
     });
 

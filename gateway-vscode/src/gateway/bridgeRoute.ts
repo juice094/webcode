@@ -20,7 +20,8 @@ export const BRIDGE_EXTENSION_ID = 'kghhldphcmpiimophipabdhldfipgiio';
 export const BRIDGE_EXTENSION_ORIGIN = `chrome-extension://${BRIDGE_EXTENSION_ID}`;
 
 type BridgeRouteOptions = {
-    activateSession: () => string;
+    /** Mints a fresh session token per redemption and registers the session. */
+    activateSession: (identity: { siteId: string }) => string;
     consumeBridgeCode: (code: string) => PendingBridgeLaunch | null;
     getBridgeLaunch: (code: string) => PendingBridgeLaunch | null;
     getAiSites: () => readonly ResolvedAiSiteConfig[];
@@ -124,7 +125,7 @@ export function registerBridgeRoute(app: express.Express, options: BridgeRouteOp
             return;
         }
 
-        const token = options.activateSession();
+        const token = options.activateSession({ siteId: resolvedLaunch.site.id });
         const workspaceId = createWorkspaceId(options.getWorkspaceRoot());
         options.recordActivity();
         options.onSessionActivated?.();
@@ -196,6 +197,29 @@ export function resolveBridgeSite(
     }
 
     return aiSites[0] ?? null;
+}
+
+/**
+ * Validates the launch target against the configured sites and issues a
+ * single-use bridge code for it. Kept next to the site-resolution helpers so
+ * GatewayManager stays inside the repository's line budget.
+ */
+export function issueBridgeCodeForLaunch(
+    sessions: { issueBridgeCode(launch: PendingBridgeLaunch): string },
+    aiSites: readonly ResolvedAiSiteConfig[],
+    siteId: string,
+    targetUrl: string
+): string {
+    const site = resolveBridgeSite(siteId, aiSites);
+    const resolvedTarget = site ? resolveAllowedBridgeTarget(targetUrl, site) : null;
+    if (!site || !resolvedTarget) {
+        throw new Error('Bridge target does not match a configured AI site.');
+    }
+
+    return sessions.issueBridgeCode({
+        siteId: site.id,
+        targetUrl: resolvedTarget
+    });
 }
 
 function resolvePendingBridgeLaunch(

@@ -1,5 +1,8 @@
 import * as crypto from 'crypto';
 
+import type { StoredBridgeSession } from '../extension/sessionToken';
+import { BridgeSessionRegistry, type BridgeSessionRecord } from './sessionRegistry';
+
 export const DEFAULT_BRIDGE_CODE_TTL_MS = 60 * 1000;
 
 const MAX_PENDING_BRIDGE_CODES = 64;
@@ -8,6 +11,17 @@ export interface PendingBridgeLaunch {
     siteId: string;
     targetUrl: string;
 }
+
+/**
+ * Identity a redeeming browser reports about itself. Currently only the site
+ * it launched for; kept as an interface so future attributes (browser label,
+ * profile) do not change every call site.
+ */
+export interface BrowserSessionIdentity {
+    siteId?: string;
+}
+
+export type { BridgeSessionRecord };
 
 type PendingBridgeCode = PendingBridgeLaunch & {
     expiresAt: number;
@@ -20,33 +34,36 @@ function createRandomSecret(): string {
 }
 
 /**
- * Owns the short-lived launch codes and the browser session token shared by the
- * current gateway lifecycle. Launch codes are safe to place in a URL because they
- * expire quickly and can be consumed only once. The API session token is returned
- * only by the redemption response. It is revoked when the gateway stops or
- * cold-restarts, and preserved across hot configuration reloads so connected
- * browser tabs keep working (see GatewayLifecycleOptions.preserveBridgeSession).
+ * Owns the short-lived launch codes and the browser session table of the
+ * current gateway lifecycle. Launch codes are safe to place in a URL because
+ * they expire quickly and can be consumed only once.
  *
- * The token itself now outlives the process: the extension resolves it from a
- * persisted source (see extension/sessionToken.ts) and seeds it here on every
- * start, so a window reload or extension restart does not force a browser
- * re-pair. `clear()` still revokes the in-memory token, but a later start
- * re-seeds the same persisted value; `rotate()` at the source is what actually
- * invalidates connected tabs.
+ * Sessions are multi-tenant: every redemption mints a NEW token and registers
+ * a session in the registry (see sessionRegistry.ts), so any number of
+ * isolated browser instances can pair with the same gateway at once. The
+ * table is restored from the persisted source on every start (see
+ * GatewayManager.restoreBridgeSessions), which keeps connected tabs working
+ * across a window reload or extension restart without a new launch code.
+ * Revoking a token (clear, idle sweep, or a full-table rotation) is what
+ * actually invalidates a connected tab.
  *
  * The code TTL is retargetable so a hot reload can apply
  * webcodeGateway.timeouts.bridgeCodeTtlSeconds without recreating the manager
- * (recreating it would revoke the session token being preserved).
+ * (recreating it would revoke the sessions being preserved).
  */
 export class BridgeSessionManager {
     private readonly pendingCodes = new Map<string, PendingBridgeCode>();
-    private activeSessionToken: string | null = null;
+    private readonly sessions: BridgeSessionRegistry;
+    private readonly createSecret: RandomSecretFactory;
 
     constructor(
         private bridgeCodeTtlMs = DEFAULT_BRIDGE_CODE_TTL_MS,
         private readonly now: () => number = Date.now,
-        private readonly createSecret: RandomSecretFactory = createRandomSecret
-    ) { }
+        createSecret: RandomSecretFactory = createRandomSecret
+    ) {
+        this.createSecret = createSecret;
+        this.sessions = new BridgeSessionRegistry(now, createSecret);
+    }
 
     /**
      * Applies a new TTL to codes issued from now on. Codes already issued keep
@@ -55,6 +72,11 @@ export class BridgeSessionManager {
      */
     setBridgeCodeTtlMs(ttlMs: number): void {
         this.bridgeCodeTtlMs = ttlMs;
+    }
+
+    /** TTL applied to codes issued from now on. */
+    getBridgeCodeTtlMs(): number {
+        return this.bridgeCodeTtlMs;
     }
 
     issueBridgeCode(launch: PendingBridgeLaunch): string {
@@ -94,36 +116,74 @@ export class BridgeSessionManager {
     }
 
     /**
-     * Seeds the token resolved from the persisted source. Called on every start,
-     * including cold restarts, which is what makes a reconnecting tab keep
-     * working without a new launch code.
+     * Registers a token resolved from the persisted source (session table or,
+     * on first start after the upgrade, the legacy single token). Called on
+     * every start; importing never mints and never resets an existing record.
      */
     setSessionToken(token: string): void {
-        this.activeSessionToken = token;
+        this.sessions.importToken(token);
     }
 
-    activateSession(): string {
-        this.activeSessionToken ??= this.createSecret();
-        return this.activeSessionToken;
+    importSessions(records: readonly StoredBridgeSession[]): void {
+        this.sessions.restore(records);
+    }
+
+    listSessions(): StoredBridgeSession[] {
+        return this.sessions.snapshot();
+    }
+
+    /**
+     * Mints a fresh token for every redemption and registers it as a new
+     * session, so each browser instance holds its own token.
+     */
+    activateSession(identity: BrowserSessionIdentity = {}): string {
+        return this.sessions.register(identity.siteId).token;
+    }
+
+    /**
+     * Auth-middleware lookup: a hit refreshes `lastSeenAt` and returns the
+     * session for request attribution (write-lock ownership); a miss is null.
+     */
+    lookupSession(token: string | undefined): BridgeSessionRecord | null {
+        return this.sessions.lookup(token);
     }
 
     isSessionTokenValid(token: string | undefined): boolean {
-        return Boolean(token && this.activeSessionToken && token === this.activeSessionToken);
+        return this.sessions.lookup(token) !== null;
     }
 
-    /** True while a browser tab holds a session token for this lifecycle. */
+    /** Live session count after an idle-expiry sweep. */
+    getSessionCount(): number {
+        return this.sessions.count();
+    }
+
+    /** True while any browser tab holds a session token for this lifecycle. */
     hasActiveSession(): boolean {
-        return this.activeSessionToken !== null;
+        return this.sessions.hasSessions();
     }
 
-    /** TTL applied to codes issued from now on. */
-    getBridgeCodeTtlMs(): number {
-        return this.bridgeCodeTtlMs;
+    /**
+     * Rotates the whole session table, revoking every connected tab. Returns
+     * the revoked tokens so the owner can force-release their write locks.
+     * This is the disconnect-browsers semantic.
+     */
+    rotateAllSessions(): string[] {
+        return this.sessions.revokeAll();
+    }
+
+    /** 0 disables idle expiry. */
+    setSessionIdleTimeoutMs(idleTimeoutMs: number): void {
+        this.sessions.setIdleTimeoutMs(idleTimeoutMs);
+    }
+
+    /** Drops sessions silent past the idle timeout; returns revoked tokens. */
+    sweepExpiredSessions(): string[] {
+        return this.sessions.sweepExpired();
     }
 
     clear(): void {
         this.pendingCodes.clear();
-        this.activeSessionToken = null;
+        this.sessions.clear();
     }
 
     private cleanupExpiredCodes(): void {

@@ -9,7 +9,7 @@ import type { GatewayConfig } from '../gateway/types';
 import type { ResolvedAiSiteConfig } from '../platforms';
 
 const BRIDGE_EXTENSION_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
-const TEST_EXTENSION_VERSION = '1.3.0';
+const TEST_EXTENSION_VERSION = '1.6.0';
 const IDLE_TIMEOUT_NEVER_MS = 60 * 60 * 1000;
 /**
  * Port 0 lets the OS pick a free port. Hard-coded ports are unreliable on

@@ -13,7 +13,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -43,6 +43,10 @@
       {
         "command": "webcode-gateway.connect",
         "title": "webcode: Connect"
+      },
+      {
+        "command": "webcode-gateway.disconnectBrowsers",
+        "title": "webcode: Disconnect Browsers"
       },
       {
         "command": "webcode-gateway.copyContext",
@@ -191,6 +195,20 @@
           "minimum": 5,
           "maximum": 240,
           "description": "Minutes without authenticated gateway activity before automatic shutdown. Authenticated health checks from a connected browser tab count as activity; anonymous requests, rejected requests, and invalid bridge codes do not extend the timeout."
+        },
+        "webcodeGateway.sessionIdleTimeoutMinutes": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 0,
+          "maximum": 1440,
+          "description": "Minutes without authenticated requests after which one connected browser session is swept. Swept tabs get 403 and reconnect through the browser extension's recovery flow. `0` disables per-session expiry."
+        },
+        "webcodeGateway.writeLockTimeoutMs": {
+          "type": "integer",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 300000,
+          "description": "How long a mutating tool call from one browser waits for another browser's write to finish before the gateway answers with a retryable error. Reads never wait."
         },
         "webcodeGateway.timeouts": {
           "type": "object",
