@@ -44,7 +44,13 @@ export const searchCodeTool: LocalTool = {
                         'When using regex syntax such as |, .*, groups, character classes, or \\b, set match to "regex".'
                     ].join(' ')
                 },
-                path: { type: 'string', description: WORKSPACE_SEARCH_PATH_DESCRIPTION },
+                path: {
+                    type: 'string',
+                    description: [
+                        'Only accepts a directory path, not a file path.',
+                        WORKSPACE_SEARCH_PATH_DESCRIPTION
+                    ].join(' ')
+                },
                 include: { type: 'string', description: 'Optional glob for files to include, for example "**/*.ts".' },
                 case_sensitive: { type: 'boolean', description: 'Whether matching is case-sensitive. Default: false.', default: false },
                 match: {

@@ -117,6 +117,12 @@ Incorrect example:
 
 10. **Destructive operation defense**: Before calling tools with destructiveHint: true (e.g., edit_file), use read_file to confirm the current state of the target. For multi-file or large changes, strongly recommend using edit_file with dryRun: true to preview the diff first.
 
+11. **Compound command chaining**: When combining commands in one execute_command call, prefer `;` so partial successes stay visible in the output. Use `&&` only when the later stage genuinely depends on the earlier stage having succeeded.
+
+12. **Reuse retrieved facts**: Do not re-read, re-search, or re-run a command for a fact already present in the conversation context (file contents, search results, command output, versions, paths). Reuse the earlier result and state which result you are relying on.
+
+13. **Preview scope**: Reserve previews (dryRun, plan-only verification) for large or destructive changes. For small and medium changes, execute directly and verify afterwards with the smallest relevant build, test, or lint command.
+
 # SKILLS
 
 If the initialization context contains {{PRODUCT_NAME}} Available Skills, the current workspace or {{PRODUCT_NAME}} built-ins provide skills.

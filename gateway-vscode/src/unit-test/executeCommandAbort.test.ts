@@ -1,6 +1,7 @@
 import './vscodeStub';
 
 import * as assert from 'assert';
+import * as fs from 'node:fs';
 
 import { executeCommandTool } from '../tools/executeCommandTool';
 import type { ToolExecutionContext, ToolResult } from '../tools';
@@ -54,5 +55,18 @@ suite('execute_command abort handling (batch B1)', () => {
         assert.ok(first);
         assert.strictEqual(first, second, 'identical context must reuse the cached definition');
         assert.notStrictEqual(first, other, 'a different context must build its own definition');
+    });
+
+    test('result payload carries the working directory the command ran in', async () => {
+        const context = createCommandContext(60_000);
+        const result = await executeCommandTool.execute({ command: 'echo ok' }, context);
+
+        const payload = JSON.parse(readToolText(result)) as { cwd?: unknown; stdout?: string };
+        assert.strictEqual(payload.stdout, 'ok');
+        assert.strictEqual(
+            payload.cwd,
+            fs.realpathSync(process.cwd()),
+            'cwd must be the resolved workspace directory the process ran in'
+        );
     });
 });

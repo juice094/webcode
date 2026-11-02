@@ -168,7 +168,7 @@ type ReadFileResultOptions = {
     totalLineCountKnown?: boolean;
 };
 
-async function readBuiltinSkillVirtualContent(
+export async function readBuiltinSkillVirtualContent(
     args: Record<string, unknown>,
     context: ToolExecutionContext,
     signal?: AbortSignal

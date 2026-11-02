@@ -104,6 +104,8 @@ export const executeCommandTool: LocalTool = {
                 exitCode: result.exitCode,
                 signal: result.signal,
                 timedOut: result.timedOut,
+                /** Absolute working directory the command actually ran in. */
+                cwd: request.absolutePath,
                 shell: {
                     id: request.execution.profile.id,
                     path: request.execution.profile.path,

@@ -7,6 +7,7 @@ import { getProjectRulesTool } from './getProjectRulesTool';
 import { listSkillsTool } from './listSkillsTool';
 import { listToolsTool } from './listToolsTool';
 import { readFileTool } from './readFileTool';
+import { readFilesTool } from './readFilesTool';
 import { runInTerminalTool } from './runInTerminalTool';
 import { searchCodeTool } from './searchCodeTool';
 import { searchFilesTool } from './searchFilesTool';
@@ -19,6 +20,7 @@ const LOCAL_TOOLS: LocalTool[] = [
     getProjectContextTool,
     attachFileTool,
     readFileTool,
+    readFilesTool,
     writeFileTool,
     editFileTool,
     searchFilesTool,
