@@ -39,7 +39,19 @@ export function parsePingResponse(value: unknown, port: number): DiscoveredGatew
     port,
     workspaceName: record.workspaceName,
     sessionActive: record.sessionActive,
+    sessionCount: normalizeSessionCount(record.sessionCount),
   };
+}
+
+/**
+ * The count is optional even on new gateways (field added in 1.6.0). Anything
+ * malformed is treated as "unknown" rather than rejecting the whole ping, so
+ * the popup degrades to the pre-1.6.0 behavior instead of hiding the gateway.
+ */
+function normalizeSessionCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 /** Preferred workspace first (last successful port), then ascending port order. */

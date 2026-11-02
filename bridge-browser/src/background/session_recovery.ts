@@ -8,7 +8,7 @@
  *   different instance id than the one this tab paired with, which is how the
  *   UI knows the tab just survived a restart.
  * - `unauthorized` → retry once (the token may have been rotated mid-flight, or
- *   the request may have raced a restart); only a second 401 expires the session.
+ *   the request may have raced a restart); only a second 403 expires the session.
  * - `offline` → the gateway is gone; expire with the existing reason so the tab
  *   shows the disconnect hint.
  */

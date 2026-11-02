@@ -2,6 +2,7 @@ import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START } from "@webcode/shared"
 
 import { bridgePortRange, parsePingResponse, sortGateways } from "../src/background/discovery";
 import { describePairingError, readPairingErrorCode } from "../src/background/pairing_errors";
+import { pairingCodeForRedemptionFailure } from "../src/background/connection";
 import { isPairingMessageRequest } from "../src/pairing_protocol";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -23,11 +24,18 @@ async function main(): Promise<void> {
   const ping = { schema: 1, product: "webcode", workspaceName: "repo", sessionActive: false };
   assertEqual(parsePingResponse(ping, 34567)?.workspaceName, "repo", "workspace name kept");
   assertEqual(parsePingResponse(ping, 34567)?.port, 34567, "requested port kept");
+  assertEqual(parsePingResponse(ping, 34567)?.sessionCount, undefined, "old gateway without sessionCount stays parseable");
   assertEqual(parsePingResponse({ ...ping, workspaceName: null }, 34567)?.workspaceName, null, "null workspace name");
   assertEqual(parsePingResponse({ ...ping, schema: 2 }, 34567), null, "unknown schema rejected");
   assertEqual(parsePingResponse({ ...ping, sessionActive: "yes" }, 34567), null, "non-boolean session rejected");
   assertEqual(parsePingResponse({ ...ping, product: 5 }, 34567), null, "non-string product rejected");
   assertEqual(parsePingResponse("gateway", 34567), null, "non-object rejected");
+
+  const multi = { ...ping, sessionActive: true, sessionCount: 3 };
+  assertEqual(parsePingResponse(multi, 34567)?.sessionCount, 3, "session count kept");
+  assertEqual(parsePingResponse({ ...multi, sessionCount: "3" }, 34567)?.sessionCount, undefined, "non-numeric count degrades to unknown");
+  assertEqual(parsePingResponse({ ...multi, sessionCount: -1 }, 34567)?.sessionCount, undefined, "negative count degrades to unknown");
+  assertEqual(parsePingResponse({ ...multi, sessionCount: 1.5 }, 34567)?.sessionCount, undefined, "fractional count degrades to unknown");
 
   const sorted = sortGateways([
     { port: 34569, workspaceName: "c", sessionActive: false },
@@ -57,6 +65,11 @@ async function main(): Promise<void> {
   assertEqual(limited, "rate-limited", "429 without body maps to rate limiting");
   assert(describePairingError("declined").includes("declined"), "declined text");
   assertEqual(describePairingError("invalid-sender").length > 0, true, "unknown codes still get text");
+
+  assertEqual(pairingCodeForRedemptionFailure(409), "version-mismatch", "redeem 409 maps to version-mismatch");
+  assertEqual(pairingCodeForRedemptionFailure(403), "forbidden-origin", "redeem 403 maps to forbidden-origin");
+  assertEqual(pairingCodeForRedemptionFailure(410), "invalid-response", "redeem 410 keeps the generic code");
+  assertEqual(pairingCodeForRedemptionFailure(undefined), "invalid-response", "network failure keeps the generic code");
 
   console.log("PASS scans bridge ports and validates pairing discovery payloads");
 }

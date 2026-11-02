@@ -1,6 +1,6 @@
 import { BRANDING } from '@webcode/shared';
 
-export type PopupTranslator = (key: string) => string;
+export type PopupTranslator = (key: string, params?: Record<string, string | number>) => string;
 
 const UI: Record<string, Record<string, string>> = {
   en: {
@@ -46,6 +46,10 @@ const UI: Record<string, Record<string, string>> = {
     discovered_rescan: "Rescan",
     discovered_connect: "Connect",
     discovered_busy: "Busy",
+    discovered_connect_alongside: "Connect ({count} connected)",
+    discovered_sessions: "{count} sessions connected",
+    discovered_version_mismatch: "This VS Code gateway requires a newer WebCode bridge extension. Update the extension, then try again.",
+    discovered_forbidden_origin: "The gateway rejected this browser extension. Reinstall the WebCode bridge extension, then try again.",
     discovered_connecting: "Waiting for approval in VS Code...",
     discovered_connected: "Connected. Reloading this page...",
     discovered_declined: "The request was declined in VS Code.",
@@ -103,6 +107,10 @@ const UI: Record<string, Record<string, string>> = {
     discovered_rescan: "重新扫描",
     discovered_connect: "连接",
     discovered_busy: "已占用",
+    discovered_connect_alongside: "连接（已有 {count} 个）",
+    discovered_sessions: "已连接 {count} 个会话",
+    discovered_version_mismatch: "该 VS Code 网关需要更新版本的 WebCode 桥接扩展。请更新扩展后重试。",
+    discovered_forbidden_origin: "网关拒绝了当前浏览器扩展。请重新安装 WebCode 桥接扩展后重试。",
     discovered_connecting: "等待 VS Code 中确认...",
     discovered_connected: "已连接，正在刷新页面...",
     discovered_declined: "请求已在 VS Code 中被拒绝。",
@@ -121,7 +129,15 @@ const UI: Record<string, Record<string, string>> = {
 
 export function createPopupTranslator(): PopupTranslator {
   const lang = navigator.language.startsWith("zh") ? "zh" : "en";
-  return (key: string) => UI[lang][key] || UI.en[key];
+  return (key, params) => {
+    let text = UI[lang][key] || UI.en[key];
+    if (params) {
+      for (const [name, value] of Object.entries(params)) {
+        text = text.replaceAll(`{${name}}`, String(value));
+      }
+    }
+    return text;
+  };
 }
 
 export function renderInstalledDescription(t: PopupTranslator): string {

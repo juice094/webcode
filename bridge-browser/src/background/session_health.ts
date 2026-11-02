@@ -64,9 +64,10 @@ export async function checkGatewayHealth(
 }
 
 /**
- * Applies the recovery policy to one tab: a single retry on 401, a persisted
- * instance id when the token survived a restart, and an expiry only when the
- * gateway is really gone or the token is really rejected twice.
+ * Applies the recovery policy to one tab: a single retry on 403 (the gateway
+ * revokes expired or rotated session tokens with 403), a persisted instance
+ * id when the token survived a restart, and an expiry only when the gateway
+ * is really gone or the token is really rejected twice.
  */
 async function reconcileSession(
   tabId: number,

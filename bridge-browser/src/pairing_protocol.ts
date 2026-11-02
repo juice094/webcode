@@ -27,6 +27,12 @@ export interface DiscoveredGateway {
   port: number;
   workspaceName: string | null;
   sessionActive: boolean;
+  /**
+   * Live browser session count reported by the gateway ping. Absent on
+   * gateways older than 1.6.0: the popup then falls back to the legacy
+   * "busy" behavior instead of offering a side-by-side connect.
+   */
+  sessionCount?: number;
 }
 
 export type PairingErrorCode =

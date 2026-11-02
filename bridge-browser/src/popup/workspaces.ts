@@ -86,20 +86,62 @@ function createGatewayRow(context: SectionContext, gateway: DiscoveredGateway): 
   name.textContent = gateway.workspaceName ?? context.t("discovered_unknown_workspace");
   const meta = document.createElement("div");
   meta.className = "discovered-meta";
-  meta.textContent = `${context.t("port_label")} ${gateway.port}`;
+  meta.textContent = describeGatewayMeta(context.t, gateway);
   name.appendChild(meta);
 
   const button = document.createElement("button");
   button.type = "button";
   button.className = "btn discovered-connect";
-  button.textContent = gateway.sessionActive ? context.t("discovered_busy") : context.t("discovered_connect");
-  button.disabled = gateway.sessionActive;
+  renderGatewayButton(context, gateway, button);
   button.addEventListener("click", () => {
     void connectGateway(context, gateway, button);
   });
 
   row.append(name, button);
   return row;
+}
+
+/**
+ * Pure view model of one gateway row's connect button, so the multi-session
+ * rules stay unit-testable without a DOM:
+ *
+ * - No active session: plain "Connect", always clickable.
+ * - Active session on a 1.6.0+ gateway (sessionCount present): the button
+ *   stays clickable — another browser may connect alongside — and names the
+ *   live count. Multiple sessions per workspace are a feature, not a conflict.
+ * - Active session on an older gateway (no sessionCount): the pre-1.6.0
+ *   "Busy" fallback, disabled, because that gateway only accepts one session.
+ */
+export function describeGatewayConnection(gateway: DiscoveredGateway): {
+  disabled: boolean;
+  key: string;
+  params?: Record<string, number>;
+} {
+  if (!gateway.sessionActive) {
+    return { disabled: false, key: "discovered_connect" };
+  }
+  if (gateway.sessionCount === undefined) {
+    return { disabled: true, key: "discovered_busy" };
+  }
+  return { disabled: false, key: "discovered_connect_alongside", params: { count: gateway.sessionCount } };
+}
+
+function renderGatewayButton(
+  context: SectionContext,
+  gateway: DiscoveredGateway,
+  button: HTMLButtonElement
+): void {
+  const view = describeGatewayConnection(gateway);
+  button.disabled = view.disabled;
+  button.textContent = view.params ? context.t(view.key, view.params) : context.t(view.key);
+}
+
+/** Meta line: the port, plus the live session count when the gateway reports it. */
+export function describeGatewayMeta(t: PopupTranslator, gateway: DiscoveredGateway): string {
+  const port = `${t("port_label")} ${gateway.port}`;
+  return gateway.sessionCount !== undefined && gateway.sessionCount > 0
+    ? `${port} · ${t("discovered_sessions", { count: gateway.sessionCount })}`
+    : port;
 }
 
 async function connectGateway(
@@ -124,10 +166,7 @@ async function connectGateway(
     return;
   }
 
-  button.disabled = gateway.sessionActive;
-  button.textContent = gateway.sessionActive
-    ? context.t("discovered_busy")
-    : context.t("discovered_connect");
+  renderGatewayButton(context, gateway, button);
   setStatus(context, describeFailure(context, response?.code) ?? response?.error ?? context.t("discovered_failed"));
 }
 
@@ -144,6 +183,8 @@ function describeFailure(context: SectionContext, code: PairingErrorCode | undef
   if (code === "declined") {return context.t("discovered_declined");}
   if (code === "rate-limited") {return context.t("discovered_rate_limited");}
   if (code === "no-workspace") {return context.t("discovered_no_workspace");}
+  if (code === "version-mismatch") {return context.t("discovered_version_mismatch");}
+  if (code === "forbidden-origin") {return context.t("discovered_forbidden_origin");}
   return null;
 }
 

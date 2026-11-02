@@ -25,9 +25,21 @@ interface HandshakeParams {
 
 type BridgeRedemptionResult =
   | { success: true; session: RedeemedBridgeSession }
-  | { success: false; error: string };
+  | { success: false; error: string; status?: number };
 
 const BRIDGE_REDEMPTION_TIMEOUT_MS = 5000;
+
+/**
+ * Maps a failed bridge redemption onto the pairing error code the popup
+ * localizes. The gateway answers 409 when the browser extension is below the
+ * gateway's minimum (minExtensionVersion: old bridges must update before they
+ * can pair) and 403 when the redemption origin is not the WebCode extension.
+ */
+export function pairingCodeForRedemptionFailure(status: number | undefined): PairingErrorCode {
+  if (status === 409) {return "version-mismatch";}
+  if (status === 403) {return "forbidden-origin";}
+  return "invalid-response";
+}
 
 export async function handleHandshake(
   request: HandshakeMessageRequest,
@@ -215,6 +227,7 @@ async function redeemBridgeCode(
       return {
         success: false,
         error: getBridgeRedemptionError(body),
+        status: response.status,
       };
     }
 
@@ -298,7 +311,11 @@ export async function requestBridgeConnection(
     BRIDGE_PROTOCOL_VERSION
   );
   if (!redemption.success) {
-    return { success: false, error: redemption.error, code: "invalid-response" };
+    return {
+      success: false,
+      error: redemption.error,
+      code: pairingCodeForRedemptionFailure(redemption.status),
+    };
   }
 
   const session = redemption.session;
