@@ -4,10 +4,10 @@
 
 完整的项目说明和快速开始：
 
-- [中文 README](../README.md)
-- [English README](../README_en.md)
+- [中文 README](../README_zh.md)
+- [English README](../README.md)
 
 开发、构建和测试：
 
-- [构建指南](../doc/getting-started/BUILD_GUIDE.md)
-- [文档目录](../doc/README.md)
+- [构建指南](../doc/getting-started/BUILD_GUIDE_zh.md)
+- [文档目录](../doc/README_zh.md)

@@ -2,7 +2,7 @@
 
 本目录是浏览器扩展的实现主体，运行在 Chromium 111+ 的 MV3 环境中，负责在 AI 网页里捕获工具调用、回填执行结果，并与本地 Gateway 通信。
 
-上级说明：[bridge-browser](../README.md) · 用户文档：[浏览器模式指南](../../doc/getting-started/BROWSER_MODE_GUIDE.md)
+上级说明：[bridge-browser](../README_zh.md) · 用户文档：[浏览器模式指南](../../doc/getting-started/BROWSER_MODE_GUIDE_zh.md)
 
 ## 技术栈
 
@@ -103,4 +103,4 @@ pnpm --filter bridge-browser run build
 pnpm --filter bridge-browser run test
 ```
 
-完整打包流程见[构建指南](../../doc/getting-started/BUILD_GUIDE.md)。
+完整打包流程见[构建指南](../../doc/getting-started/BUILD_GUIDE_zh.md)。

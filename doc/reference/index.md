@@ -1,16 +1,16 @@
 # 参考索引
 
-> 本索引仅提供中文版本。
+> This index is available in Chinese only.（本索引仅提供中文版本。）
 
 本目录收录工具清单、工具设计说明与长期有效的判定清单，供查阅而非顺序阅读。
 
-上级索引：[文档目录](../README.md) · [English](../README_en.md)
+上级索引 / Parent: [English](../README.md) · [简体中文](../README_zh.md)
 
 ## 文档列表
 
 | 文档 | 说明 |
 | --- | --- |
-| [内置工具说明](BUILTIN_TOOLS.md) · [English](BUILTIN_TOOLS_en.md) | Gateway 本地工具、bootstrap-only 工具与浏览器侧虚拟工具的完整清单。 |
+| [English](BUILTIN_TOOLS.md) · [中文](BUILTIN_TOOLS_zh.md) | Gateway 本地工具、bootstrap-only 工具与浏览器侧虚拟工具的完整清单。 |
 | [read_file 设计说明](READ_FILE_GUIDE.md) | 读取模型、参数语义、输出保护与 metadata 行为（仅中文）。 |
 | [搜索工具设计说明](SEARCH_TOOLS_GUIDE.md) | `search_files` 与 `search_code` 的 query、match、大小写、排除规则与 ripgrep / fallback 行为（仅中文）。 |
 | [终端工具设计说明](RUN_IN_TERMINAL_GUIDE.md) | profile 发现、shell integration 输出采集、`stop` / `close` 语义与安全策略（仅中文）。 |

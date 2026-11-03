@@ -121,7 +121,7 @@ commit：
 
 ### F 收口
 
-内容：测试汇总、doc/README.md 索引、changelog、全量验证。
+内容：测试汇总、doc/README_zh.md 索引、changelog、全量验证。
 
 验收：`pnpm -r run build && pnpm -r run test`；`pnpm test:extension`；`pnpm lint`；索引包含本计划。
 

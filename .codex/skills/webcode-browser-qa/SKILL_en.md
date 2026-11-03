@@ -24,7 +24,7 @@ operator owns the test actions and verdict.
 - If the user does not authorize interactive QA, do not block completion; report that it was not
   run when that context is useful.
 
-After authorization, read the repository-root `README_en.md` for the current WebCode setup and
+After authorization, read the repository-root `README.md` for the current WebCode setup and
 basic conversation workflow, then read
 [references/commands_en.md](references/commands_en.md) before starting a session. Read only the
 relevant section of [references/charters_en.md](references/charters_en.md) for the changed behavior.

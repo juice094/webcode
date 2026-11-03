@@ -1,38 +1,46 @@
-# 手动安装浏览器桥接：来源 / 解压 / 加载位置约定
+# Manually installed browser bridge: source / extract / load-location convention
 
-适用场景：通过 `chrome://extensions` 开发者模式「加载已解压的扩展程序」手动安装桥接，
-不使用 VS Code 托管的隔离浏览器。此模式下 Chrome 禁止扩展自我更新，必须按本约定手动同步。
+Applies when the bridge is loaded via `chrome://extensions` developer mode
+("Load unpacked") instead of the VS Code-managed isolated browser. Chrome
+forbids self-updating unpacked extensions, so updates must follow this convention.
 
-## 三个固定要素
+## The three fixed elements
 
-| 要素 | 位置 |
-|------|------|
-| **来源**（新构建压缩包） | 本仓库 `release/webcode-bridge-browser-<版本>.zip`；GitHub Release（juice094/webcode）附同名资产 |
-| **解压/同步目标**（唯一真相文件夹） | 仓库根下 `dist/manual-bridge/`（版本中性固定路径，已 gitignore） |
-| **加载位置**（Chrome 注册路径） | `chrome://extensions` → 加载已解压的扩展程序 → 选择上述 `dist/manual-bridge` 文件夹，**一次性** |
+| Element | Location |
+|---------|----------|
+| **Source** (new build archive) | `release/webcode-bridge-browser-<version>.zip` in this repo; the same file is attached to GitHub Releases (juice094/webcode) |
+| **Extract/sync target** (single source of truth) | `dist/manual-bridge/` at the repo root (version-neutral fixed path, gitignored) |
+| **Load location** (path Chrome registered) | `chrome://extensions` → Load unpacked → pick the `dist/manual-bridge` folder above — done **once** |
 
-## 每次发版后的更新步骤
+## Updating after each release
 
-1. 同步新构建到固定文件夹（二选一）：
-   - 一键：`pnpm bridge:sync`（自动取 `release\` 下最新 zip；等价于 `powershell -File scripts/release/update-manual-bridge.ps1`）；
-   - 手动：解压新 zip，覆盖 `dist/manual-bridge/` 全部内容。
-2. `chrome://extensions` → webcode bridge 卡片 → 点**刷新图标**（重新加载）。
-3. 回 VS Code 状态栏**重新发起连接**（启动码为一次性，必须重新生成）。
+1. Sync the new build into the fixed folder (either):
+   - One shot: `pnpm bridge:sync` (picks the newest zip under `release\`; equivalent to `powershell -File scripts/release/update-manual-bridge.ps1`);
+   - Manual: extract the new zip and overwrite everything in `dist/manual-bridge/`.
+2. `chrome://extensions` → webcode bridge card → click the **reload** icon.
+3. Reconnect from the VS Code status bar (launch codes are single-use and must be regenerated).
 
-## 版本一致性
+## Version consistency
 
-- **浏览器侧**握手要求 VS Code 扩展版本与桥接 manifest 版本**严格等值**
-  （另有 `bridgeProtocolVersion` 协议检查），不一致直接拒绝连接并提示哪侧过旧；
-- **网关侧**兑换只要求桥接版本不低于 `shared/src/bridgeProtocol.json` 的
-  `minExtensionVersion`（当前 `1.0.0`）。因此“旧桥向新网关兑换”在网关这一步能通过，
-  但浏览器侧仍会拦下——结论不变：**两侧必须同版本**；
-- 每次升级 VS Code 扩展（vsix）后，桥接必须同步升级，反之亦然；
-- 隔离浏览器用户无需手动同步（扩展管理器自动暂存更新，下次连接时提示重启浏览器一次）。
+- The **browser-side** handshake requires the VS Code extension version and the
+  bridge manifest version to match exactly (plus a `bridgeProtocolVersion`
+  check); mismatches are rejected with a hint about which side is outdated.
+- The **gateway side** of redemption only requires the bridge to be at least
+  `minExtensionVersion` from `shared/src/bridgeProtocol.json` (currently
+  `1.0.0`). An older bridge can therefore pass the gateway check but is still
+  stopped by the browser-side equality check — the conclusion is unchanged:
+  **both sides must ship the same version**.
+- Upgrade both sides together whenever the VS Code extension (vsix) changes.
+- Isolated-browser users do not sync manually (the extension manager stages
+  updates and asks for one browser restart on the next connect).
 
-1.3.0 起扩展会打印构建指纹（`build: version=… buildHash=… builtAt=…`），
-配合 `browser-extension/bridge-build.json` 可以确认加载的桥与扩展是不是同一次构建。
+Since 1.3.0 the extension logs a build fingerprint
+(`build: version=… buildHash=… builtAt=…`); compare it with
+`browser-extension/bridge-build.json` to confirm the loaded bridge and the
+extension come from the same build.
 
-## 注意事项
+## Notes
 
-- 固定文件夹路径一经注册不要改动或重命名（Chrome 按绝对路径跟踪）；
-- 更新后若仍报版本不一致：确认第 2 步的刷新已执行，再检查 `dist/manual-bridge/manifest.json` 版本号。
+- Never move or rename the fixed folder after registering it (Chrome tracks the absolute path).
+- If a version mismatch persists: confirm step 2 was executed, then check the
+  version in `dist/manual-bridge/manifest.json`.

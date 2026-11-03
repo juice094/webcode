@@ -4,17 +4,17 @@
 
 <h1 align="center">webcode</h1>
 
-<p align="center"><strong>让网页 AI 在你的本地项目中工作。</strong></p>
+<p align="center"><strong>Bring web AI into your local project.</strong></p>
 
 <p align="center">
-  通过 VS Code 扩展与浏览器 bridge，将网页 AI 连接到本地工作区，使用文件、搜索、命令、MCP 与 Skills。
+  Connect web AI to your local workspace through a VS Code extension and browser bridge, with tools for files, search, commands, MCP, and Skills.
 </p>
 
 <p align="center">
-  <a href="README_en.md">English</a> ·
-  <a href="doc/README.md">文档</a> ·
-  <a href="CONTRIBUTING.md">参与贡献</a> ·
-  <a href="SUPPORT.md">获取帮助</a>
+  <a href="README_zh.md">中文</a> ·
+  <a href="doc/README.md">Documentation</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="SUPPORT.md">Support</a>
 </p>
 
 <p align="center">
@@ -29,27 +29,27 @@
 </p>
 
 <p align="center">
-  <img src="doc/assets/webcode-usage-screenshot.png" width="960" alt="webcode 使用界面">
+  <img src="doc/assets/webcode-usage-screenshot.png" width="960" alt="webcode in use">
 </p>
 
-## 项目能力
+## What webcode does
 
-- **本地编码工具**：在网页 AI 对话中读取和编辑文件、搜索代码、运行命令；需要时由用户审批。
-- **浏览器桥接**：从 VS Code 启动本地 Gateway，并连接支持的网页 AI。
-- **可扩展能力**：使用 MCP 接入第三方服务，将工作区 Skills 和项目规则提供给 AI。
+- **Local coding tools:** Read and edit files, search code, and run commands, with user approval where required.
+- **Browser bridge:** Start a local Gateway from VS Code and connect it to supported web AI sites.
+- **Extensible capabilities:** Connect third-party services through MCP and expose workspace Skills and project rules.
 
-## 快速开始
+## Quick Start
 
-1. 在 VS Code 扩展商店搜索并安装 `webcode gateway`。
-2. 在 VS Code 打开项目文件夹，点击状态栏中的 `webcode: 关闭`，选择“启动 webcode”。
-3. 从启动菜单选择目标 AI 站点。默认使用 [Edge 独立保活模式](doc/getting-started/BROWSER_MODE_GUIDE.md)，首次需要在独立浏览器 profile 中登录。
-4. 在新对话中输入任务，并在末尾添加 `/webcode` 或 `@webcode`；确认初始化上下文后，由你手动发送。
+1. Install `webcode gateway` from the VS Code Marketplace.
+2. Open a project folder in VS Code. Click `webcode: OFF` in the status bar and choose **Start webcode**.
+3. Select an AI site from the launch menu. By default, webcode opens [Edge Isolated Keepalive](doc/getting-started/BROWSER_MODE_GUIDE.md); sign in to the AI site in that isolated profile on first use.
+4. In a new chat, enter your task and add `/webcode` or `@webcode` at the end. Review the initialization context and send it yourself.
 
-当 bridge 显示 `ON` 时连接就绪。如果初始化上下文超出网页输入限制，webcode 会将完整内容作为 TXT 附件添加。
+The connection is ready when the bridge shows `ON`. If the initialization context exceeds the site's input limit, webcode attaches the full context as a TXT file.
 
-## 从源码运行
+## Run from source
 
-需要 Node.js 22 与 pnpm 10.25.0，在仓库根目录依次执行：
+Requires Node.js 22 and pnpm 10.25.0. From the repository root:
 
 ```bash
 pnpm install
@@ -57,45 +57,45 @@ pnpm --filter @webcode/shared run build
 pnpm build
 ```
 
-打包 VSIX 与浏览器扩展见[构建指南](doc/getting-started/BUILD_GUIDE.md)。
+To package the VSIX and the browser extension, see the [build guide](doc/getting-started/BUILD_GUIDE.md).
 
-## 技术栈
+## Tech stack
 
-| 层 | 技术 | 说明 |
+| Layer | Stack | Notes |
 | ------ | ------ | ------ |
-| VS Code 扩展 | TypeScript、webpack | `engines.vscode` 为 `^1.106.1`；打包为单文件 `dist/extension.js` |
-| 浏览器扩展 | TypeScript、Vite 5、`@crxjs/vite-plugin` 2.4.0 | 含 `MAIN` world content script，需要 Chromium 111 或更高版本 |
-| 共享包 | TypeScript（`tsc`） | `@webcode/shared`，协议常量与跨包共享类型 |
-| 运行时依赖 | Express、cors、zod、MCP SDK | 本地 Gateway 与第三方 MCP 接入 |
-| 工程 | pnpm 10.25.0 workspace、Node.js 22 | 三包 monorepo |
+| VS Code extension | TypeScript, webpack | `engines.vscode` is `^1.106.1`; bundles to a single `dist/extension.js` |
+| Browser extension | TypeScript, Vite 5, `@crxjs/vite-plugin` 2.4.0 | Includes a `MAIN` world content script; requires Chromium 111 or newer |
+| Shared package | TypeScript (`tsc`) | `@webcode/shared`: protocol constants and cross-package types |
+| Runtime dependencies | Express, cors, zod, MCP SDK | Local Gateway and third-party MCP integration |
+| Tooling | pnpm 10.25.0 workspace, Node.js 22 | Three-package monorepo |
 
-## 使用示例
+## Example
 
-通过 DeepSeek 网页版完成“鹈鹕测试”：生成一只骑自行车的鹈鹕 SVG。
+The “pelican test” uses webcode with DeepSeek to generate an SVG of a pelican riding a bicycle.
 
-- [观看操作演示（1.5 倍速）](https://github.com/user-attachments/assets/448873b4-922a-4cac-b421-70a189394576)
-- [查看生成的 SVG](doc/assets/pelican-bicycle-deepseek.svg)
+- [Watch the demo (1.5×)](https://github.com/user-attachments/assets/448873b4-922a-4cac-b421-70a189394576)
+- [View the generated SVG](doc/assets/pelican-bicycle-deepseek.svg)
 
-## 能力与配置
+## Capabilities and Configuration
 
-| 能力 | 说明 |
+| Capability | Details |
 | ------ | ------ |
-| 内置工具 | 文件读写、附件、代码搜索、命令和终端会话，见[内置工具说明](doc/reference/BUILTIN_TOOLS.md)。 |
-| MCP | 通过 `webcodeGateway.servers` 配置第三方服务，见[MCP 指南](doc/guides/MCP_GUIDE.md)。 |
-| Skills | 暴露工作区 Skills；扩展也提供开发类内置 Skills，见[Skills 指南](doc/guides/SKILLS_GUIDE.md)。 |
-| AI 平台 | 内置支持 ChatGPT、Gemini、Google AI Studio、DeepSeek、GLM、Claude 和 Qwen；可配置其他站点，见[站点指南](doc/guides/PLATFORM_GUIDE.md)。 |
-| 项目规则 | 初始化时读取根目录 `USER_RULES.md` 及 `AGENTS.md` 或 `CLAUDE.md`；二者并存时优先 `AGENTS.md`。 |
+| Built-in tools | File access, attachments, code search, commands, and terminal sessions in the [tools reference](doc/reference/BUILTIN_TOOLS.md). |
+| MCP | Configure third-party services with `webcodeGateway.servers`; see the [MCP guide](doc/guides/MCP_GUIDE.md). |
+| Skills | Expose workspace Skills and use built-in developer Skills; see the [Skills guide](doc/guides/SKILLS_GUIDE.md). |
+| AI sites | Built-in support for ChatGPT, Gemini, Google AI Studio, DeepSeek, GLM, Claude, and Qwen. Add or override sites using VS Code settings; see the [site support guide](doc/guides/PLATFORM_GUIDE.md). |
+| Project rules | Initialization reads root `USER_RULES.md` and `AGENTS.md` or `CLAUDE.md`. If both agent files exist, `AGENTS.md` takes precedence. |
 
-## 文档
+## Documentation
 
-- [文档目录](doc/README.md)：按快速上手、使用指南、参考、架构、计划与报告分层的完整索引。
-- [构建指南](doc/getting-started/BUILD_GUIDE.md)：源码构建、打包和本地安装。
-- [常见问题](doc/getting-started/FAQ_GUIDE.md)：首次启动、触发词和工具结果回填。
-- [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md) · [变更记录](CHANGELOG.md) · [获取帮助](SUPPORT.md)
+- [Documentation index](doc/README.md): full index grouped into getting started, guides, reference, architecture, and plans.
+- [Build guide](doc/getting-started/BUILD_GUIDE.md): source build, packaging, and local installation.
+- [FAQ](doc/getting-started/FAQ_GUIDE.md): first launch, trigger words, and tool-result delivery.
+- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Support](SUPPORT.md)
 
-## 开发与测试
+## Development and Tests
 
-需要 Node.js 22 和 pnpm 10.25.0。在仓库根目录运行：
+Requires Node.js 22 and pnpm 10.25.0. Run from the repository root:
 
 ```bash
 pnpm install
@@ -106,27 +106,26 @@ pnpm test:extension
 pnpm lint
 ```
 
-浏览器端到端测试与交互式 QA 见 [Evals 指南](evals/README.md)。
+Browser end-to-end tests and interactive QA are documented in the [Evals README](evals/README.md).
 
-## 项目结构
+## Project Structure
 
-| 目录 | 内容 |
+| Directory | Contents |
 | ------ | ------ |
-| `gateway-vscode/` | VS Code 扩展、Gateway、MCP 与本地工具 |
-| `bridge-browser/` | 浏览器扩展与网页桥接 |
-| `shared/` | 跨包共享类型和逻辑 |
-| `evals/` | 端到端场景、Agent 评测和 QA |
-| `doc/` | 用户、构建和开发文档 |
+| `gateway-vscode/` | VS Code extension, Gateway, MCP, and local tools |
+| `bridge-browser/` | Browser extension and page bridge |
+| `shared/` | Types and logic shared across packages |
+| `evals/` | End-to-end scenarios, agent evaluations, and QA |
+| `doc/` | User, build, and development documentation |
 
-## 参与贡献
+## Contributing
 
-欢迎提交 Issue 和 Pull Request。提交前请阅读[贡献指南](CONTRIBUTING.md)。
-安全问题请参阅[安全策略](SECURITY.md)；[行为准则](CODE_OF_CONDUCT.md)目前为待维护者确认的草案。
+Issues and pull requests are welcome. Read the [contributing guide](CONTRIBUTING.md) before opening a PR. For security reports, see [SECURITY.md](SECURITY.md). The [code of conduct](CODE_OF_CONDUCT.md) is a draft pending maintainer review.
 
-## 来源说明
+## Provenance
 
-本项目源自 [three-water666/webcode](https://github.com/three-water666/webcode)，原作者已停止维护，现由 [juice094/webcode](https://github.com/juice094/webcode) 独立维护。后续开发、发布与问题反馈均以当前仓库为准。
+This project originated from [three-water666/webcode](https://github.com/three-water666/webcode). The original author has stopped maintaining it, and it is now independently maintained at [juice094/webcode](https://github.com/juice094/webcode). Ongoing development, releases, and issue reports all happen there.
 
-## 许可证
+## License
 
-本仓库采用 [MIT License](LICENSE)，原始版权归 three-water666 所有。感谢 [LINUX DO](https://linux.do/) 社区提供技术交流与开源分享的平台。
+This repository is licensed under the [MIT License](LICENSE). Original copyright belongs to three-water666. Thanks to the [LINUX DO](https://linux.do/) community for supporting technical discussion and open-source sharing.

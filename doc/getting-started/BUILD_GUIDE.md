@@ -1,39 +1,39 @@
-# 构建指南
+# Build Guide
 
-语言：中文 | [English](BUILD_GUIDE_en.md)
+Language: English | [中文](BUILD_GUIDE_zh.md)
 
-您可以使用项目内置的脚本一键打包 VS Code 插件 (`.vsix`) 和浏览器扩展 (`.zip`)。
+You can use the built-in scripts to package the VS Code extension (`.vsix`) and the browser extension (`.zip`) with one click.
 
-## 环境要求
+## Requirements
 
 - Git
 - Node.js 22
-- pnpm 10.25.0（与 `package.json` 的 `packageManager` 字段一致）
+- pnpm 10.25.0 (matches the `packageManager` field in `package.json`)
 - VS Code
-- macOS / Linux 需要可用的 `zip`
-- Windows 需要系统自带的 `tar.exe`（Windows 10/11 默认包含）
+- macOS / Linux needs a working `zip` command
+- Windows needs the built-in `tar.exe` command included with Windows 10/11
 
-## 下载源码
+## Download the Source
 
-如果已配置 GitHub SSH key：
+If you have a GitHub SSH key configured:
 
 ```bash
 git clone git@github.com:juice094/webcode.git
 cd webcode
 ```
 
-也可以使用 HTTPS：
+You can also use HTTPS:
 
 ```bash
 git clone https://github.com/juice094/webcode.git
 cd webcode
 ```
 
-构建脚本会自动运行 `pnpm install` 安装依赖。
+The build scripts run `pnpm install` automatically.
 
 ## macOS / Linux
 
-在项目根目录下运行 Bash 脚本：
+Run the Bash script in the project root directory:
 
 ```bash
 chmod +x scripts/release/build-release.sh
@@ -42,62 +42,64 @@ chmod +x scripts/release/build-release.sh
 
 ## Windows
 
-可以使用 PowerShell 脚本进行原生打包（无需安装 Bash 或 WSL）：
+You can use the PowerShell script for native packaging (no Bash or WSL required):
 
-### 方法 A：右键运行（最简单）
+### Method A: Right-click Run (Easiest)
 
-1. 在文件夹中找到 `scripts/release/build-release.ps1`。
-2. 右键点击该文件。
-3. 选择 `"使用 PowerShell 运行" (Run with PowerShell)`。
+1. Locate `scripts/release/build-release.ps1` in the folder.
+2. Right-click the file.
+3. Select `"Run with PowerShell"`.
 
-### 方法 B：命令行运行
+### Method B: Command Line
 
-在 PowerShell 终端中执行：
+Execute in a PowerShell terminal:
 
 ```powershell
-pnpm release  # 或 .\scripts\release\build-release.ps1
+pnpm release  # or .\scripts\release\build-release.ps1
 ```
 
-如果运行报错提示“在此系统上禁止运行脚本”，请以管理员身份打开 PowerShell 并执行以下命令开启权限，然后重试：
+If you see an error saying "running scripts is disabled on this system", open PowerShell as Administrator, run the following command to enable permissions, and try again:
 
 ```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-## 版本号与构建指纹
+## Versions and build fingerprints
 
-发版前只需手改三处版本号，其余全部由打包脚本生成：
+Before a release, exactly three version fields are edited by hand; everything else is generated:
 
-| 文件 | 作用 |
+| File | Purpose |
 |:---|:---|
-| `gateway-vscode/package.json` | VSIX 版本 |
-| `bridge-browser/package.json` | 浏览器桥包版本 |
-| `bridge-browser/manifest.json` | 浏览器扩展 manifest 版本（`prebuild` 会校验与 `package.json` 一致） |
+| `gateway-vscode/package.json` | VSIX version |
+| `bridge-browser/package.json` | browser bridge package version |
+| `bridge-browser/manifest.json` | browser manifest version (the `prebuild` hook asserts it matches `package.json`) |
 
-`gateway-vscode/browser-extension/` 是生成目录（已 gitignore），由
-`gateway-vscode/scripts/copy-browser-extension.mjs` 在打包时重建，并写入 `bridge-build.json`
-（`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`）。**不要手改这个目录**，
-版本号改完重新打包即可。
+`gateway-vscode/browser-extension/` is a generated directory (gitignored). It is rebuilt during
+packaging by `gateway-vscode/scripts/copy-browser-extension.mjs`, which also writes `bridge-build.json`
+(`extensionVersion` / `bridgeProtocolVersion` / `buildHash` / `builtAt`). **Never edit it by hand** —
+bump the versions and repackage.
 
-守卫测试 `gateway-vscode/src/unit-test/releaseVersioning.test.ts` 会在以下情况失败：
-三处清单版本不一致、版本不是合法 semver、或 `bridge-build.json` 落后于清单版本
-（生成目录不存在时该用例跳过，方便干净克隆直接跑单测）。
+The guard test `gateway-vscode/src/unit-test/releaseVersioning.test.ts` fails when the three manifests
+disagree, when a version is not dotted semver, or when `bridge-build.json` lags behind the manifests
+(the descriptor case is skipped when the generated directory is absent, so a clean clone can run unit
+tests directly).
 
-构建指纹：扩展激活时写入一行
-`build: version=… buildHash=… builtAt=… bridgeProtocol=… node=… vscode=…`；
-已认证的 `GET /v1/status` 同时返回 `version`、`buildHash`、`bridgeProtocolVersion`、`startedAt`。
-据此可以判断“装的 vsix 是不是当前代码”，不必再比对文件哈希。
+Build fingerprint: activation logs one line
+`build: version=… buildHash=… builtAt=… bridgeProtocol=… node=… vscode=…`, and the authenticated
+`GET /v1/status` returns `version`, `buildHash`, `bridgeProtocolVersion`, and `startedAt`. That
+answers "is the installed vsix the current code?" without comparing file hashes.
 
-`release/` 每次发版都会被清空，旧安装包请先移到 `release-archive/`（不入 git）再执行构建。
+`release/` is wiped on every release run, so move the previous installers to `release-archive/`
+(not committed) before building.
 
-## 产物说明
+## Artifacts
 
-打包成功后，根目录下会自动生成 `release/` 文件夹，包含：
+After a successful build, a `release/` folder will be generated in the root directory containing:
 
 - `webcode-gateway-vscode-x.x.x.vsix`
-  - VS Code 插件安装包。
-  - 安装方法：VS Code 扩展侧边栏 -> 点击右上角 `...` -> `Install from VSIX...`
+  - VS Code extension installer.
+  - Installation: VS Code Extensions sidebar -> Click `...` at top right -> `Install from VSIX...`
 
 - `webcode-bridge-browser-x.x.x.zip`
-  - 浏览器扩展压缩包。
-  - 安装方法：解压后 -> Chrome/Edge 扩展管理页 -> 打开“开发者模式” -> `加载已解压的扩展程序`。
+  - Browser extension archive.
+  - Installation: Unzip -> Chrome/Edge Extensions page -> Enable "Developer mode" -> `Load unpacked`.

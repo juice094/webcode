@@ -1,44 +1,44 @@
-# webcode bridge (浏览器扩展)
+# webcode bridge (Browser Extension)
 
-语言：中文 | [English](README_en.md)
+Language: English | [中文](README_zh.md)
 
-项目地址：https://github.com/juice094/webcode（源自 [three-water666/webcode](https://github.com/three-water666/webcode)，独立维护）
+Project: https://github.com/juice094/webcode (originated from [three-water666/webcode](https://github.com/three-water666/webcode), independently maintained)
 
-> **重要提示**
-> 本扩展是 **webcode gateway** 的配套组件。
-> 使用前，请务必在 VS Code 中安装并启动 `webcode gateway` 插件。
-> 对大多数用户，推荐的 `Edge 独立保活模式` 会从 VS Code 插件中自动加载这个 bridge，不需要手动安装浏览器扩展。
+> **IMPORTANT**
+> This extension is a companion for **webcode gateway**.
+> You must install and start the `webcode gateway` extension in VS Code before using this.
+> For most users, the recommended `Edge Isolated Keepalive` mode auto-loads this bridge from the VS Code extension, so manual browser-extension installation is not required.
 
-## 简介
-**webcode bridge** 是连接 Web AI（如 Gemini, ChatGPT, DeepSeek）与本地 VS Code 环境的桥梁。它负责拦截特定的 AI 工具调用请求，并将其安全地转发给本地的 VS Code 服务器，从而让云端 AI 能够“看见”并“操作”您的本地项目。
+## Introduction
+**webcode bridge** is the connector that links Web AI Chatbots (Gemini, ChatGPT, DeepSeek, etc.) to your local VS Code environment. It intercepts specific AI tool calls and securely forwards them to your local VS Code server, allowing the cloud AI to "see" and "operate" on your local projects.
 
-## 使用方法
+## Usage
 
-1. **推荐启动**: 在 VS Code 中打开文件夹，从状态栏启动 **webcode gateway**，然后选择目标 AI 站点。默认的 `Edge 独立保活模式` 会自动加载这个 bridge。
-2. **手动浏览器方式**: 如果使用普通 Chrome/Edge、系统默认浏览器、用户配置保活模式，需要先手动安装这个浏览器扩展。
-3. **自动连接**: 从 webcode 打开 Gemini 或其他支持的 AI 网页。插件会自动检测并连接到本地服务（图标变绿）。
-4. **开始对话**: 打开新对话，先输入您的实际需求，再在同一条消息末尾添加 `/webcode` 或 `@webcode`。当 webcode 询问是否添加初始化上下文时，点击 **添加** 或按 Enter。webcode 会把触发词替换为完整初始化上下文，确认消息内容后由您手动发送。若内容超过当前站点输入框限制，webcode 会优先把完整上下文作为 txt 附件添加到消息中。
-5. **排查故障**: 如果图标显示红色或灰色，请点击插件图标查看详细的故障排查指引。
+1. **Recommended Launch**: Open a folder in VS Code, start **webcode gateway** from the status bar, and choose an AI site. The default `Edge Isolated Keepalive` mode loads this bridge automatically.
+2. **Manual Browser Modes**: If you use regular Chrome/Edge, the system default browser, or user-profile keepalive mode, install this browser extension manually first.
+3. **Auto Connect**: Open Gemini or other supported AI pages from webcode. The extension will automatically detect and connect to the local service (the icon will turn green).
+4. **Start Chatting**: Open a new chat, type your actual request first, then add `/webcode` or `@webcode` at the end of the same message. When webcode asks whether to add the initialization context, choose **Add** or press Enter. webcode replaces the trigger word with the full initialization context, then you can review and send the message yourself. If the content exceeds the current site's input limit, webcode first attaches the full context as a txt file.
+5. **Troubleshooting**: If the icon is red or gray, click the icon to view detailed troubleshooting steps.
 
-## 相关文档
+## Related Documentation
 
-- [项目快速开始与完整文档](../README.md)
-- [浏览器模式指南](../doc/getting-started/BROWSER_MODE_GUIDE.md)
-- [常见问题](../doc/getting-started/FAQ_GUIDE.md)
-- [English README](README_en.md)
+- [Project quick start and full documentation](../README.md)
+- [Browser mode guide](../doc/getting-started/BROWSER_MODE_GUIDE.md)
+- [FAQ](../doc/getting-started/FAQ_GUIDE.md)
+- [中文 README](README_zh.md)
 
-## Session 状态
+## Session Status
 
-浏览器扩展后台会按当前 tab 的 session 和 URL 安全性区分以下状态：
+The browser extension background service classifies the current tab by its session and URL safety:
 
-- `active`: 当前 tab 有完整 session，且当前 URL 在安全范围内。回到绑定的 AI 站点，或打开同一 gateway 端口的 `/bridge` 页面时，工具调用可以继续。
-- `missing`: 当前 tab 没有存过 session。通常表示还没有从 VS Code 发起连接，或 session 已被清理，需要重新连接。
-- `invalid`: 存储里有 session，但缺少 `siteId`、`targetOrigin`、`targetUrl` 等必要字段。插件会删除这个坏 session，并提示从 VS Code 重新连接。
-- `suspended`: 当前 tab 有完整 session，但当前 URL 不安全或无法确认安全。比如跳到第三方登录页、任意 localhost dev server 页面或第三方回调页时，本页会禁用本地工具；回到绑定目标站点后会自动恢复。
+- `active`: The current tab has a complete session and the current URL is safe. Tool calls may continue when the tab is on the connected AI site or the `/bridge` page for the same gateway port.
+- `missing`: The current tab has no stored session. This usually means it has not been connected from VS Code yet, or the session was cleared, so reconnect from VS Code.
+- `invalid`: Storage contains a session, but required fields such as `siteId`, `targetOrigin`, or `targetUrl` are missing. The extension removes the bad session and asks you to reconnect from VS Code.
+- `suspended`: The current tab has a complete session, but the current URL is unsafe or cannot be verified. For example, third-party sign-in pages, arbitrary localhost dev-server pages, and third-party callback pages keep the session but disable local tools until the tab returns to the connected target site.
 
-## 获取 VS Code 插件
-请在 VS Code 扩展商店中搜索：`webcode gateway`
+## Get VS Code Extension
+Search in VS Code Marketplace: `webcode gateway`
 
 ---
-## 许可证
+## License
 MIT License

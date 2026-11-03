@@ -1,47 +1,47 @@
-# webcode 浏览器模式指南
+# webcode Browser Mode Guide
 
-webcode 的浏览器模式决定了用哪个浏览器、哪个 profile、是否附带保活参数，以及是否自动加载 webcode bridge。
+The browser mode controls which browser webcode opens, which profile it uses, whether anti-freeze flags are added, and whether webcode bridge is loaded automatically.
 
-常用模式分为三类：
+The common modes fall into three categories:
 
-- `Edge 独立保活模式`
-- 普通 `Chrome` / `Edge`
-- `Chrome` / `Edge` 用户配置保活模式
+- `Edge Isolated Keepalive`
+- Regular `Chrome` / `Edge`
+- `Chrome` / `Edge` User Profile Keepalive
 
-`Chrome for Testing / Chromium 独立保活模式` 属于独立保活模式的高级选项，适合已经安装 Chrome for Testing 或 Chromium 的用户。
+`Chrome for Testing / Chromium Keepalive` is an advanced isolated keepalive option for users who already have Chrome for Testing or Chromium installed.
 
-## 什么是保活
+## What Keepalive Means
 
-保活指 webcode 启动浏览器时附带一组防后台冻结参数，尽量避免网页 AI 在后台、被遮挡或最小化时停止渲染、暂停 JavaScript 定时器或延迟处理页面事件。
+Keepalive means webcode launches the browser with anti-background-freeze flags. These flags reduce the chance that a web AI page stops rendering, pauses JavaScript timers, or delays page events while it is in the background, covered, or minimized.
 
-这对 webcode 很重要：工具调用结果需要写回网页 AI 的对话框，如果浏览器把后台页面冻结，页面可能无法及时接收或渲染这些更新。
+This matters because webcode writes tool-call results back into the web AI chat box. If the browser freezes the background page, the page may not receive or render those updates promptly.
 
-保活不是无限后台运行保证。操作系统省电策略、浏览器内存节省功能、网站自身限制或账号状态仍可能影响网页运行。
+Keepalive is not an unlimited background-running guarantee. Operating-system power policies, browser memory-saver features, site behavior, and account state can still affect the page.
 
-## 模式区别
+## Mode Differences
 
-| 模式 | 使用的 profile | 是否保活 | bridge 安装方式 | 适合场景 |
+| Mode | Profile | Keepalive | Bridge setup | Best for |
 | --- | --- | --- | --- | --- |
-| `Edge 独立保活模式` | webcode 专用 Edge profile | 是 | 自动加载内置 bridge | 默认推荐，想少配置、稳定使用 |
-| 普通 `Chrome` / `Edge` | 你的常用浏览器 profile | 否 | 需要手动安装浏览器扩展 | 想直接使用已有登录态，不需要保活 |
-| `Chrome` / `Edge` 用户配置保活模式 | 你的常用浏览器 profile | 是 | 需要手动安装浏览器扩展 | 想使用已有登录态，同时希望降低后台冻结影响 |
+| `Edge Isolated Keepalive` | Dedicated webcode Edge profile | Yes | Auto-loads bundled bridge | Default path with minimal setup |
+| Regular `Chrome` / `Edge` | Your normal browser profile | No | Manual browser-extension install required | Reusing an existing signed-in browser session |
+| `Chrome` / `Edge` User Profile Keepalive | Your normal browser profile | Yes | Manual browser-extension install required | Reusing an existing signed-in browser session with reduced background freezing |
 
-系统默认浏览器接近普通浏览器模式：它交给系统打开链接，不附带保活参数，也不会自动加载 bridge。
+The system default browser is similar to regular browser mode: the link is delegated to the OS, no keepalive flags are added, and webcode bridge is not loaded automatically.
 
-## 如何使用其他模式
+## Using Other Modes
 
-网关（代码与设置项中称 Gateway）启动后，点击 VS Code 右下角状态栏里的 `webcode: <端口>`，选择 `自定义启动...`。
+After the gateway starts, click `webcode: <port>` in the bottom-right VS Code status bar and choose `Custom Launch...`.
 
-1. 先选择目标 AI 站点。
-2. 再选择浏览器模式。
-3. webcode 会用所选模式打开 bridge 页面，并在握手后跳转到目标 AI 站点。
+1. Select the target AI site.
+2. Select the browser mode.
+3. webcode opens the bridge page with that mode, then redirects to the target AI site after the handshake succeeds.
 
-也可以通过 VS Code 设置修改默认模式：
+You can also change the default mode in VS Code settings:
 
-- `webcodeGateway.browser`：设置全局默认浏览器模式。
-- `webcodeGateway.aiSites[].browser`：为某个 AI 站点单独指定浏览器模式。
+- `webcodeGateway.browser`: sets the global default browser mode.
+- `webcodeGateway.aiSites[].browser`: sets a browser mode for one AI site.
 
-常见配置值包括：
+Common configuration values include:
 
 - `isolated-edge`
 - `edge`
@@ -51,61 +51,61 @@ webcode 的浏览器模式决定了用哪个浏览器、哪个 profile、是否�
 - `default`
 - `isolated-chrome`
 
-## Edge 独立保活模式
+## Edge Isolated Keepalive
 
-这是 webcode 的默认模式。它会打开一个 webcode 专用的 Microsoft Edge profile，自动加载内置 webcode bridge，并附带保活参数。
+This is webcode's default mode. It opens a dedicated Microsoft Edge profile for webcode, auto-loads the bundled webcode bridge, and adds keepalive flags.
 
-注意点：
+Notes:
 
-- 不需要手动安装浏览器扩展。
-- 登录态和你的日常 Edge profile 分开，首次使用需要在这个独立 profile 里登录目标 AI 站点。
-- 独立 profile 默认储存在本机应用数据目录，不随 VS Code 插件卸载自动删除：
-  - Windows：`%LOCALAPPDATA%\webcode\isolated-browser-profiles\edge`
-  - macOS：`~/Library/Application Support/webcode/isolated-browser-profiles/edge`
-  - Linux：`${XDG_DATA_HOME:-~/.local/share}/webcode/isolated-browser-profiles/edge`
-- 如需自定义储存位置，可以设置 `webcodeGateway.isolatedBrowser.profileRoot`；webcode 会在该目录下创建 `edge` 和 `chrome` 子目录。
-- `webcodeGateway.isolatedBrowser.profileRoot` 只是选择新的 profile 根目录，不会迁移已有 profile。建议在第一次使用独立模式、也就是启动独立 Edge/Chrome 之前配置；这样只会创建一套 profile。
-- 如果已经启动过独立模式后再修改 `webcodeGateway.isolatedBrowser.profileRoot`，webcode 会在新位置再创建一套独立 profile，原位置的 profile 会保留。切换回原配置时，只要原 profile 还在，对应登录态也还在。
-- 如果因此产生了多套 profile，可以在 webcode 菜单中使用 `重置当前独立 profile` 删除当前配置正在使用的新目录；旧版 VS Code 插件储存目录则使用 `清理旧版独立 profile` 删除。
-- 从旧版本升级后，webcode 不会复制旧的 VS Code 插件储存目录，而是直接使用新的独立 profile。你需要在新 profile 中重新登录一次 AI 站点。
-- 如果检测到旧版独立 profile，webcode 菜单会显示 `清理旧版独立 profile`，用于删除旧 VS Code 插件储存目录里的遗留数据。
-- `重置当前独立 profile` 会删除当前正在使用的新 profile。菜单里的重置/清理项右侧提供打开目录图标，删除失败时也可以跳转到目录手动处理。
-- 如果彻底不再使用 webcode，可以先用上述菜单清理当前和旧版独立 profile，再卸载 VS Code 扩展。
-- 登录过程中如果跳转到 Google、Microsoft 等第三方登录页，bridge 会暂停当前页面能力并保留 session；登录完成并回到目标 AI 站点后会自动恢复。
-- 可以在 webcode 菜单里选择 `打开 Edge 独立 profile`，直接进入这个专用 profile 进行登录或插件管理。
-- VS Code 扩展升级后，如果独立 Edge 进程仍在运行，它可能继续使用旧的内置 bridge。此时 bridge 页面会提示版本不一致；关闭所有独立 Edge 窗口后再从 VS Code 打开即可加载新版 bridge。
+- No manual browser-extension installation is needed.
+- Sign-in state is separate from your everyday Edge profile, so you need to sign in to the target AI site once inside this isolated profile.
+- The isolated profile is stored in the OS app data directory by default, so uninstalling the VS Code extension does not remove it:
+  - Windows: `%LOCALAPPDATA%\webcode\isolated-browser-profiles\edge`
+  - macOS: `~/Library/Application Support/webcode/isolated-browser-profiles/edge`
+  - Linux: `${XDG_DATA_HOME:-~/.local/share}/webcode/isolated-browser-profiles/edge`
+- To customize the storage location, set `webcodeGateway.isolatedBrowser.profileRoot`. webcode creates `edge` and `chrome` subdirectories under that root.
+- `webcodeGateway.isolatedBrowser.profileRoot` only selects the profile root for new launches; it does not migrate existing profiles. For a clean setup, configure it before the first isolated Edge/Chrome launch so webcode creates only one profile set.
+- If you change `webcodeGateway.isolatedBrowser.profileRoot` after using isolated mode, webcode creates another isolated profile at the new location and keeps the old one. If you switch back, the old sign-in state is available as long as that profile still exists.
+- If you end up with multiple profile sets, use `Reset Current Isolated Profiles` from the webcode menu to delete the directory used by the current configuration. Use `Clean Legacy Isolated Profiles` for the old VS Code extension storage directory.
+- After upgrading from an older version, webcode does not copy the old VS Code extension storage profile. It creates a new isolated profile, so you need to sign in to the target AI site once in the new profile.
+- If a legacy isolated profile is detected, the webcode menu shows `Clean Legacy Isolated Profiles` to delete old data from VS Code extension storage.
+- `Reset Current Isolated Profiles` deletes the new profile currently used by webcode. The reset and cleanup menu items include an open-folder icon, and failed deletes also let you jump to the folder for manual cleanup.
+- If you stop using webcode completely, clean the current and legacy isolated profiles from the menu before uninstalling the VS Code extension.
+- If sign-in redirects to a third-party provider such as Google or Microsoft, the bridge pauses page capabilities and keeps the session; it resumes automatically after the browser returns to the target AI site.
+- You can choose `Open Edge Isolated Profile` from the webcode menu to open the dedicated profile directly for sign-in or extension management.
+- After a VS Code extension upgrade, an already-running isolated Edge process may keep using the old bundled bridge. The bridge page will show a version mismatch; close all isolated Edge windows and launch from VS Code again to load the new bridge.
 
-## 普通 Chrome / Edge
+## Regular Chrome / Edge
 
-普通模式会用你的常用 Chrome 或 Edge 打开网页，不附带保活参数。
+Regular mode opens your normal Chrome or Edge without keepalive flags.
 
-注意点：
+Notes:
 
-- 需要先手动安装 webcode bridge 浏览器扩展。
-- 可从 [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) 或 [GitHub Releases](https://github.com/juice094/webcode/releases) 下载插件。
-- 适合想复用常用浏览器登录态的场景。
-- 如果网页 AI 被浏览器后台冻结，工具调用结果可能不会及时写回页面。
+- Install the webcode bridge browser extension manually first.
+- Download it from the [Chrome Web Store](https://chromewebstore.google.com/detail/webcode-bridge/kghhldphcmpiimophipabdhldfipgiio) or [GitHub Releases](https://github.com/juice094/webcode/releases).
+- This mode is useful when you want to reuse your normal browser sign-in state.
+- If the web AI page is frozen in the background, tool-call results may not be written back promptly.
 
-## 用户配置保活模式
+## User Profile Keepalive
 
-用户配置保活模式会使用你的常用 Chrome 或 Edge profile，同时附带保活参数。
+User profile keepalive mode uses your normal Chrome or Edge profile and adds keepalive flags.
 
-注意点：
+Notes:
 
-- 需要先手动安装 webcode bridge 浏览器扩展。
-- 如果目标浏览器已经在运行，webcode 仍会继续打开页面，但新的保活参数通常不会生效；完全退出浏览器（包括后台进程）后重新打开，才能确保保活参数生效。
-- 适合必须使用常用浏览器登录态，但又希望减少后台冻结影响的场景。
-- 这个模式会启动你的常用浏览器 profile，可能恢复已有标签页或受到现有浏览器设置影响。
+- Install the webcode bridge browser extension manually first.
+- If the target browser is already running, webcode still opens the page, but the new keepalive flags usually cannot take effect. Fully quit the browser, including background processes, and reopen it when you need the keepalive flags to take effect.
+- This mode is useful when you must use your normal browser sign-in state but also want to reduce background freezing.
+- It launches your normal browser profile, so it may restore existing tabs or be affected by your existing browser settings.
 
-## Chrome for Testing / Chromium 独立保活模式
+## Chrome for Testing / Chromium Keepalive
 
-这个模式和 Edge 独立保活模式类似，也会使用单独 profile、自动加载内置 bridge，并附带保活参数。
+This mode is similar to Edge Isolated Keepalive: it uses a separate profile, auto-loads the bundled bridge, and adds keepalive flags.
 
-注意点：
+Notes:
 
-- 需要安装 Chrome for Testing 或 Chromium。
-- 如果 webcode 找不到浏览器，可以配置 `webcodeGateway.isolatedChrome.executablePath`。
-- 普通 Google Chrome 不适合作为独立自动加载插件模式使用，因为新版 Chrome 不再支持这种自动加载未打包扩展的方式。
-- Chrome 独立 profile 与 Edge 独立 profile 使用同一个根目录下的 `chrome` 子目录。
-- VS Code 扩展升级后，如果独立 Chrome/Chromium 进程仍在运行，它可能继续使用旧的内置 bridge。关闭所有独立浏览器窗口后重新从 VS Code 打开即可。
-- 如果不确定该选哪个，优先使用 `Edge 独立保活模式`。
+- Chrome for Testing or Chromium must be installed.
+- If webcode cannot find the browser, configure `webcodeGateway.isolatedChrome.executablePath`.
+- Regular Google Chrome is not suitable for this isolated auto-loaded-extension mode because newer Chrome versions no longer support this unpacked-extension loading path.
+- The Chrome isolated profile uses the `chrome` subdirectory under the same isolated profile root.
+- After a VS Code extension upgrade, an already-running isolated Chrome/Chromium process may keep using the old bundled bridge. Close all isolated browser windows and launch from VS Code again.
+- If you are not sure which mode to use, prefer `Edge Isolated Keepalive`.

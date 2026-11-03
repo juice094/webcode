@@ -6,8 +6,8 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const extensionRoot = resolve(scriptDir, '..');
 const repoRoot = resolve(extensionRoot, '..');
 
-const chineseReadme = readFileSync(resolve(repoRoot, 'README.md'), 'utf8').trimEnd();
-const englishReadme = readFileSync(resolve(repoRoot, 'README_en.md'), 'utf8').trimEnd();
+const chineseReadme = readFileSync(resolve(repoRoot, 'README_zh.md'), 'utf8').trimEnd();
+const englishReadme = readFileSync(resolve(repoRoot, 'README.md'), 'utf8').trimEnd();
 
 // VS Code Marketplace rejects SVG images in extension READMEs, so drop any
 // line that references an .svg asset before packaging.
@@ -18,13 +18,13 @@ const stripSvgReferences = (readme) => readme
 
 const marketplaceReadme = [
   '<!-- This README is generated for the VS Code Marketplace package. -->',
-  '<!-- Sources: ../README.md and ../README_en.md -->',
+  '<!-- Sources: ../README.md (English) and ../README_zh.md (Chinese) -->',
   '',
-  stripSvgReferences(chineseReadme),
+  stripSvgReferences(englishReadme),
   '',
   '---',
   '',
-  stripSvgReferences(englishReadme),
+  stripSvgReferences(chineseReadme),
   ''
 ].join('\n');
 

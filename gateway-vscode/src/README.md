@@ -2,7 +2,7 @@
 
 本目录是 VS Code 扩展的实现主体：既负责扩展激活、命令与状态栏，也承载本地 Gateway（Express HTTP 服务）与全部内置工具。
 
-上级说明：[gateway-vscode](../README.md) · 用户文档：[文档目录](../../doc/README.md)
+上级说明：[gateway-vscode](../README.md) · 用户文档：[文档目录](../../doc/README_zh.md)
 
 ## 技术栈
 
@@ -87,7 +87,7 @@ src/
 
 每个工具一个文件，共享 `types.ts` 的 `LocalTool` / `ToolResult` 契约。搜索类工具按职责拆分：`searchCodeRipgrepArgs.ts`、`searchCodeRipgrepOutput.ts`、`searchCodeFallback.ts`、`searchCodeGitFiles.ts` 等。
 
-工具清单与参数语义见[内置工具说明](../../doc/reference/BUILTIN_TOOLS.md)。
+工具清单与参数语义见[内置工具说明](../../doc/reference/BUILTIN_TOOLS_zh.md)。
 
 ### `servers/`（命令安全）
 
@@ -106,4 +106,4 @@ src/
 | `unit-test/` | `pnpm test` | Node/Mocha 单测，使用 `vscodeStub.ts` 替代 VS Code API |
 | `extension-test/` | `pnpm test:extension` | 真实 Extension Host 测试，夹具在 `extension-test/workspace/` |
 
-构建与完整命令见[构建指南](../../doc/getting-started/BUILD_GUIDE.md)。
+构建与完整命令见[构建指南](../../doc/getting-started/BUILD_GUIDE_zh.md)。

@@ -1,26 +1,26 @@
-# webcode MCP 服务配置指南
+# webcode MCP Server Configuration Guide
 
-本文说明如何在 webcode 中配置第三方 MCP server，例如 `chrome-devtools-mcp`。
+This guide explains how to configure third-party MCP servers in webcode, using `chrome-devtools-mcp` as an example.
 
-webcode 自带的文件、搜索、命令执行等能力已经由 VS Code 扩展内置实现，不需要再额外配置 MCP server。`webcodeGateway.servers` 只用于接入可选的第三方 MCP server。
+webcode already provides built-in local tools for files, search, and command execution through the VS Code extension. You do not need to configure extra MCP servers for those built-in capabilities. `webcodeGateway.servers` is only for optional third-party MCP servers.
 
-## 配置入口
+## Configuration Location
 
-在 VS Code 中打开当前工作区的 `settings.json`：
+Open the workspace `settings.json` in VS Code:
 
-1. 打开命令面板
-2. 搜索 `Preferences: Open Workspace Settings (JSON)`
-3. 添加或修改 `webcodeGateway.servers`
+1. Open the Command Palette
+2. Search for `Preferences: Open Workspace Settings (JSON)`
+3. Add or update `webcodeGateway.servers`
 
-也可以写在用户级 `settings.json` 中。涉及 token、账号或私有服务地址时，优先使用用户级配置，不要提交到仓库。
+You can also put this setting in your user-level `settings.json`. If the config contains tokens, account data, or private service URLs, prefer user-level settings and do not commit them to the repository.
 
-## 如何选择 MCP
+## Choosing an MCP Server
 
-文件读写、代码搜索和本地命令已有 webcode 内置工具，不需要再配置重复的 MCP server。仅在任务需要专用外部服务或 webcode 尚未提供的领域能力时，添加相应 MCP。
+Workspace file access, code search, and local commands are already provided by webcode built-ins; do not configure a duplicate MCP server for those tasks. Add an MCP server only when a task needs a specialized external service or a capability that webcode does not provide.
 
-webcode 不会自动导入本机 Copilot 的 MCP 配置，也不会替用户安装或启动第三方 server。添加前请确认 server 来源、权限、数据发送范围和运行方式；优先选择工具边界清楚、仅暴露当前任务所需能力的配置。没有经过测试的数据时，不宣称某个 MCP server 一定更快。
+webcode does not automatically import local Copilot MCP configuration or install/start third-party servers. Before adding one, verify its source, permissions, data flow, and runtime behavior. Prefer a configuration with a clear boundary that exposes only the capabilities needed for the task. Do not claim an MCP server is faster without measured data.
 
-## 基本格式
+## Basic Format
 
 ```json
 {
@@ -37,40 +37,40 @@ webcode 不会自动导入本机 Copilot 的 MCP 配置，也不会替用户安�
 }
 ```
 
-字段说明：
+Field reference:
 
 - `server-id`
-  - 自定义 server 名称
-  - 会成为第三方 MCP 工具名前缀
-  - 例如 server id 是 `chrome-devtools`，工具名会暴露为 `chrome-devtools:<toolName>`
+  - Custom server name
+  - Used as the prefix for third-party MCP tool names
+  - For example, if the server id is `chrome-devtools`, tools are exposed as `chrome-devtools:<toolName>`
 
 - `type`
-  - 可选值：`stdio`、`sse`、`http`
-  - 不写时默认按 `stdio` 处理
+  - Supported values: `stdio`, `sse`, `http`
+  - Defaults to `stdio` when omitted
 
 - `command`
-  - `stdio` server 的启动命令
-  - Windows 下写 `npx` 或 `npm` 即可，webcode 会自动转换为对应的 `.cmd`
+  - Startup command for a `stdio` server
+  - On Windows, you can write `npx` or `npm`; webcode converts it to the matching `.cmd` command automatically
 
 - `args`
-  - 传给 `command` 的参数数组
-  - `.` 和 `${workspaceFolder}` 会被替换为当前 VS Code 主工作区路径
+  - Arguments passed to `command`
+  - `.` and `${workspaceFolder}` are replaced with the primary VS Code workspace path
 
 - `url`
-  - `sse` 或 `http` server 的连接地址
+  - Connection URL for `sse` or `http` servers
 
 - `headers`
-  - `sse` 或 `http` 请求头
+  - Request headers for `sse` or `http` servers
 
 - `env`
-  - 传给 `stdio` server 进程的环境变量
+  - Environment variables passed to the `stdio` server process
 
 - `disabled`
-  - 设为 `true` 时跳过该 server
+  - Set to `true` to skip this server
 
-## 示例：chrome-devtools-mcp
+## Example: chrome-devtools-mcp
 
-官方 MCP client 示例通常使用：
+The official MCP client example usually looks like this:
 
 ```json
 {
@@ -83,7 +83,7 @@ webcode 不会自动导入本机 Copilot 的 MCP 配置，也不会替用户安�
 }
 ```
 
-在 webcode 中，对应写成 VS Code 设置项 `webcodeGateway.servers`：
+In webcode, write the equivalent config under the VS Code setting `webcodeGateway.servers`:
 
 ```json
 {
@@ -97,7 +97,7 @@ webcode 不会自动导入本机 Copilot 的 MCP 配置，也不会替用户安�
 }
 ```
 
-如果只需要基础浏览器任务，可以使用 slim/headless 模式：
+If you only need basic browser tasks, you can use slim/headless mode:
 
 ```json
 {
@@ -111,19 +111,19 @@ webcode 不会自动导入本机 Copilot 的 MCP 配置，也不会替用户安�
 }
 ```
 
-保存配置后，如果 webcode gateway 已经在运行，它会因 `webcodeGateway.servers` 配置变化自动重启。也可以从 VS Code 状态栏手动停止再启动。
+After saving the config, webcode gateway restarts automatically if it is already running and `webcodeGateway.servers` changed. You can also stop and start it manually from the VS Code status bar.
 
-## 工具名规则
+## Tool Name Rules
 
-webcode 会把第三方 MCP 工具名加上 server 前缀，避免和内置工具重名。
+webcode prefixes third-party MCP tool names with the server id to avoid collisions with built-in tools.
 
-规则：
+Rules:
 
-- 内置本地工具使用裸名，例如 `read_file`、`write_file`、`execute_command`
-- 第三方 MCP 工具使用 `server-id:toolName`
-- 裸名只属于内置本地工具，不会路由到第三方 MCP server
+- Built-in local tools use bare names, such as `read_file`, `write_file`, and `execute_command`
+- Third-party MCP tools use `server-id:toolName`
+- Bare names belong only to built-in local tools and are not routed to third-party MCP servers
 
-例如配置了：
+For example, with this config:
 
 ```json
 {
@@ -137,13 +137,13 @@ webcode 会把第三方 MCP 工具名加上 server 前缀，避免和内置工�
 }
 ```
 
-初始化后，Available Tools 中 `chrome-devtools` 分组里的工具会显示为：
+After initialization, tools in the `chrome-devtools` group appear in Available Tools as:
 
 ```text
 chrome-devtools:<toolName>
 ```
 
-调用第三方工具时，必须使用 Available Tools 里展示的完整名称。例如：
+When calling a third-party tool, use the full name shown in Available Tools. Example:
 
 ```json
 {
@@ -154,13 +154,13 @@ chrome-devtools:<toolName>
 }
 ```
 
-不要把第三方工具写成裸名 `<toolName>`。裸名只会查找 webcode 内置工具。
+Do not call third-party tools with bare names like `<toolName>`. Bare names only look up webcode built-in tools.
 
-## HTTP 和 SSE server
+## HTTP and SSE Servers
 
-如果第三方 MCP server 不是通过 stdio 启动，而是已经提供 HTTP 或 SSE 端点，可以这样配置。
+If a third-party MCP server is not started over stdio and already exposes an HTTP or SSE endpoint, configure it like this.
 
-HTTP 示例：
+HTTP example:
 
 ```json
 {
@@ -176,7 +176,7 @@ HTTP 示例：
 }
 ```
 
-SSE 示例：
+SSE example:
 
 ```json
 {
@@ -189,9 +189,9 @@ SSE 示例：
 }
 ```
 
-## 不需要再配置的内置能力
+## Built-In Capabilities That Do Not Need MCP Config
 
-以下能力由 webcode 内置提供，不需要配置第三方 MCP server：
+The following capabilities are built into webcode and do not require third-party MCP server configuration:
 
 - `read_file`
 - `attach_file`
@@ -203,36 +203,36 @@ SSE 示例：
 - `run_in_terminal`
 - `terminal_session`
 
-旧配置中的这些 server id 会被忽略：
+These legacy built-in server ids are ignored:
 
 - `filesystem`
 - `command`
 - `builtin_filesystem`
 - `builtin_command`
 
-## 常见问题
+## Troubleshooting
 
-### 配置后没有工具
+### No tools appear after configuration
 
-先检查 VS Code 输出面板中的 webcode gateway 日志。常见原因：
+Check the webcode gateway logs in the VS Code Output panel. Common causes:
 
-- `command` 不存在或无法启动
-- `npx` 下载依赖失败
-- `args` 写法不是数组
-- HTTP/SSE 的 `url` 不可访问
-- server 启动后没有返回 MCP tool list
+- `command` does not exist or cannot start
+- `npx` failed to download dependencies
+- `args` is not an array
+- The HTTP/SSE `url` is not reachable
+- The server started but did not return an MCP tool list
 
-### 工具显示了但调用失败
+### A tool appears but calls fail
 
-确认调用名和 Available Tools 里的名称完全一致。第三方 MCP 工具必须包含 server 前缀，例如：
+Make sure the call name exactly matches the name shown in Available Tools. Third-party MCP tools must include the server prefix, for example:
 
 ```text
 chrome-devtools:<toolName>
 ```
 
-### 想临时停用某个 server
+### Temporarily disable a server
 
-设置 `disabled: true`：
+Set `disabled: true`:
 
 ```json
 {

@@ -21,7 +21,7 @@ description: 针对相关的 WebCode 浏览器和 VS Code 改动建议进行交�
   常规单元测试、构建、lint 和确定性检查仍属于原始任务范围。
 - 如果用户没有授权交互式 QA，不要因此阻塞任务完成；在相关信息有用时说明它未运行即可。
 
-获得授权后，先阅读仓库根目录的 `README.md`，了解当前 WebCode 设置和基本对话流程；
+获得授权后，先阅读仓库根目录的 `README_zh.md`，了解当前 WebCode 设置和基本对话流程；
 然后在启动会话前阅读 [references/commands.md](references/commands.md)。对于发生改动的行为，
 只阅读 [references/charters.md](references/charters.md) 中相关的部分。所有浏览器和
 VS Code Workbench 操作还必须使用 `playwright-cli` 技能。

@@ -24,7 +24,7 @@ pnpm test:extension
 pnpm lint
 ```
 
-浏览器端到端测试和交互式 QA 需要额外的浏览器环境，运行方式见 [Evals 指南](evals/README.md)。只有在受影响的流程需要时再执行；交互式 QA 必须使用 `qa:start` 创建的隔离工作区。
+浏览器端到端测试和交互式 QA 需要额外的浏览器环境，运行方式见 [Evals 指南](evals/README_zh.md)。只有在受影响的流程需要时再执行；交互式 QA 必须使用 `qa:start` 创建的隔离工作区。
 
 ## Pull Request
 
