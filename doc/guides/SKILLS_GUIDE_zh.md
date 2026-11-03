@@ -52,7 +52,7 @@ webcode 也可以随扩展提供内置 Skills。内置 Skills 会和工作区 Sk
 内置 Skill 的 `skillFilePath` 是只读虚拟路径，例如：
 
 ```text
-.webcode/builtin-skills/create-skills/SKILL.md
+.gateway/builtin-skills/create-skills/SKILL.md
 ```
 
 这个路径不会真实写入工作区，只能通过 `read_file` 读取。`write_file`、`edit_file`、命令执行和搜索工具不会把它当作可写或可执行文件。

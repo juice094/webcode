@@ -16,7 +16,7 @@
 
 | 工具名 | 作用 |
 | --- | --- |
-| `read_file` | 读取 workspace 内的 UTF-8 文本文件，或读取 `.webcode/builtin-skills/...` 下的内置 Skill 只读虚拟文件；可用 `head`、`tail`、`start_line`、`end_line`、`show_line_numbers` 读取指定范围并显示行号。 |
+| `read_file` | 读取 workspace 内的 UTF-8 文本文件，或读取 `.gateway/builtin-skills/...` 下的内置 Skill 只读虚拟文件；可用 `head`、`tail`、`start_line`、`end_line`、`show_line_numbers` 读取指定范围并显示行号。 |
 | `attach_file` | 把 workspace 内不超过 20 MB 的 UTF-8 TXT、PNG、JPEG、WebP、GIF 或 PDF 文件作为真实附件粘贴到当前 AI 对话，供具备相应能力的站点和模型查看；网页未确认接收粘贴时，会为 `attach_file` 返回附件投递错误。 |
 | `write_file` | 创建或完全覆盖 workspace 内的 UTF-8 文本文件。 |
 | `edit_file` | 对 workspace 内文本文件做精确文本替换或应用 unified diff patch，可用 `dryRun` 返回 diff 预览。 |
@@ -41,7 +41,7 @@
 | `get_project_rules` | 读取 workspace 根目录中的 `USER_RULES.md`、`AGENTS.md` 或 `CLAUDE.md`，用于组装初始化提示词。 |
 | `get_project_context` | 汇总当前 workspace 文件夹名、是否为 Git 仓库、当前 Git 分支、两层项目结构和最近 5 条提交，用于组装初始化提示词；项目结构最多展示 100 项，生成目录和 VCS 目录会展示但不展开。 |
 | `list_tools` | 返回模型可用工具列表，按 server 分组，每个工具都包含完整 schema，用于组装初始化提示词。 |
-| `list_skills` | 列出当前 workspace 中发现的本地 skills 和 webcode 内置 skills，用于组装初始化提示词中的 Available Skills；每项包含 `source` 和可直接交给 `read_file` 的 `skillFilePath`。本地 skill 使用 `source: "workspace"` 和 workspace-relative、`/` 分隔路径；内置 skill 使用 `source: "builtin"` 和 `.webcode/builtin-skills/...` 只读虚拟路径。 |
+| `list_skills` | 列出当前 workspace 中发现的本地 skills 和 webcode 内置 skills，用于组装初始化提示词中的 Available Skills；每项包含 `source` 和可直接交给 `read_file` 的 `skillFilePath`。本地 skill 使用 `source: "workspace"` 和 workspace-relative、`/` 分隔路径；内置 skill 使用 `source: "builtin"` 和 `.gateway/builtin-skills/...` 只读虚拟路径。 |
 
 ## 3. Browser client virtual tools
 

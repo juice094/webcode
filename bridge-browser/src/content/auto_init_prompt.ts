@@ -344,7 +344,7 @@ export class AutoInitPromptController {
       return noticeReplacement ? { text: noticeReplacement, attached: true } : null;
     }
 
-    Logger.log("Initialization context attachment failed. Falling back to the webcode_init command prompt.", "warn");
+    Logger.log("Initialization context attachment failed. Falling back to the initialize command prompt.", "warn");
     const fallbackInitPrompt = this.getLoadedInitPrompt();
     if (!fallbackInitPrompt) {return null;}
     const fallbackReplacement = buildReplacementForContext(

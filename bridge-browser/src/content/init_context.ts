@@ -46,8 +46,11 @@ export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions =
       executeInitToolCall("list_skills"),
     ]);
 
-    finalPrompt += `\n\n# ${BRANDING.productName} Available Tools\n\`\`\`json\n${escapeInlineNewlines(toolsResult)}\n\`\`\``;
-    finalPrompt += `\n\n# ${BRANDING.productName} Available Skills\n\`\`\`json\n${escapeInlineNewlines(skillsResult)}\n\`\`\``;
+    // Deliberately no product name in these headers: the injected context is
+    // visible to the web AI platform, and naming the bridge is a free
+    // automation signal.
+    finalPrompt += `\n\n# Available Tools\n\`\`\`json\n${escapeInlineNewlines(toolsResult)}\n\`\`\``;
+    finalPrompt += `\n\n# Available Skills\n\`\`\`json\n${escapeInlineNewlines(skillsResult)}\n\`\`\``;
   } catch (error) {
     Logger.log(`Initialization data fetch failed: ${getErrorMessage(error)}`, "error");
     finalPrompt += `\n\n# Initialization Note\nFailed to fetch the tool or skill list. Re-run \`${PROTOCOL.initToolName}\` if needed.`;

@@ -17,7 +17,7 @@ Local tool `path` arguments consistently use workspace-relative paths with `/` s
 
 | Tool | Purpose |
 | --- | --- |
-| `read_file` | Reads UTF-8 text files inside the workspace, or read-only built-in Skill virtual files under `.webcode/builtin-skills/...`. Supports `head`, `tail`, `start_line`, `end_line`, and `show_line_numbers` for ranged reads and line numbers. |
+| `read_file` | Reads UTF-8 text files inside the workspace, or read-only built-in Skill virtual files under `.gateway/builtin-skills/...`. Supports `head`, `tail`, `start_line`, `end_line`, and `show_line_numbers` for ranged reads and line numbers. |
 | `attach_file` | Pastes a UTF-8 TXT, PNG, JPEG, WebP, GIF, or PDF file of up to 20 MB from the workspace into the current AI conversation as a real attachment for a capable site and model to inspect. If the page does not acknowledge the paste, an attachment delivery error is returned for `attach_file`. |
 | `write_file` | Creates or fully overwrites UTF-8 text files inside the workspace. |
 | `edit_file` | Applies exact text replacements or unified diff patches to text files inside the workspace. Use `dryRun` to return a diff preview. |
@@ -36,7 +36,7 @@ These tools are only used by the VS Code gateway and browser extension when init
 | `get_project_rules` | Reads `USER_RULES.md`, `AGENTS.md`, or `CLAUDE.md` from the workspace root to assemble the initialization prompt. |
 | `get_project_context` | Summarizes the current workspace folder name, Git repository status, current Git branch, two-level project structure, and 5 recent commits for the initialization prompt; the project structure shows at most 100 entries, and generated and VCS folders are shown but not expanded. |
 | `list_tools` | Returns the model-available tool list grouped by server. Each tool includes its full schema for the initialization prompt. |
-| `list_skills` | Lists local skills discovered in the current workspace and webcode built-in skills for the Available Skills section of the initialization prompt. Each item includes `source` and a `skillFilePath` that can be passed directly to `read_file`; local skills use `source: "workspace"` and workspace-relative `/`-separated paths, while built-in skills use `source: "builtin"` and read-only virtual paths under `.webcode/builtin-skills/...`. |
+| `list_skills` | Lists local skills discovered in the current workspace and webcode built-in skills for the Available Skills section of the initialization prompt. Each item includes `source` and a `skillFilePath` that can be passed directly to `read_file`; local skills use `source: "workspace"` and workspace-relative `/`-separated paths, while built-in skills use `source: "builtin"` and read-only virtual paths under `.gateway/builtin-skills/...`. |
 
 ## 3. Browser Client Virtual Tools
 

@@ -52,7 +52,7 @@ webcode can also ship built-in Skills with the extension. Built-in Skills appear
 A built-in Skill's `skillFilePath` is a read-only virtual path, for example:
 
 ```text
-.webcode/builtin-skills/create-skills/SKILL.md
+.gateway/builtin-skills/create-skills/SKILL.md
 ```
 
 This path is not written into the workspace. It can only be read with `read_file`; `write_file`, `edit_file`, command execution, and search tools do not treat it as a writable or executable file.

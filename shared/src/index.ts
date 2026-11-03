@@ -38,7 +38,9 @@ export const BRANDING = {
 const headerToken = toHeaderToken(brandConfig.productName);
 
 export const PROTOCOL = {
-  initToolName: `${brandConfig.slug}_init`,
+  // Model-facing bootstrap tool name: deliberately not derived from the brand
+  // slug so the injected protocol never names the product.
+  initToolName: 'initialize',
   authHeaderName: `X-${headerToken}-Token`,
   authHeaderLowerName: `x-${headerToken.toLowerCase()}-token`,
   observerStartedFlag: `_${brandConfig.slug}_observer_started`,

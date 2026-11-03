@@ -42,7 +42,7 @@ suite('Built-in skills', () => {
     });
 
     test('does not normalize virtual paths that escape the built-in root', async () => {
-        const escapingPath = '.webcode/builtin-skills/create-skills/../../package.json';
+        const escapingPath = '.gateway/builtin-skills/create-skills/../../package.json';
 
         assert.strictEqual(normalizeBuiltinSkillVirtualPath(escapingPath), null);
         assert.deepStrictEqual(await resolveBuiltinSkillVirtualFile(getExtensionPath(), escapingPath), {
@@ -54,12 +54,12 @@ suite('Built-in skills', () => {
     test('reports missing files under the built-in skill virtual root', async () => {
         const result = await resolveBuiltinSkillVirtualFile(
             getExtensionPath(),
-            '.webcode/builtin-skills/create-skills/missing.md'
+            '.gateway/builtin-skills/create-skills/missing.md'
         );
 
         assert.deepStrictEqual(result, {
             status: 'missing',
-            path: '.webcode/builtin-skills/create-skills/missing.md'
+            path: '.gateway/builtin-skills/create-skills/missing.md'
         });
     });
 });

@@ -21,7 +21,7 @@ export const WORKSPACE_SEARCH_PATH_DESCRIPTION =
     'Optional workspace-relative directory to search, using "/" separators. Defaults to "." (the whole multi-root workspace). Absolute paths, home paths, and backslashes are rejected.';
 
 export const WORKSPACE_COMMAND_PATH_DESCRIPTION =
-    'Optional workspace-relative command directory, interpreted by webcode before shell selection and using the same format for every terminal profile. Use "/" separators, for example "packages/app". Defaults to ".". In a multi-root workspace a sibling folder can be addressed by prefixing its folder name. Absolute paths, home paths, and backslashes are rejected.';
+    'Optional workspace-relative command directory, interpreted by the gateway before shell selection and using the same format for every terminal profile. Use "/" separators, for example "packages/app". Defaults to ".". In a multi-root workspace a sibling folder can be addressed by prefixing its folder name. Absolute paths, home paths, and backslashes are rejected.';
 
 export type WorkspaceRootsInput = string | readonly string[] | null;
 

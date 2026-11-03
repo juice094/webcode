@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export const BUILTIN_SKILLS_DIRECTORY = 'skills';
-export const BUILTIN_SKILL_VIRTUAL_ROOT = '.webcode/builtin-skills';
+export const BUILTIN_SKILL_VIRTUAL_ROOT = '.gateway/builtin-skills';
 export const BUILTIN_CREATE_SKILLS_SKILL_FILE_PATH = `${BUILTIN_SKILL_VIRTUAL_ROOT}/create-skills/SKILL.md`;
 
 export type BuiltinSkillVirtualFileResult =
