@@ -5,7 +5,7 @@ import { GATEWAY_CONNECT_COMMAND } from './commandIds';
 import { getConfiguredAiSites, type AISiteConfig } from '../platforms';
 
 /**
- * Handles `vscode://three-water666.gateway-vscode/connect`.
+ * Handles `vscode://juice094.gateway-vscode/connect`.
  *
  * THREAT MODEL
  * ------------

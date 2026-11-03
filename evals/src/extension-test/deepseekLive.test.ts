@@ -26,7 +26,7 @@ interface EvaluationExtensionApi {
     };
 }
 
-const EXTENSION_ID = 'three-water666.gateway-vscode';
+const EXTENSION_ID = 'juice094.gateway-vscode';
 const SITE_ID = 'deepseek';
 
 suite('DeepSeek live-site evaluation', () => {

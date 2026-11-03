@@ -78,6 +78,6 @@
 
 | # | 项 | 说明 |
 | --- | --- | --- |
-| 1 | `gateway-vscode/package.json` 的 `publisher` | 仍为 `three-water666`，与扩展标识绑定，发版前需单独评估 |
-| 2 | `shared/src/branding.json` 的 `vscodeConnectUri` | 含 publisher ID，不能因仓库改名而修改 |
+| 1 | `gateway-vscode/package.json` 的 `publisher` | 已于 2026-11-03 由 `three-water666` 改为 `juice094`（宿拍板）：上游停更，扩展身份完全独立；旧标识需卸载后换装新 vsix |
+| 2 | `shared/src/branding.json` 的 `vscodeConnectUri` | 含 publisher ID，已同步改为 `juice094.gateway-vscode`；今后改 publisher 时必须同步此处与 evals 测试 |
 | 3 | changelog 版本缺口 | v0.1.6 / v0.3.1 / v0.4.2 / v0.4.3 是否存在未确认 |

@@ -23,7 +23,7 @@ interface EvaluationExtensionApi {
     };
 }
 
-const EXTENSION_ID = 'three-water666.gateway-vscode';
+const EXTENSION_ID = 'juice094.gateway-vscode';
 
 suite('Interactive QA Extension Host', () => {
     test('serves the agent-led QA control channel until stopped', async function () {

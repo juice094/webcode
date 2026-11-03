@@ -9,7 +9,7 @@ interface GatewayExtensionApi {
     };
 }
 
-const EXTENSION_ID = 'three-water666.gateway-vscode';
+const EXTENSION_ID = 'juice094.gateway-vscode';
 const EXPECTED_COMMANDS = [
     'gateway-vscode.restart',
     'webcode-gateway.cleanLegacyIsolatedBrowserProfiles',

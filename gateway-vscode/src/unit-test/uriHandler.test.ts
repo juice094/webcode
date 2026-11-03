@@ -44,7 +44,7 @@ suite('Extension deep link', () => {
     test('refuses other schemes and authorities', () => {
         assert.strictEqual(parseGatewayConnectUri(link({ scheme: 'https' })), null);
         assert.strictEqual(parseGatewayConnectUri(link({ scheme: 'http' })), null);
-        assert.strictEqual(parseGatewayConnectUri(link({ authority: 'three-water666.other-extension' })), null);
+        assert.strictEqual(parseGatewayConnectUri(link({ authority: 'juice094.other-extension' })), null);
         assert.strictEqual(parseGatewayConnectUri(link({ authority: '' })), null);
     });
 

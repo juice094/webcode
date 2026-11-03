@@ -47,8 +47,8 @@ Click the browser extension popup and enable logs. The summary column records ea
 Gateway logs are persisted so they survive window closes and abnormal exits:
 
 - VS Code Output panel: Command Palette → `Output: Show Output Channels...` → pick `MCP Gateway` (live view).
-- Persisted log file: `globalStorage/three-water666.gateway-vscode/logs/gateway-YYYYMMDD.log`
-  (on Windows: `%APPDATA%\Code\User\globalStorage\three-water666.gateway-vscode\logs\`),
+- Persisted log file: `globalStorage/juice094.gateway-vscode/logs/gateway-YYYYMMDD.log`
+  (on Windows: `%APPDATA%\Code\User\globalStorage\juice094.gateway-vscode\logs\`),
   rotated daily and kept for 7 days by default. Startup, shutdown, idle auto-stop, start
   failures, and uncaught extension-host exceptions are all recorded.
 
@@ -97,7 +97,7 @@ No. Since 1.3.0:
   recovering automatically and points at the reconnect path.
 
 Interrupted tool calls are **never replayed**. Calls that were running when the host went away are
-written to `globalStorage/three-water666.gateway-vscode/state/shutdown-<workspaceId>.json`
+written to `globalStorage/juice094.gateway-vscode/state/shutdown-<workspaceId>.json`
 (argument digest plus a redacted preview capped at 120 characters, ignored after 10 minutes), and
 the next start reports "N call(s) were interrupted, retry them" in the log and in
 `/v1/status.lastInterrupted`.

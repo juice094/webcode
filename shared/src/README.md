@@ -33,7 +33,7 @@
 
 ## 关键约定
 
-- `branding.json` 的 `vscodeConnectUri` 含 publisher ID（`three-water666`），与扩展标识绑定，**不能因仓库改名而修改**；`repositoryUrl` 用于生成 release 下载链接，指向当前仓库。
+- `branding.json` 的 `vscodeConnectUri` 含 publisher ID（现为 `juice094`），与扩展标识绑定：修改 publisher 时必须同步改这里与 evals 测试；`repositoryUrl` 用于生成 release 下载链接，指向当前仓库。
 - `PROTOCOL` 中的字符串由 `branding.json` 的 `slug` 派生，改动 `slug` 会同时改变工具名、请求头名与触发词。
 - 本包不引入运行时依赖，构建仅执行 `tsc`。
 

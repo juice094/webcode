@@ -37,7 +37,7 @@ export interface InteractiveQaControl {
     stopped: Promise<void>;
 }
 
-const EXTENSION_ID = 'three-water666.gateway-vscode';
+const EXTENSION_ID = 'juice094.gateway-vscode';
 
 export async function startInteractiveQaControl(
     options: QaControlOptions

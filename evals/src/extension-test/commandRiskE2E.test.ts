@@ -29,7 +29,7 @@ interface ApprovalExpectation {
     keyboardCheck?: 'tab-trap' | 'escape-blocked';
 }
 
-const EXTENSION_ID = 'three-water666.gateway-vscode';
+const EXTENSION_ID = 'juice094.gateway-vscode';
 
 suite('Command risk approval E2E', () => {
     let browserContext: BrowserContext | undefined;

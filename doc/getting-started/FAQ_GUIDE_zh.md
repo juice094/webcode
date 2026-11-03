@@ -49,8 +49,8 @@
 网关日志现在会同步落盘，方便窗口关闭或异常退出后复盘：
 
 - VS Code 输出面板：命令面板 → `Output: Show Output Channels...` → 选择 `MCP Gateway`（实时查看）。
-- 持久化日志文件：`globalStorage/three-water666.gateway-vscode/logs/gateway-YYYYMMDD.log`
-  （Windows 路径为 `%APPDATA%\Code\User\globalStorage\three-water666.gateway-vscode\logs\`），
+- 持久化日志文件：`globalStorage/juice094.gateway-vscode/logs/gateway-YYYYMMDD.log`
+  （Windows 路径为 `%APPDATA%\Code\User\globalStorage\juice094.gateway-vscode\logs\`），
   按天滚动，默认保留最近 7 天。启动、停止、空闲自动关停、启动失败以及扩展宿主未捕获异常都会记录。
 
 连接断开时的排查顺序：
@@ -92,7 +92,7 @@
   并给出重新连接的指引。
 
 被中断的调用**不会被重放**。上一次会话正在执行的工具调用会写入
-`globalStorage/three-water666.gateway-vscode/state/shutdown-<workspaceId>.json`
+`globalStorage/juice094.gateway-vscode/state/shutdown-<workspaceId>.json`
 （只保存参数摘要与脱敏后不超过 120 字符的预览，10 分钟后视为过期），
 下次启动时在日志与 `/v1/status.lastInterrupted` 里告知“上次有 N 个调用被中断，请重试”。
 
