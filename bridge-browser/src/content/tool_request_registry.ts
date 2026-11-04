@@ -239,7 +239,7 @@ export class ToolRequestRegistry {
     const attachmentGroups: ToolResultAttachmentGroup[] = [];
     const orderedResults: string[] = [];
     let hasAnyResult = false;
-    let lastToolOutput: { bufferedResult: BufferedResult; outputIndex: number } | undefined;
+    let lastToolOutput: { bufferedResult: Extract<BufferedResult, { kind: "tool" }>; outputIndex: number } | undefined;
 
     requestKeys.forEach((key) => {
       const bufferedResult = this.bufferedResults.get(key);
