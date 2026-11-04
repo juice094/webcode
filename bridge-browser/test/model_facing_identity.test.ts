@@ -38,6 +38,7 @@ function scanFile(absolutePath: string): void {
 function main(): void {
     const contentDir = path.resolve(here, "../../src/content");
     const targets = [
+        "auto_init_prompt.ts",
         "auto_init_prompt_text.ts",
         "init_context.ts",
         "tool_call_tracker.ts",

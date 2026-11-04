@@ -52,7 +52,9 @@ const AUTO_INIT_EVENT_TYPES = [
   "change",
   "focusin",
 ] as const;
-const AUTO_INIT_ATTACHMENT_FILENAME_PREFIX = `${BRANDING.slug}-init-context`;
+// Neutral by design: attachment filenames are visible to the web AI
+// platform, so they must not carry the product name.
+const AUTO_INIT_ATTACHMENT_FILENAME_PREFIX = 'init-context';
 
 export class AutoInitPromptController {
   private listenerStarted = false;
@@ -294,7 +296,7 @@ export class AutoInitPromptController {
 
     if (UI.replaceInputBoxText(replacement.text, selectors.inputArea)) {
       this.lastPromptedText = replacement.text;
-      Logger.log("Inserted webcode initialization prompt", "action");
+      Logger.log("Inserted initialization prompt", "action");
       return { success: true, attached: replacement.attached };
     }
 
