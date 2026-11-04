@@ -109,6 +109,9 @@ export class ToolRequestRegistry {
    */
   private toolCallCount = 0;
 
+  /** Reminder waiting to be attached to the last result of the next flushed batch. */
+  private pendingSystemNote: string | undefined;
+
   /**
    * 创建一个由调用方控制生命周期的工具调用轮次收集器。
    *
@@ -180,9 +183,11 @@ export class ToolRequestRegistry {
     options: SaveToolResultOptions
   ): void {
     this.toolCallCount++;
-    let systemNote: string | undefined;
     if (this.toolCallCount > 0 && this.toolCallCount % 5 === 0) {
-      systemNote = i18n.resources.train ?? getDefaultToolCallReminder();
+      // Defer to the batch flush: a reminder in the middle of a multi-result
+      // reply breaks call-result correspondence, so it is attached to the
+      // last result of the next flushed batch instead.
+      this.pendingSystemNote = i18n.resources.train ?? getDefaultToolCallReminder();
     }
 
     this.bufferedResults.set(requestKey, {
@@ -190,7 +195,6 @@ export class ToolRequestRegistry {
       content,
       isError: options.isError === true,
       kind: "tool",
-      systemNote,
       toolName: options.toolName,
     });
   }
@@ -235,6 +239,7 @@ export class ToolRequestRegistry {
     const attachmentGroups: ToolResultAttachmentGroup[] = [];
     const orderedResults: string[] = [];
     let hasAnyResult = false;
+    let lastToolOutput: { bufferedResult: BufferedResult; outputIndex: number } | undefined;
 
     requestKeys.forEach((key) => {
       const bufferedResult = this.bufferedResults.get(key);
@@ -245,6 +250,9 @@ export class ToolRequestRegistry {
       if (result) {
         const outputIndex = orderedResults.length;
         orderedResults.push(result);
+        if (bufferedResult.kind === "tool") {
+          lastToolOutput = { bufferedResult, outputIndex };
+        }
         if (bufferedResult.kind === "tool" && bufferedResult.attachments.length > 0) {
           attachmentGroups.push({
             attachments: bufferedResult.attachments.map((attachment) => ({ ...attachment })),
@@ -254,6 +262,15 @@ export class ToolRequestRegistry {
         }
       }
     });
+
+    if (this.pendingSystemNote && lastToolOutput) {
+      const noted = this.formatBufferedResult({
+        ...lastToolOutput.bufferedResult,
+        systemNote: this.pendingSystemNote,
+      });
+      orderedResults[lastToolOutput.outputIndex] = noted;
+      this.pendingSystemNote = undefined;
+    }
 
     return {
       attachmentGroups,

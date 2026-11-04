@@ -188,6 +188,21 @@ suite('Tool result compression route integration', () => {
         assert.ok(!IDENTITY_PATTERN.test(text), 'model-facing compressed text must stay identity-free');
     });
 
+    test('bootstrap tool results (init context payload) are never compressed', async () => {
+        const options = createOptions({
+            policy: { mode: 'smart', maxResultChars: 12_000 },
+            toolText: DUPLICATE_SAMPLE,
+            toolName: 'list_tools'
+        });
+        const response = await invokeHandler(createToolCallHandler(options), { name: 'list_tools', arguments: {} });
+
+        assert.strictEqual(response.statusCode, 200);
+        const body = response.body as Record<string, unknown>;
+        assert.strictEqual(body.compressed, undefined, 'bootstrap results feed the Available Tools list and must stay verbatim');
+        const text = (body.content as Array<{ text: string }>)[0].text;
+        assert.strictEqual(text, DUPLICATE_SAMPLE);
+    });
+
     test('off policy sends the result unchanged without compression metadata', async () => {
         const options = createOptions({
             policy: { mode: 'off', maxResultChars: 12_000 },
@@ -234,10 +249,11 @@ suite('Tool result compression route integration', () => {
     });
 });
 
-function createOptions(overrides: { policy: CompressionPolicy; toolText: string }): ToolCallHandlerOptions {
+function createOptions(overrides: { policy: CompressionPolicy; toolText: string; toolName?: string }): ToolCallHandlerOptions {
+    const toolName = overrides.toolName ?? 'compressible_tool';
     const localTool: LocalTool = {
         definition: {
-            name: 'compressible_tool',
+            name: toolName,
             description: 'test tool',
             inputSchema: { type: 'object', properties: {} }
         },

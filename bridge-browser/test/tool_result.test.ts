@@ -22,6 +22,7 @@ async function main(): Promise<void> {
   await runTest("preserves attachments in buffered result batches", testBufferedAttachments);
   await runTest("rewrites only the failed attachment result", testAttachmentFailureResult);
   await runTest("distinguishes acknowledged paste events", testPasteAcknowledgement);
+  await runTest("attaches periodic reminders to the last result of a batch", testReminderGoesToBatchTail);
 }
 
 function testTextResourceAttachment(): void {
@@ -223,6 +224,27 @@ function installNavigator(): void {
       value: { language: "en-US" },
     });
   }
+}
+
+async function testReminderGoesToBatchTail(): Promise<void> {
+  const { ToolRequestRegistry } = await import("../src/content/tool_request_registry");
+  const registry = new ToolRequestRegistry();
+  const keys: string[] = [];
+  for (let index = 0; index < 5; index += 1) {
+    const key = `reminder-key-${index}`;
+    keys.push(key);
+    registry.saveToolResult(key, `result ${index}`, { toolName: "read_file" });
+  }
+  const batch = registry.buildBufferedResultBatch(keys);
+
+  assertEqual(batch.outputParts.length, 5, "expected five formatted results");
+  const systemNoteMarker = '"system_note"';
+  for (let index = 0; index < 4; index += 1) {
+    assert(!batch.outputParts[index].includes(systemNoteMarker),
+      `reminder leaked into mid-batch result ${index}`);
+  }
+  assert(batch.outputParts[4].includes(systemNoteMarker),
+    "reminder missing from the last result of the batch");
 }
 
 async function runTest(name: string, test: () => void | Promise<void>): Promise<void> {

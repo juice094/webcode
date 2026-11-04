@@ -1,5 +1,6 @@
 import type { Response } from 'express';
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { isBootstrapOnlyToolName } from '@webcode/shared';
 
 import type { LocalTool, ToolExecutionContext } from '../tools';
 import type { CompressionOutcome } from '../tools/resultCompression';
@@ -86,7 +87,13 @@ export async function executeWithTelemetry(input: ToolExecutionInput): Promise<v
             durationMs
         });
         if (canRespond(res)) {
-            res.json(deps.compressResult ? compressResultPayload(result, deps.compressResult) : result);
+            // Bootstrap tools feed the init context (Available Tools / Skills);
+            // their results are the single source of truth for tool names and
+            // schemas, so they must never be summarized or truncated.
+            const compressor = deps.compressResult && !isBootstrapOnlyToolName(request.name)
+                ? deps.compressResult
+                : undefined;
+            res.json(compressor ? compressResultPayload(result, compressor) : result);
         }
     } catch (error: unknown) {
         handleExecutionError({ backend, deps, error, request, res, toolStart });
