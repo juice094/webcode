@@ -58,6 +58,7 @@ import type { ApprovalAuditSink } from './gateway/approvalAudit';
 import { registerPairingRoutes, type SessionRequestPrompt } from './gateway/pairingRoutes';
 import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { listenOnAvailablePort } from './gateway/portListener';
+import { readToolResultCompressionPolicy } from './gateway/compressionPolicy';
 
 export interface GatewayLifecycleOptions {
     /**
@@ -336,6 +337,7 @@ export class GatewayManager {
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
             getToolCallTimeoutMs: () => this.toolCallMs,
+            getCompressionPolicy: () => readToolResultCompressionPolicy(),
             getToolDefinition: (name: string) => this.getToolDefinition(name),
             getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
             localTools: this.localTools,

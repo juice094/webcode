@@ -12,6 +12,7 @@ import type {
     ToolDefinition,
     ToolExecutionContext
 } from '../tools';
+import { createResultCompressor, type CompressionPolicy } from '../tools/resultCompression';
 import { getErrorMessage } from './errorUtils';
 import { resolveLocalPathArguments } from './pathArguments';
 import type { GatewayErrorLogger, GatewayLogger, RemoteToolRoute } from './types';
@@ -44,6 +45,12 @@ export type ToolCallHandlerOptions = {
     getToolCallTimeoutMs?: () => number;
     getToolDefinition: (name: string) => ToolDefinition | null;
     getWorkspaceRoot: () => string | null;
+    /**
+     * Resolves the tool-result compression policy for this call, so settings
+     * edits apply without a gateway restart. `off` resolves to no compressor
+     * (identity, never invoked). Omitted means no compression (tests).
+     */
+    getCompressionPolicy?: () => CompressionPolicy;
     localTools: Map<string, LocalTool>;
     log: GatewayLogger;
     /** Reports a tool call that is now executing (used by the shutdown snapshot). */
@@ -94,13 +101,8 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
             res.once('close', () => controller.abort(new Error('client disconnected')));
         }
 
-        const deps: ToolExecutionDeps = {
-            audit: options.audit,
-            error: options.error,
-            getToolCallTimeoutMs: options.getToolCallTimeoutMs,
-            log: options.log,
-            trace: options.trace
-        };
+        const compressionPolicy = options.getCompressionPolicy?.();
+        const deps = createExecutionDeps(options, compressionPolicy);
 
         try {
             const sessionToken = (req as BridgeSessionRequest).bridgeSession?.token;
@@ -146,6 +148,20 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
             // and disconnect all converge here, so the registry cannot leak.
             options.onToolCallEnd?.(callId);
         }
+    };
+}
+
+function createExecutionDeps(
+    options: ToolCallHandlerOptions,
+    compressionPolicy: CompressionPolicy | undefined
+): ToolExecutionDeps {
+    return {
+        audit: options.audit,
+        compressResult: compressionPolicy ? createResultCompressor(compressionPolicy) ?? undefined : undefined,
+        error: options.error,
+        getToolCallTimeoutMs: options.getToolCallTimeoutMs,
+        log: options.log,
+        trace: options.trace
     };
 }
 

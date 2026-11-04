@@ -7,6 +7,7 @@
 
 最新版本：
 
+- [v1.7.0（中文）](changelogs/zh/v1.7.0.md) · [v1.7.0 (English)](changelogs/en/v1.7.0.md)
 - [v1.6.4（中文）](changelogs/zh/v1.6.4.md) · [v1.6.4 (English)](changelogs/en/v1.6.4.md)
 - [v1.6.3（中文）](changelogs/zh/v1.6.3.md) · [v1.6.3 (English)](changelogs/en/v1.6.3.md)
 - [v1.6.2（中文）](changelogs/zh/v1.6.2.md) · [v1.6.2 (English)](changelogs/en/v1.6.2.md)

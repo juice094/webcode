@@ -13,7 +13,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "1.6.4",
+  "version": "1.7.0",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -404,6 +404,23 @@
           },
           "default": {},
           "description": "Additional third-party MCP servers. Built-in filesystem and command capabilities are implemented locally by webcode."
+        },
+        "webcodeGateway.compression.toolResult": {
+          "type": "string",
+          "enum": [
+            "off",
+            "trim",
+            "smart"
+          ],
+          "default": "smart",
+          "markdownDescription": "Compression applied to tool result text before it is sent back to the AI. `smart` normalizes trailing whitespace, folds runs of identical lines, strips build progress noise, and summarizes results still over the character budget as first 50 lines, an omission count, and the last 20 lines. `trim` only normalizes trailing whitespace. `off` sends results unchanged. Lines carrying paths, hashes, error codes, or source positions are never folded."
+        },
+        "webcodeGateway.compression.maxResultChars": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1000,
+          "maximum": 524288,
+          "markdownDescription": "Character budget for tool results under `smart` compression. A result still over budget after folding is summarized as first 50 lines, an omission count, and the last 20 lines, with guidance to re-request narrower ranges. Out-of-range values are clamped; non-numeric values fall back to 12000."
         }
       }
     }

@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 import type { LocalTool, ToolExecutionContext } from '../tools';
+import type { CompressionOutcome } from '../tools/resultCompression';
 import { getErrorMessage } from './errorUtils';
 import type { GatewayErrorLogger, GatewayLogger, RemoteToolRoute } from './types';
 import type { GatewayRuntimeTraceSink } from './runtimeTrace';
@@ -24,6 +25,8 @@ export type ParsedToolCallRequest = {
 
 export type ToolExecutionDeps = {
     audit?: ApprovalAuditSink;
+    /** Compresses tool-result text per the configured policy; absent or never called means identity. */
+    compressResult?: (text: string) => CompressionOutcome;
     error: GatewayErrorLogger;
     getToolCallTimeoutMs?: () => number;
     log: GatewayLogger;
@@ -83,7 +86,7 @@ export async function executeWithTelemetry(input: ToolExecutionInput): Promise<v
             durationMs
         });
         if (canRespond(res)) {
-            res.json(result);
+            res.json(deps.compressResult ? compressResultPayload(result, deps.compressResult) : result);
         }
     } catch (error: unknown) {
         handleExecutionError({ backend, deps, error, request, res, toolStart });
@@ -217,4 +220,57 @@ function previewArgs(args: Record<string, unknown>, limit: number): string {
 /** A closed or already-answered response must not be written to again. */
 function canRespond(res: Response): boolean {
     return res.headersSent !== true && res.writableEnded !== true && res.destroyed !== true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The single chokepoint where tool-result text is compressed before the
+ * result travels back to the AI (local tools and remote MCP tools converge
+ * here). Text items the compressor leaves untouched are returned as-is; only
+ * a real change marks the payload `compressed` with the hit rules and the
+ * before/after character counts, so the model can audit what was elided.
+ */
+function compressResultPayload(result: unknown, compress: (text: string) => CompressionOutcome): unknown {
+    if (!isRecord(result) || !Array.isArray(result.content)) {
+        return result;
+    }
+
+    let changed = false;
+    const rules = new Set<string>();
+    let totalInputChars = 0;
+    let totalOutputChars = 0;
+    const items: unknown[] = result.content;
+    const content = items.map(item => {
+        if (!isRecord(item) || item.type !== 'text' || typeof item.text !== 'string') {
+            return item;
+        }
+        const outcome = compress(item.text);
+        if (outcome.text === item.text) {
+            return item;
+        }
+        changed = true;
+        for (const rule of outcome.appliedRules) {
+            rules.add(rule);
+        }
+        totalInputChars += outcome.inputChars;
+        totalOutputChars += outcome.outputChars;
+        return { ...item, text: outcome.text };
+    });
+
+    if (!changed) {
+        return result;
+    }
+    return {
+        ...result,
+        content,
+        compressed: true,
+        compression: {
+            rules: [...rules],
+            inputChars: totalInputChars,
+            outputChars: totalOutputChars
+        }
+    };
 }
