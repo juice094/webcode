@@ -46,6 +46,10 @@ function main(): void {
     for (const target of targets) {
         scanFile(path.join(contentDir, target));
     }
+    const modulesDir = path.resolve(here, "../../src/modules");
+    for (const target of ["attachment_delivery.ts", "result_delivery.ts"]) {
+        scanFile(path.join(modulesDir, target));
+    }
 }
 
 main();

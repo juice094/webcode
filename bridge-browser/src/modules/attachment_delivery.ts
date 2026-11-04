@@ -28,7 +28,7 @@ export function prepareAttachmentGroups(
     } catch (error) {
       failures.push(toAttachmentFailure(group, buildAttachmentFailureReason(
         group,
-        `WebCode could not prepare the attachment: ${getErrorMessage(error)}.`
+        `The attachment could not be prepared: ${getErrorMessage(error)}.`
       )));
     }
   });

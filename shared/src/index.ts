@@ -27,7 +27,9 @@ export const BRANDING = {
   serverName: `${brandConfig.productName} Server`,
   notificationName: `${brandConfig.productName} Notification`,
   terminalPrefix: brandConfig.productName,
-  resultFilePrefix: `${brandConfig.slug}-result`,
+  // Neutral by design: attachment filenames are visible to the web AI
+  // platform, so this prefix must not carry the product name.
+  resultFilePrefix: 'result',
   logPrefix: `[${brandConfig.productName}]`,
   slashCommand: `/${brandConfig.slug}`,
   mentionCommand: `@${brandConfig.slug}`,
