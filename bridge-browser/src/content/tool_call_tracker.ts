@@ -271,8 +271,8 @@ function buildProtocolErrorMessage(error: unknown): string {
     ? error.issues
     : [error instanceof Error ? error.message : String(error)];
   const intro = i18n.lang === "zh"
-    ? "工具调用已被 webcode 拒绝，未请求 VS Code，也未执行任何工具。"
-    : "The tool call was rejected by webcode before contacting VS Code. No tool was executed.";
+    ? "工具调用已被网关拒绝，未请求 VS Code，也未执行任何工具。"
+    : "The tool call was rejected by the gateway before contacting VS Code. No tool was executed.";
   const nextStep = i18n.lang === "zh"
     ? "请重新输出一个新的 JSON 工具调用代码块。顶层只能包含 mcp_action、name、purpose、arguments；name 和 purpose 必填。当前工具有入参时，arguments 必须严格匹配该工具的 inputSchema。"
     : "Regenerate a new JSON tool-call code block. Top-level fields may only be mcp_action, name, purpose, and arguments; name and purpose are required. When the selected tool has inputs, arguments must exactly match that tool's inputSchema.";
@@ -299,7 +299,7 @@ Initialization tool format:
 {
   "mcp_action": "call",
   "name": "${PROTOCOL.initToolName}",
-  "purpose": "Initialize webcode for this conversation"
+  "purpose": "Initialize the local tool gateway for this conversation"
 }
 \`\`\``;
 }

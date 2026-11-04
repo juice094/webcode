@@ -8,7 +8,7 @@ export function validateToolArguments(args: unknown, schema: unknown): string[] 
     }
 
     if (!isPlainObject(schema)) {
-        return ['This tool does not expose an inputSchema, so webcode cannot validate its arguments strictly.'];
+        return ['This tool does not expose an inputSchema, so the gateway cannot validate its arguments strictly.'];
     }
 
     return validateValue(args, schema, 'arguments');

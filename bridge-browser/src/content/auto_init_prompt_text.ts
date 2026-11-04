@@ -57,14 +57,14 @@ export function buildReplacementForContext(
 export function buildOversizedInitPromptNotice(): string {
   if (i18n.lang === "zh") {
     return [
-      "完整初始化上下文超过当前输入框字符限制，webcode 已将其作为 txt 附件添加到本条消息。",
-      "请读取附件内容作为本次会话的 webcode 初始化上下文，并根据上面的用户任务继续。",
+      "完整初始化上下文超过当前输入框字符限制，已将其作为 txt 附件添加到本条消息。",
+      "请读取附件内容作为本次会话的初始化上下文，并根据上面的用户任务继续。",
     ].join("\n");
   }
 
   return [
-    "The full initialization context exceeds this input box character limit, so webcode attached it as a txt file to this message.",
-    "Read the attachment as the webcode initialization context for this session, then continue with the user task above.",
+    "The full initialization context exceeds this input box character limit, so it was attached as a txt file to this message.",
+    "Read the attachment as the initialization context for this session, then continue with the user task above.",
   ].join("\n");
 }
 

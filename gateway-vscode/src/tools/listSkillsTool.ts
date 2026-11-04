@@ -5,7 +5,7 @@ export const listSkillsTool: LocalTool = {
     serverId: 'internal',
     definition: {
         name: 'list_skills',
-        description: 'List workspace and built-in skills available to webcode, including the read_file path for each SKILL.md.',
+        description: 'List workspace and built-in skills available through the gateway, including the read_file path for each SKILL.md.',
         inputSchema: {
             type: 'object',
             properties: {}

@@ -31,6 +31,7 @@ export default defineConfig({
     outDir: "out/runtime-tests",
     rollupOptions: {
       input: testInputs,
+      external: ["node:fs", "node:path", "node:url"],
       output: {
         chunkFileNames: "chunks/[name]-[hash].js",
         entryFileNames: "[name].js",

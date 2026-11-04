@@ -213,7 +213,7 @@ export class TerminalSessionManager {
     session.status = 'unknown';
     this.appendOutput(
       session,
-      `[webcode] ${reason} Command was sent to the terminal, but output, exit code, and completion status cannot be captured.\n`
+      `[gateway] ${reason} Command was sent to the terminal, but output, exit code, and completion status cannot be captured.\n`
     );
     session.terminal.sendText(commandLine, true);
   }

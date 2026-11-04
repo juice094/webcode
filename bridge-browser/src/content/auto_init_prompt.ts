@@ -85,7 +85,7 @@ export class AutoInitPromptController {
   public async appendManualInitPrompt(): Promise<AutoInitPromptResult> {
     const candidate = this.getManualPromptCandidate();
     if (!candidate) {
-      return { success: false, error: "Input box not found or webcode is not connected." };
+      return { success: false, error: "Input box not found or the gateway is not connected." };
     }
 
     const initPrompt = await this.buildDirectInitPrompt();
