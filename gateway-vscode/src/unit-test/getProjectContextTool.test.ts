@@ -2,29 +2,14 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import {
+    GATEWAY_IGNORE_FILE_NAME,
+    parseGatewayIgnore
+} from '../tools/gatewayIgnore';
 import { buildProjectContextForPrompt } from '../tools/getProjectContextTool';
 
-type TestProjectContextMetadata = {
-    projectName: string;
-    git: {
-        branchName?: string;
-        isRepository: boolean;
-        recentCommits: Array<{
-            date: string;
-            hash: string;
-            subject: string;
-        }>;
-    };
-    structure: {
-        entries: string[];
-        maxEntries: number;
-        notes: string[];
-        truncated: boolean;
-    };
-};
-
 suite('Project Context Tool', () => {
-    test('formats workspace name and shallow structure without absolute paths or expanding generated folders', async () => {
+    test('renders a plain-text skeleton and collapses generated and archived folders', async () => {
         await withTempWorkspace(async workspaceRoot => {
             await fs.mkdir(path.join(workspaceRoot, '.git'));
             await fs.mkdir(path.join(workspaceRoot, 'node_modules'));
@@ -34,23 +19,32 @@ suite('Project Context Tool', () => {
             await fs.writeFile(path.join(workspaceRoot, 'src', 'index.ts'), 'export {};\n', 'utf8');
             await fs.writeFile(path.join(workspaceRoot, 'docs', 'guide.md'), '# Guide\n', 'utf8');
             await fs.writeFile(path.join(workspaceRoot, 'package.json'), '{}\n', 'utf8');
+            await fs.mkdir(path.join(workspaceRoot, 'archive'));
+            for (const name of ['old-a.md', 'old-b.md', 'old-c.md']) {
+                await fs.writeFile(path.join(workspaceRoot, 'archive', name), 'x\n', 'utf8');
+            }
+            await fs.mkdir(path.join(workspaceRoot, '.pytest_cache'));
 
             const output = await buildProjectContextForPrompt(workspaceRoot);
-            const metadata = parseProjectContextMetadata(output);
 
             assert.ok(output.includes('# Project Context (Metadata Only)'));
             assert.ok(output.includes('untrusted data'));
-            assert.strictEqual(metadata.projectName, path.basename(workspaceRoot));
-            assert.strictEqual(metadata.git.isRepository, false);
-            assert.strictEqual(metadata.git.branchName, undefined);
-            assert.deepStrictEqual(metadata.git.recentCommits, []);
-            assert.ok(metadata.structure.entries.includes('  src/'));
-            assert.ok(metadata.structure.entries.includes('    src/index.ts'));
-            assert.ok(metadata.structure.entries.includes('    docs/guide.md'));
-            assert.ok(metadata.structure.entries.includes('  .git/'));
-            assert.ok(metadata.structure.entries.includes('  node_modules/'));
-            assert.ok(!output.includes(workspaceRoot));
+            assert.ok(output.includes(`Project: ${path.basename(workspaceRoot)}`));
+            assert.ok(output.includes('Git: not a repository'));
+
+            assert.ok(output.includes('  src/'));
+            assert.ok(output.includes('    src/index.ts'));
+            assert.ok(output.includes('  package.json'));
+            assert.ok(output.includes('  archive/ (3 entries omitted)'));
+            assert.ok(output.includes('  .pytest_cache/ (ignored)'));
+            assert.ok(output.includes('  .git/ (ignored)'));
+            assert.ok(output.includes('  node_modules/ (ignored)'));
+
             assert.ok(!output.includes('node_modules/package.json'));
+            assert.ok(!output.includes('.git/HEAD'));
+            assert.ok(!output.includes('archive/old-a.md'));
+            assert.ok(!output.includes(workspaceRoot));
+            assert.ok(!output.includes('```'), 'the context block must not be a fenced code block');
         });
     });
 
@@ -61,16 +55,15 @@ suite('Project Context Tool', () => {
             await fs.writeFile(path.join(workspaceRoot, 'README.md'), '# Sample\n', 'utf8');
 
             const output = await buildProjectContextForPrompt(workspaceRoot);
-            const metadata = parseProjectContextMetadata(output);
 
-            assert.strictEqual(metadata.git.isRepository, true);
-            assert.strictEqual(metadata.git.branchName, 'main');
-            assert.ok(metadata.structure.entries.includes('  .git/'));
+            assert.ok(output.includes('Git: repository on branch main'));
+            assert.ok(output.includes('  README.md'));
+            assert.ok(output.includes('  .git/ (ignored)'));
             assert.ok(!output.includes('.git/HEAD'));
         });
     });
 
-    test('limits large shallow structures and reports the cap', async () => {
+    test('caps the skeleton at the entry budget and says so', async () => {
         await withTempWorkspace(async workspaceRoot => {
             for (let index = 0; index < 40; index += 1) {
                 const directoryPath = path.join(workspaceRoot, `pkg-${index.toString().padStart(2, '0')}`);
@@ -81,14 +74,63 @@ suite('Project Context Tool', () => {
             }
 
             const output = await buildProjectContextForPrompt(workspaceRoot);
-            const metadata = parseProjectContextMetadata(output);
-            const visibleEntries = metadata.structure.entries.filter(isVisibleStructureEntry);
+            const structureLines = output.split('\n').slice(output.split('\n').indexOf('Structure (skeleton: generated, dependency and archived folders are collapsed, not listed):') + 1);
 
-            assert.strictEqual(metadata.structure.maxEntries, 100);
-            assert.strictEqual(metadata.structure.truncated, true);
-            assert.ok(metadata.structure.entries.includes('  ... additional entries omitted'));
-            assert.ok(visibleEntries.length <= metadata.structure.maxEntries + 1);
+            assert.ok(output.includes('… remaining folders are not listed'));
+            assert.ok(structureLines.length <= 90, `skeleton kept ${structureLines.length} lines`);
+            assert.ok(!output.includes('pkg-39/c.ts'));
         });
+    });
+
+    test('lists small folders whole and large file-heavy folders by count', async () => {
+        await withTempWorkspace(async workspaceRoot => {
+            await fs.mkdir(path.join(workspaceRoot, 'notes'));
+            for (let index = 0; index < 10; index += 1) {
+                await fs.writeFile(path.join(workspaceRoot, 'notes', `note-${index}.md`), '# n\n', 'utf8');
+            }
+            await fs.mkdir(path.join(workspaceRoot, 'doc'));
+            await fs.mkdir(path.join(workspaceRoot, 'doc', 'guides'));
+            await fs.writeFile(path.join(workspaceRoot, 'doc', 'intro.md'), '# i\n', 'utf8');
+
+            const output = await buildProjectContextForPrompt(workspaceRoot);
+
+            assert.ok(output.includes('  notes/ (10 entries)'));
+            assert.ok(!output.includes('notes/note-0.md'));
+            assert.ok(output.includes('    doc/guides/'));
+            assert.ok(output.includes('    doc/intro.md'));
+        });
+    });
+
+    test('honours .gatewayignore above every built-in rule', async () => {
+        await withTempWorkspace(async workspaceRoot => {
+            await fs.mkdir(path.join(workspaceRoot, 'archive'));
+            await fs.writeFile(path.join(workspaceRoot, 'archive', 'kept.md'), '# Kept\n', 'utf8');
+            await fs.mkdir(path.join(workspaceRoot, 'src'));
+            await fs.writeFile(path.join(workspaceRoot, 'src', 'index.ts'), 'export {};\n', 'utf8');
+            await fs.writeFile(
+                path.join(workspaceRoot, GATEWAY_IGNORE_FILE_NAME),
+                ['# pull the archive back in', '!archive/', '', '# drop the source tree', 'src/'].join('\n'),
+                'utf8'
+            );
+
+            const output = await buildProjectContextForPrompt(workspaceRoot);
+
+            assert.ok(output.includes('  archive/'));
+            assert.ok(output.includes('    archive/kept.md'));
+            assert.ok(output.includes('  src/ (1 entry omitted)'));
+            assert.ok(!output.includes('src/index.ts'));
+        });
+    });
+});
+
+suite('Project Context ignore patterns', () => {
+    test('parses comments, negation, directory-only and anchored patterns', () => {
+        const rules = parseGatewayIgnore(['# comment', '', 'logs/', '!logs/keep.log', '/rooted.txt', '**/*.bak'].join('\n'));
+
+        assert.strictEqual(rules.length, 4);
+        assert.deepStrictEqual(rules.map(rule => rule.negated), [false, true, false, false]);
+        assert.deepStrictEqual(rules.map(rule => rule.directoryOnly), [true, false, false, false]);
+        assert.deepStrictEqual(rules.map(rule => rule.anchored), [false, true, true, true]);
     });
 });
 
@@ -99,15 +141,4 @@ async function withTempWorkspace(callback: (workspaceRoot: string) => Promise<vo
     } finally {
         await fs.rm(workspaceRoot, { recursive: true, force: true });
     }
-}
-
-function parseProjectContextMetadata(output: string): TestProjectContextMetadata {
-    const match = output.match(/```json\n([\s\S]+)\n```/);
-
-    assert.ok(match?.[1]);
-    return JSON.parse(match[1]) as TestProjectContextMetadata;
-}
-
-function isVisibleStructureEntry(line: string): boolean {
-    return !line.includes('omitted');
 }

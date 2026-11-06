@@ -34,7 +34,7 @@ These tools are only used by the VS Code gateway and browser extension when init
 | Tool | Purpose |
 | --- | --- |
 | `get_project_rules` | Reads `USER_RULES.md`, `AGENTS.md`, or `CLAUDE.md` from the workspace root to assemble the initialization prompt. |
-| `get_project_context` | Summarizes the current workspace folder name, Git repository status, current Git branch, two-level project structure, and 5 recent commits for the initialization prompt; the project structure shows at most 100 entries, and generated and VCS folders are shown but not expanded. |
+| `get_project_context` | Summarizes the current workspace folder name, Git repository status, current Git branch, a project structure skeleton, and 5 recent commits for the initialization prompt. The skeleton lists the root plus one level inside folders that get expanded (at most 80 entries); VCS, dependency, build, cache and archive folders collapse to a single summary line instead of being expanded, and a `.gatewayignore` file at the workspace root (`.gitignore` syntax, `!` re-includes) overrides every default rule. |
 | `list_tools` | Returns the model-available tool list grouped by server. Each tool includes its full schema for the initialization prompt. |
 | `list_skills` | Lists local skills discovered in the current workspace and webcode built-in skills for the Available Skills section of the initialization prompt. Each item includes `source` and a `skillFilePath` that can be passed directly to `read_file`; local skills use `source: "workspace"` and workspace-relative `/`-separated paths, while built-in skills use `source: "builtin"` and read-only virtual paths under `.gateway/builtin-skills/...`. |
 
