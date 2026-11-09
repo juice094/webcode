@@ -14,7 +14,10 @@ async function main(): Promise<void> {
     assertEqual(page.actions[0], "paste", "attachment was not pasted first");
     assertEqual(page.actions[1], "wait:2000", "attachment settle wait changed");
     assertEqual(page.actions[2], "write", "result text was written before the attachment wait");
-    assert(page.input.innerText.includes('"status": "success"'), "acknowledged attachment became an error");
+    assert(
+      page.input.innerText.includes("done — result") || page.input.innerText.includes("跑完了"),
+      "acknowledged attachment became an error"
+    );
     assert(delivery.delivered, "acknowledged result was not delivered");
     assert(delivery.uploaded, "dispatched attachment was not reported to auto-send");
   });
@@ -25,11 +28,14 @@ async function main(): Promise<void> {
     assertEqual(page.actions[0], "paste", "attachment was not pasted first");
     assertEqual(page.actions[1], "wait:2000", "unacknowledged paste skipped the settle wait");
     assertEqual(page.actions[2], "write", "failure text was written before the attachment wait");
-    assert(page.input.innerText.includes('"name": "attach_file"'), "attachment tool name was lost");
-    assert(page.input.innerText.includes('"status": "error"'), "unacknowledged paste was not reported");
+    assert(page.input.innerText.includes("attach_file"), "attachment tool name was lost");
+    assert(
+      page.input.innerText.includes("failed:") || page.input.innerText.includes("没成功"),
+      "unacknowledged paste was not reported"
+    );
     assert(page.input.innerText.includes("did not acknowledge"), "paste failure reason was not included");
-    assert(page.input.innerText.includes('"name": "read_file"'), "unrelated result was lost");
-    assert(page.input.innerText.includes('"output": "text result"'), "unrelated result was changed");
+    assert(page.input.innerText.includes("read_file"), "unrelated result was lost");
+    assert(page.input.innerText.includes("text result"), "unrelated result was changed");
     assert(delivery.delivered, "attachment failure text did not remain sendable");
     assert(delivery.uploaded, "unacknowledged attachment dispatch was not reported to auto-send");
   });
@@ -110,12 +116,9 @@ function createAttachmentGroup(name: string, outputIndex: number) {
 }
 
 function formatResult(name: string, output: string): string {
-  return `\`\`\`json\n${JSON.stringify({
-    mcp_action: "result",
-    name,
-    status: "success",
-    output,
-  }, null, 2)}\n\`\`\``;
+  // Mirrors the prose shape the bridge now writes back (see result_format.ts):
+  // one spoken head line plus the raw payload.
+  return `${name} done — result:\n\`\`\`text\n${output}\n\`\`\``;
 }
 
 interface FakePage {
@@ -168,12 +171,15 @@ function installFakePage(acknowledgePaste: boolean | readonly boolean[]): FakePa
 }
 
 function parseInputResults(value: string): Record<string, unknown>[] {
+  // Results are prose now ("attach_file done — result:" / "attach_file failed:",
+  // zh: 跑完了/没成功); collect every result head in order.
   const results: Record<string, unknown>[] = [];
-  for (const match of value.matchAll(/```json\n([\s\S]*?)\n```/g)) {
-    const result = JSON.parse(match[1] ?? "{}") as Record<string, unknown>;
-    if (typeof result.name === "string") {
-      results.push(result);
-    }
+  const headPattern = /(?:^|\n)([\w-]+) (?:(done — result:?|跑完了，结果(?:是|如下)：)|(failed: ?|没成功：))/g;
+  for (const match of value.matchAll(headPattern)) {
+    results.push({
+      name: match[1],
+      status: match[2] ? "success" : "error",
+    });
   }
   return results;
 }

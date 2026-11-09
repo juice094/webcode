@@ -161,7 +161,8 @@ async function testBufferedAttachments(): Promise<void> {
   assertEqual(batch.attachmentGroups[0]?.toolName, "attach_file", "attachment tool name changed");
   assertEqual(batch.attachmentGroups[0]?.outputIndex, 0, "attachment output index changed");
   assertEqual(batch.attachmentGroups[0]?.attachments[0]?.name, "sample.png", "buffered attachment changed");
-  assert(batch.output.includes('"name": "attach_file"'), "tool result text was not formatted");
+  assertEqual(batch.output.includes("attach_file"), true, "tool result text was not formatted");
+  assert(batch.output.includes("attached"), "tool result lost its output");
   assert(!batch.output.includes("request_id"), "public request ID remained in the tool result");
 }
 
@@ -193,22 +194,25 @@ async function testAttachmentFailureResult(): Promise<void> {
     reason: "The page did not acknowledge the paste.",
     toolName: batch.attachmentGroups[0]?.toolName ?? "attach_file",
   }]);
-  const attachmentResult = parseJsonCodeBlock(failedParts[0] ?? "");
-  const textResult = parseJsonCodeBlock(failedParts[1] ?? "");
+  const attachmentResult = failedParts[0] ?? "";
+  const textResult = failedParts[1] ?? "";
 
-  assertEqual(attachmentResult.status, "error", "attachment result did not become an error");
-  assertEqual(attachmentResult.error, "The page did not acknowledge the paste.", "failure reason changed");
-  assert(!("output" in attachmentResult), "failed attachment result retained its success output");
-  assertEqual(attachmentResult.name, "attach_file", "failed attachment result lost its tool name");
-  assertEqual(textResult.status, "success", "unrelated tool result changed status");
-  assertEqual(textResult.name, "read_file", "unrelated tool result lost its tool name");
-  assertEqual(textResult.output, "text result", "unrelated tool output changed");
-}
-
-function parseJsonCodeBlock(value: string): Record<string, unknown> {
-  const match = /^```json\n([\s\S]*)\n```$/.exec(value);
-  assert(match, "result is not a JSON code block");
-  return JSON.parse(match[1]) as Record<string, unknown>;
+  assert(attachmentResult.includes("attach_file"), "failed attachment result lost its tool name");
+  assert(
+    attachmentResult.includes("failed") || attachmentResult.includes("没成功"),
+    "attachment result did not become an error"
+  );
+  assert(
+    attachmentResult.includes("The page did not acknowledge the paste."),
+    "failure reason changed"
+  );
+  assert(!attachmentResult.includes("attached"), "failed attachment result retained its success output");
+  assert(textResult.includes("read_file"), "unrelated tool result lost its tool name");
+  assert(
+    textResult.includes("done") || textResult.includes("跑完了"),
+    "unrelated tool result changed status"
+  );
+  assert(textResult.includes("text result"), "unrelated tool output changed");
 }
 
 function testPasteAcknowledgement(): void {
@@ -238,7 +242,9 @@ async function testReminderGoesToBatchTail(): Promise<void> {
   const batch = registry.buildBufferedResultBatch(keys);
 
   assertEqual(batch.outputParts.length, 5, "expected five formatted results");
-  const systemNoteMarker = '"system_note"';
+  // The reminder now rides along as its own paragraph instead of a JSON field;
+  // match its stable opening instead of the old "system_note" key.
+  const systemNoteMarker = "[System] Reminder";
   for (let index = 0; index < 4; index += 1) {
     assert(!batch.outputParts[index].includes(systemNoteMarker),
       `reminder leaked into mid-batch result ${index}`);

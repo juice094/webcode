@@ -48,9 +48,17 @@ export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions =
 
     // Deliberately no product name in these headers: the injected context is
     // visible to the web AI platform, and naming the bridge is a free
-    // automation signal.
-    finalPrompt += `\n\n# Available Tools\n\`\`\`json\n${escapeInlineNewlines(toolsResult)}\n\`\`\``;
-    finalPrompt += `\n\n# Available Skills\n\`\`\`json\n${escapeInlineNewlines(skillsResult)}\n\`\`\``;
+    // automation signal. The JSON blocks stay (they are the machine-readable
+    // tool/skill index the model reads on every round), but each gets one
+    // spoken line first so the dump reads as an answer, not a payload.
+    const toolsIntro = i18n.lang === "zh"
+      ? "你现在能用的工具都在下面（JSON，按 server 分组）；调用时照每个条目的 schema 填参数。"
+      : "Here are the tools you can call right now (JSON, grouped by server); fill arguments per each entry's schema.";
+    const skillsIntro = i18n.lang === "zh"
+      ? "下面是当前可用的技能清单（JSON）；要用哪个技能，直接读它的 skillFilePath。"
+      : "Here are the available skills (JSON); to use one, read its skillFilePath directly.";
+    finalPrompt += `\n\n# Available Tools\n${toolsIntro}\n\`\`\`json\n${escapeInlineNewlines(toolsResult)}\n\`\`\``;
+    finalPrompt += `\n\n# Available Skills\n${skillsIntro}\n\`\`\`json\n${escapeInlineNewlines(skillsResult)}\n\`\`\``;
   } catch (error) {
     Logger.log(`Initialization data fetch failed: ${getErrorMessage(error)}`, "error");
     finalPrompt += `\n\n# Initialization Note\nFailed to fetch the tool or skill list. Re-run \`${PROTOCOL.initToolName}\` if needed.`;
@@ -67,8 +75,8 @@ async function buildBasePrompt(siteId?: string | null): Promise<string> {
 
 function buildInitToolResultHeader(): string {
   return i18n.lang === "zh"
-    ? `以下是 ${PROTOCOL.initToolName} 的返回结果，请不要再次发送 ${PROTOCOL.initToolName} 初始化命令。\n\n`
-    : `The following is the result returned by ${PROTOCOL.initToolName}. Do not send the ${PROTOCOL.initToolName} initialization command again.\n\n`;
+    ? `初始化内容已就位——项目规则、项目上下文、工具清单和技能清单都在下面，直接开始任务即可，不要再发送 ${PROTOCOL.initToolName}。\n\n`
+    : `The initialization payload is below — project rules, project context, the tool list and the skill list. Start the task directly; do not send ${PROTOCOL.initToolName} again.\n\n`;
 }
 
 function executeInitToolCall(name: string): Promise<string> {

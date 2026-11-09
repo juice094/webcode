@@ -1,4 +1,4 @@
-import { type McpResponse } from "@webcode/shared";
+import { formatToolResultOutcome } from "../modules/result_format";
 import { i18n } from "../modules/i18n";
 import type {
   ToolResultAttachment,
@@ -89,8 +89,8 @@ export class ToolRequestRegistry {
   /**
    * 已完成但尚未回填的工具结果。
    *
-   * key 是 requestKey，value 是准备写回输入框的字符串。普通工具结果会包装成标准
-   * ```json 代码块；初始化工具等特殊路径可以通过 saveRawResult 写入原始文本。
+   * key 是 requestKey，value 是准备写回输入框的字符串。普通工具结果是一句白话加原文
+   * （见 result_format.ts）；初始化工具等特殊路径可以通过 saveRawResult 写入原始文本。
    */
   private readonly bufferedResults = new Map<string, BufferedResult>();
 
@@ -311,22 +311,16 @@ export class ToolRequestRegistry {
       return bufferedResult.content;
     }
 
-    const responseJson: McpResponse = {
-      mcp_action: "result",
-      name: bufferedResult.toolName,
-      status: bufferedResult.isError ? "error" : "success",
-    };
-
-    if (bufferedResult.isError) {
-      responseJson.error = bufferedResult.content;
-    } else {
-      responseJson.output = bufferedResult.content;
-    }
+    const parts = [
+      formatToolResultOutcome(bufferedResult.toolName, bufferedResult.content, bufferedResult.isError),
+    ];
     if (bufferedResult.systemNote) {
-      responseJson.system_note = bufferedResult.systemNote;
+      // 周期性协议提醒保持模型可见：不再塞进 JSON 字段，作为独立段落跟在结果后面，
+      // 出现频率和文案都不变。
+      parts.push(bufferedResult.systemNote);
     }
 
-    return formatJsonCodeBlock(responseJson);
+    return parts.join("\n\n");
   }
 }
 
@@ -377,17 +371,6 @@ export class ToolRequestTurn {
       .map(([, requestKey]) => requestKey);
     return [...new Set(orderedKeys)];
   }
-}
-
-/**
- * 把 MCP result 对象格式化成可以写回 AI 输入框的 JSON 代码块。
- */
-function formatJsonCodeBlock(responseJson: McpResponse): string {
-  return `\`\`\`json\n${JSON.stringify(
-    responseJson,
-    null,
-    2
-  )}\n\`\`\``;
 }
 
 /**

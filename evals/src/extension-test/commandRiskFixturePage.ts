@@ -81,18 +81,29 @@ export function buildCommandRiskFixturePage(expected: CommandRiskExpected): stri
     }
 
     function parseToolResult(text) {
-      const blocks = Array.from(text.matchAll(/\x60\x60\x60json\\s*([\\s\\S]*?)\x60\x60\x60/g));
-      for (const block of blocks.reverse()) {
-        try {
-          const parsed = JSON.parse(block[1]);
-          if (parsed && parsed.mcp_action === 'result') {
-            return parsed;
-          }
-        } catch {
-          // Continue to the next JSON block.
-        }
+      // The bridge feeds results back as prose now ("read_file done — result:"
+      // or "read_file failed: ...", zh: 跑完了/没成功), not JSON envelopes. Find
+      // the LAST result head line; everything after it is the payload.
+      // NOTE: backslashes are doubled because this parser ships inside a template
+      // literal — the page must see escaped-n and escaped-w, not a line break
+      // and a swallowed backslash.
+      const headPattern = /(?:^|\\n)([\\w-]+) (?:(done — result:?|跑完了，结果(?:是|如下)：)|(failed: ?|没成功：))/g;
+      let match = null;
+      let lastName = '';
+      let lastSuccess = false;
+      let lastHeadEnd = -1;
+      while ((match = headPattern.exec(text)) !== null) {
+        lastName = match[1];
+        lastSuccess = Boolean(match[2]);
+        lastHeadEnd = headPattern.lastIndex;
       }
-      return null;
+      if (lastHeadEnd < 0) {
+        return null;
+      }
+      const payload = text.slice(lastHeadEnd).trim();
+      return lastSuccess
+        ? { name: lastName, status: 'success', output: payload }
+        : { name: lastName, status: 'error', error: payload };
     }
 
     function fail(message) {
@@ -191,7 +202,7 @@ export function buildCommandRiskFixturePage(expected: CommandRiskExpected): stri
 
     input.addEventListener('input', () => {
       const text = input.value;
-      if (!text.includes('"mcp_action"') || !text.includes('"result"') || text === lastInjectedText) {
+      if ((!text.includes(' done — result') && !text.includes(' failed:') && !text.includes('跑完了') && !text.includes('没成功')) || text === lastInjectedText) {
         return;
       }
       lastInjectedText = text;

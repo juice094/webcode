@@ -1,3 +1,5 @@
+import { i18n } from "./i18n";
+
 export const TOOL_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
 // Chromium rejects serialized extension messages above 64 MiB. Keep 8 MiB for
 // the response envelope, result text, filenames, MIME types, and other metadata.
@@ -123,40 +125,16 @@ export function applyAttachmentDeliveryFailures(
 }
 
 function replaceMcpResultWithAttachmentError(
-  output: string,
+  _output: string,
   toolName: string,
   reason: string
 ): string {
-  const match = /^```json\r?\n([\s\S]*)\r?\n```$/.exec(output);
-  if (match) {
-    try {
-      const response = JSON.parse(match[1]) as unknown;
-      if (isRecord(response) &&
-        response.mcp_action === "result") {
-        const errorResponse: Record<string, unknown> = {
-          ...response,
-          name: typeof response.name === "string" ? response.name : toolName,
-          status: "error",
-        };
-        delete errorResponse.output;
-        errorResponse.error = reason;
-        return formatJsonCodeBlock(errorResponse);
-      }
-    } catch {
-      // The fallback below still produces a valid MCP result for the associated request.
-    }
-  }
-
-  return formatJsonCodeBlock({
-    mcp_action: "result",
-    name: toolName,
-    status: "error",
-    error: reason,
-  });
-}
-
-function formatJsonCodeBlock(value: Record<string, unknown>): string {
-  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+  // Result text is prose now (see result_format.ts), so an attachment failure
+  // surfaces as one failure sentence; the old JSON-envelope rewrite and its
+  // block parsing are gone.
+  return i18n.lang === "zh"
+    ? `${toolName} 没成功：附件没能投递——${reason}`
+    : `${toolName} failed: the attachment could not be delivered — ${reason}`;
 }
 
 function parseContentAttachment(
