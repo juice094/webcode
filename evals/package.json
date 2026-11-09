@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
-    "@playwright/cli": "0.1.22",
+    "@playwright/cli": "0.1.23",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.106.1",
