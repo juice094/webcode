@@ -109,15 +109,16 @@ suite('Gateway startup diagnostics', () => {
 });
 
 function createGatewayManager(lines: string[]): GatewayManager {
-    const outputChannel = {
-        appendLine: (line: string) => { lines.push(line); },
-        append: (line: string) => { lines.push(line); }
-    } as unknown as vscode.OutputChannel;
+    const logger = {
+        info: (line: string) => { lines.push(line); },
+        warn: (line: string) => { lines.push(line); },
+        error: (line: string) => { lines.push(line); }
+    };
     const context = {
         extension: { packageJSON: { version: TEST_EXTENSION_VERSION } }
     } as unknown as vscode.ExtensionContext;
 
-    return new GatewayManager(outputChannel, process.cwd(), context);
+    return new GatewayManager(logger, process.cwd(), context);
 }
 
 type TestTimeouts = Pick<

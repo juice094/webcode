@@ -6,6 +6,7 @@ import type * as vscode from 'vscode';
 
 import { GatewayManager } from '../gateway';
 import type { GatewayConfig } from '../gateway/types';
+import type { Logger } from '../host/types';
 import {
     sessionTokenKey,
     type BridgeSessionPersistence,
@@ -74,11 +75,15 @@ function createFakeSecrets(initial?: string): FakeSecrets {
 }
 
 function createManager(): GatewayManager {
-    const outputChannel = { appendLine: () => undefined } as unknown as vscode.OutputChannel;
     const context = {
         extension: { packageJSON: { version: TEST_EXTENSION_VERSION } }
     } as unknown as vscode.ExtensionContext;
-    return new GatewayManager(outputChannel, process.cwd(), context);
+    const logger: Logger = {
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined
+    };
+    return new GatewayManager(logger, process.cwd(), context);
 }
 
 function createTestConfig(port: number): GatewayConfig {

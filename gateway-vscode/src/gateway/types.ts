@@ -1,7 +1,9 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
+import type { GatewayHostServices } from '../host/types';
 import type { ResolvedAiSiteConfig } from '../platforms';
 import type { ToolDefinition } from '../tools';
+import type { GatewayRuntimeTraceSink } from './runtimeTrace';
 
 export interface ServerConfig {
     type?: 'stdio' | 'sse' | 'http';
@@ -100,3 +102,30 @@ export type RemoteToolRoute = {
 
 export type GatewayLogger = (message: string) => void;
 export type GatewayErrorLogger = (message: string, err?: unknown) => void;
+
+export interface GatewayLifecycleOptions {
+    /**
+     * Deactivate path only: skip the MCP client shutdown handshake so the whole
+     * stop stays inside the extension-host teardown budget.
+     */
+    fast?: boolean;
+    /**
+     * Keep the browser bridge sessions (and pending launch codes) across this
+     * stop/start cycle. Used by hot configuration reloads so connected browser
+     * tabs keep working with the tokens they already hold. Cold starts and cold
+     * configuration changes always revoke the sessions.
+     */
+    preserveBridgeSession?: boolean;
+}
+
+/**
+ * Optional GatewayManager constructor wiring. `host` carries the host
+ * capability services (host/types.ts); when omitted the inert defaults apply,
+ * which reproduce the pre-A0 unit-test environment (empty workspace, default
+ * configuration, declined pairing, no terminal host).
+ */
+export interface GatewayManagerHooks {
+    onAutoStop?: (idleTimeoutMs: number) => void;
+    traceSink?: GatewayRuntimeTraceSink;
+    host?: GatewayHostServices;
+}

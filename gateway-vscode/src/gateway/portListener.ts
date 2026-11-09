@@ -1,6 +1,5 @@
 import type express from 'express';
 import type { Server as HttpServer } from 'http';
-import * as vscode from 'vscode';
 import { BRIDGE_PORT_RANGE_END, BRIDGE_PORT_RANGE_START } from '@webcode/shared';
 
 import type { GatewayRuntimeTraceSink } from './runtimeTrace';
@@ -14,11 +13,16 @@ import type { GatewayConfig, StartResult } from './types';
  */
 const MAX_PORT_RETRY_ATTEMPTS = BRIDGE_PORT_RANGE_END - BRIDGE_PORT_RANGE_START + 1;
 
+/** Transient status-bar success hint shown after the gateway binds a port. */
+const STATUS_BAR_MESSAGE_TIMEOUT_MS = 5000;
+
 export type PortListenerDeps = {
     app: express.Express;
     config: GatewayConfig;
     log: (message: string) => void;
     trace: GatewayRuntimeTraceSink;
+    /** Host status-bar notification (VS Code: window.setStatusBarMessage). */
+    setStatusBarMessage: (message: string, timeoutMs: number) => void;
     onBound: (port: number, server: HttpServer) => void;
 };
 
@@ -29,7 +33,7 @@ export type PortListenerDeps = {
  * binding policy itself is unchanged.
  */
 export function listenOnAvailablePort(deps: PortListenerDeps): Promise<StartResult> {
-    const { app, config, log, trace, onBound } = deps;
+    const { app, config, log, trace, setStatusBarMessage, onBound } = deps;
 
     return new Promise<StartResult>((resolve, reject) => {
         const tryListen = (currentPort: number, attempt: number) => {
@@ -53,7 +57,7 @@ export function listenOnAvailablePort(deps: PortListenerDeps): Promise<StartResu
                     status: 'success',
                     details: { port: boundPort }
                 });
-                vscode.window.setStatusBarMessage(`MCP Gateway: On (${boundPort})`, 5000);
+                setStatusBarMessage(`MCP Gateway: On (${boundPort})`, STATUS_BAR_MESSAGE_TIMEOUT_MS);
                 resolve({ port: boundPort });
             });
 

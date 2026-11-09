@@ -2,13 +2,13 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import type * as vscode from 'vscode';
 
 import {
     BUILTIN_CREATE_SKILLS_SKILL_FILE_PATH,
     BUILTIN_SKILL_VIRTUAL_ROOT
 } from '../builtinSkills';
-import { SkillManager, type SkillSummary } from '../skillManager';
+import type { Logger } from '../host/types';
+import { SkillManager, type SkillSummary, type SkillWorkspaceFolder } from '../skillManager';
 
 suite('Skill Manager', () => {
     test('includes built-in skills in listSkills output', async () => {
@@ -98,20 +98,19 @@ function createSkillManager(workspaceRoot: string): SkillManager {
     );
 }
 
-function createWorkspaceFolder(workspaceRoot: string): vscode.WorkspaceFolder {
+function createWorkspaceFolder(workspaceRoot: string): SkillWorkspaceFolder {
     return {
-        uri: { fsPath: workspaceRoot } as vscode.Uri,
-        name: path.basename(workspaceRoot),
-        index: 0
+        fsPath: workspaceRoot,
+        name: path.basename(workspaceRoot)
     };
 }
 
-function createOutputChannel(): vscode.OutputChannel {
+function createOutputChannel(): Logger {
     return {
-        appendLine(value: string) {
-            void value;
-        }
-    } as unknown as vscode.OutputChannel;
+        info: (value: string) => { void value; },
+        warn: () => undefined,
+        error: () => undefined
+    };
 }
 
 function requireSkill(skills: SkillSummary[], name: string): SkillSummary {

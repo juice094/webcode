@@ -1,12 +1,23 @@
 import * as fs from 'fs';
-import * as vscode from 'vscode';
 import { getRipgrepBinaryName, getVSCodeRipgrepCandidates } from './searchCodeRipgrepPaths';
+import type { ConfigStore } from '../host/types';
 
 export type RipgrepCommand = {
     command: string;
     source: string;
     checkedLocations: string[];
 };
+
+/**
+ * Host facts ripgrep resolution needs, all injected by the gateway
+ * (ToolExecutionContext). Everything is optional: with no host the resolver
+ * behaves exactly like the pre-A0 unit-test environment (no configured path,
+ * no host app root) and falls through to the PATH lookup.
+ */
+export interface RipgrepResolutionHost {
+    configStore?: ConfigStore;
+    editorAppRoot?: string;
+}
 
 export class RipgrepUnavailableError extends Error {
     constructor(message: string) {
@@ -15,10 +26,10 @@ export class RipgrepUnavailableError extends Error {
     }
 }
 
-export function resolveRipgrepCommand(): RipgrepCommand {
+export function resolveRipgrepCommand(host: RipgrepResolutionHost = {}): RipgrepCommand {
     const checkedLocations: string[] = [];
 
-    const configuredPath = getConfiguredRipgrepPath();
+    const configuredPath = getConfiguredRipgrepPath(host.configStore);
     if (configuredPath) {
         checkedLocations.push(`webcodeGateway.ripgrep.path: ${configuredPath}`);
         if (fs.existsSync(configuredPath)) {
@@ -33,7 +44,7 @@ export function resolveRipgrepCommand(): RipgrepCommand {
     }
 
     const vscodeRipgrepCandidates = getVSCodeRipgrepCandidates(
-        vscode.env.appRoot,
+        host.editorAppRoot,
         process.env.PATH,
         process.platform,
         process.arch
@@ -77,10 +88,8 @@ export function createRipgrepStartError(error: Error, rgCommand: RipgrepCommand)
     );
 }
 
-function getConfiguredRipgrepPath(): string | undefined {
-    const configuredPath = vscode.workspace
-        .getConfiguration('webcodeGateway')
-        .get<string>('ripgrep.path', '')
-        .trim();
+function getConfiguredRipgrepPath(store: ConfigStore | undefined): string | undefined {
+    // 无宿主（单测）时与 A0 之前 vscodeStub 的行为一致：视作未配置。
+    const configuredPath = (store?.get<string>('ripgrep.path', '') ?? '').trim();
     return configuredPath || undefined;
 }

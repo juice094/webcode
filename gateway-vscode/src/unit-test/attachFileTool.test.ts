@@ -136,7 +136,7 @@ async function withTempWorkspace(callback: (workspaceRoot: string) => Promise<vo
 function createToolContext(workspaceRoot: string): ToolExecutionContext {
     return {
         workspaceRoot,
-        outputChannel: {} as ToolExecutionContext['outputChannel'],
+        logger: {} as ToolExecutionContext['logger'],
         skillManager: {} as ToolExecutionContext['skillManager'],
         terminalSessionManager: {} as ToolExecutionContext['terminalSessionManager'],
         skillDirectories: [],

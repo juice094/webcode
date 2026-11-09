@@ -88,14 +88,16 @@ function internals(manager: GatewayManager): WatchdogInternals {
 }
 
 function createGatewayManager(logs: string[], onAutoStop: () => void): GatewayManager {
-    const outputChannel = {
-        appendLine: (line: string) => { logs.push(line); }
-    } as unknown as vscode.OutputChannel;
+    const logger = {
+        info: (line: string) => { logs.push(line); },
+        warn: (line: string) => { logs.push(line); },
+        error: (line: string) => { logs.push(line); }
+    };
     const context = {
         extension: { packageJSON: { version: TEST_EXTENSION_VERSION } }
     } as unknown as vscode.ExtensionContext;
 
-    return new GatewayManager(outputChannel, process.cwd(), context, onAutoStop);
+    return new GatewayManager(logger, process.cwd(), context, { onAutoStop });
 }
 
 function createTestConfig(port: number, idleTimeoutMs: number): GatewayConfig {

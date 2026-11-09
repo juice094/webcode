@@ -114,11 +114,13 @@ async function withWorkspaceFile(
 function createContext(workspaceRoot: string): ToolExecutionContext {
     return {
         workspaceRoot,
-        outputChannel: {
-            appendLine(value: string) {
+        logger: {
+            info(value: string) {
                 void value;
-            }
-        } as unknown as ToolExecutionContext['outputChannel'],
+            },
+            warn: () => undefined,
+            error: () => undefined
+        },
         skillManager: {} as ToolExecutionContext['skillManager'],
         terminalSessionManager: {} as ToolExecutionContext['terminalSessionManager'],
         skillDirectories: [],

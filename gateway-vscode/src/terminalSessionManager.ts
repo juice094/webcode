@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as vscode from 'vscode';
 import { BRANDING } from '@webcode/shared';
+import type { Logger, TerminalHost } from './host/types';
 import type { TerminalShellKind, WebcodeTerminalProfile } from './servers/terminalProfiles';
 
 type TerminalSessionStatus = 'starting' | 'running' | 'interrupting' | 'unknown' | 'exited' | 'failed' | 'stopped';
@@ -47,7 +48,10 @@ export class TerminalSessionManager {
   private readonly maxOutputChars = 200_000;
   private readonly shellIntegrationTimeoutMs = 3000;
 
-  constructor(private readonly outputChannel: vscode.OutputChannel) {}
+  constructor(
+    private readonly logger: Logger,
+    private readonly terminalHost: TerminalHost
+  ) {}
 
   createSession(params: {
     commandLine: string;
@@ -59,7 +63,7 @@ export class TerminalSessionManager {
   }): TerminalSessionSummary {
     const id = randomUUID().slice(0, 8);
     const name = `${BRANDING.terminalPrefix} ${id}`;
-    const terminal = vscode.window.createTerminal(createTerminalOptions(name, params));
+    const terminal = this.terminalHost.createTerminal(createTerminalOptions(name, params));
     const session = this.createSessionState(id, name, terminal, params);
 
     this.sessions.set(id, session);
@@ -351,7 +355,7 @@ export class TerminalSessionManager {
   private log(message: string): void {
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    this.outputChannel.appendLine(`[${time}] ${message}`);
+    this.logger.info(`[${time}] ${message}`);
   }
 }
 

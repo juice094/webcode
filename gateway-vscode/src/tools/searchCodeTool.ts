@@ -1,6 +1,5 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
-import type * as vscode from 'vscode';
 import type { LocalTool, ToolExecutionContext } from './types';
 import { textResult } from './result';
 import { getNumberArg } from './filesystemUtils';
@@ -98,7 +97,7 @@ export const searchCodeTool: LocalTool = {
         const searchRoot = (await resolveWorkspaceRelativeDirectory(getContextWorkspaceRoots(context), args.path ?? '.')).absolutePath;
         const workspaceRoot = context.workspaceRoot ?? searchRoot;
         const options = buildSearchCodeOptions(args, searchRoot, workspaceRoot);
-        const result = await runRipgrepWithFallback(options, context.outputChannel, signal);
+        const result = await runRipgrepWithFallback(options, context, signal);
 
         return textResult(formatSearchCodeOutput(result, options));
     }
@@ -145,7 +144,7 @@ async function searchCodeAcrossRoots(
         }
         const options = buildSearchCodeOptions(args, root, root);
         options.maxResults = maxResults - matches.length;
-        const result = await runRipgrepWithFallback(options, context.outputChannel, signal);
+        const result = await runRipgrepWithFallback(options, context, signal);
         const prefix = `${path.basename(root)}/`;
         for (const match of result.matches) {
             matches.push(prefix + match);
@@ -163,14 +162,14 @@ async function searchCodeAcrossRoots(
 
 async function runRipgrepWithFallback(
     options: SearchCodeOptions,
-    outputChannel: vscode.OutputChannel,
+    context: ToolExecutionContext,
     signal?: AbortSignal
 ): Promise<SearchCodeResult> {
     try {
-        return await runRipgrep(options, signal);
+        return await runRipgrep(options, context, signal);
     } catch (error) {
         if (error instanceof RipgrepUnavailableError) {
-            logRipgrepFallback(outputChannel, error);
+            logRipgrepFallback(context.logger, error);
             const result = await searchCodeInProcess(options);
             return {
                 ...result,
@@ -182,15 +181,15 @@ async function runRipgrepWithFallback(
     }
 }
 
-function logRipgrepFallback(outputChannel: vscode.OutputChannel, error: RipgrepUnavailableError): void {
-    outputChannel.appendLine('[search_code] ripgrep unavailable; using in-process fallback.');
+function logRipgrepFallback(logger: ToolExecutionContext['logger'], error: RipgrepUnavailableError): void {
+    logger.info('[search_code] ripgrep unavailable; using in-process fallback.');
     for (const line of error.message.split('\n')) {
-        outputChannel.appendLine(`[search_code] ${line}`);
+        logger.info(`[search_code] ${line}`);
     }
 }
 
-async function runRipgrep(options: SearchCodeOptions, signal?: AbortSignal): Promise<SearchCodeResult> {
-    const rgCommand = resolveRipgrepCommand();
+async function runRipgrep(options: SearchCodeOptions, context: ToolExecutionContext, signal?: AbortSignal): Promise<SearchCodeResult> {
+    const rgCommand = resolveRipgrepCommand({ configStore: context.configStore, editorAppRoot: context.editorAppRoot });
     const args = createSearchCodeRipgrepArgs(options);
     const matches: string[] = [];
     let limitReached = false;

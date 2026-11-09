@@ -1,6 +1,5 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
-import type * as vscode from 'vscode';
 import type { LocalTool, ToolExecutionContext } from './types';
 import { textResult } from './result';
 import {
@@ -73,7 +72,7 @@ export const searchFilesTool: LocalTool = {
             caseSensitive: args.case_sensitive === true,
             maxResults: getNumberArg(args.max_results, 200)
         };
-        const result = await searchFilePathsWithFallback(options, context.outputChannel, signal);
+        const result = await searchFilePathsWithFallback(options, context, signal);
 
         return textResult(formatSearchFilesOutput(result, options));
     }
@@ -124,7 +123,7 @@ async function searchFilesAcrossRoots(
             maxResults: maxResults - matches.length
         };
         lastQuery = options.query;
-        const result = await searchFilePathsWithFallback(options, context.outputChannel, signal);
+        const result = await searchFilePathsWithFallback(options, context, signal);
         const prefix = `${path.basename(root)}/`;
         for (const match of result.matches) {
             matches.push(prefix + match);
@@ -172,26 +171,30 @@ function formatSearchFilesOutput(result: SearchFilesResult, options: SearchFiles
 
 async function searchFilePathsWithFallback(
     options: SearchFilesOptions,
-    outputChannel: vscode.OutputChannel,
+    context: ToolExecutionContext,
     signal?: AbortSignal
 ): Promise<SearchFilesResult> {
     try {
-        return await runRipgrepFiles(options, signal);
+        return await runRipgrepFiles(options, context, signal);
     } catch (error) {
         if (!(error instanceof RipgrepUnavailableError)) {
             throw error;
         }
 
-        outputChannel.appendLine('[search_files] ripgrep unavailable; using git/file walker fallback.');
+        context.logger.info('[search_files] ripgrep unavailable; using git/file walker fallback.');
         for (const line of error.message.split('\n')) {
-            outputChannel.appendLine(`[search_files] ${line}`);
+            context.logger.info(`[search_files] ${line}`);
         }
         return searchFilesInProcess(options);
     }
 }
 
-async function runRipgrepFiles(options: SearchFilesOptions, signal?: AbortSignal): Promise<SearchFilesResult> {
-    const rgCommand = resolveRipgrepCommand();
+async function runRipgrepFiles(
+    options: SearchFilesOptions,
+    context: ToolExecutionContext,
+    signal?: AbortSignal
+): Promise<SearchFilesResult> {
+    const rgCommand = resolveRipgrepCommand({ configStore: context.configStore, editorAppRoot: context.editorAppRoot });
     const args = createRipgrepFilesArgs();
     const matches: string[] = [];
     let stdoutBuffer = '';

@@ -18,15 +18,14 @@ import {
 } from './extension/serviceController';
 import { createSkillWatcherController } from './extension/skillWatchers';
 import { registerGatewayConnectDeepLink } from './extension/uriHandler';
-import type { SessionRequestPrompt } from './gateway/pairingRoutes';
 import { updateGatewayStatusBar } from './extension/statusBar';
 import { GatewayManager } from './gateway';
 import { createWorkspaceId } from './gateway/bridgeRoute';
 import { readShutdownSnapshot, shutdownSnapshotPath } from './extension/shutdownSnapshot';
 import { runDeactivate } from './extension/deactivateSession';
-import { createWorkspaceSessionStore } from './extension/sessionToken';
 import { formatBuildFingerprint, readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/buildInfo';
 import { createGatewayRuntimeTraceSinkFromEnvironment } from './gateway/runtimeTrace';
+import { createVscodeHost, toBridgeSessionPersistence, toLegacySecrets, type VscodeHost } from './host/vscodeHost';
 import { t } from './i18n';
 import {
     findAiSiteById,
@@ -47,6 +46,7 @@ function applyActivationBehavior(options: {
     manager: GatewayManager;
     serviceController: GatewayServiceController;
     statusBarItem: vscode.StatusBarItem;
+    host: VscodeHost;
 }): void {
     updateGatewayStatusBar(options.statusBarItem, { online: false });
     // 浏览器标签页兑换连接码后刷新状态栏；会话被清扫/全表轮换时同样刷新，
@@ -55,33 +55,14 @@ function applyActivationBehavior(options: {
     options.manager.setBridgeSessionsChangedHandler(() => options.serviceController.markBridgeConnected());
 
     // 配对请求必须由用户在这里当面确认；未注册处理器时网关默认拒绝。
-    options.manager.setSessionRequestConfirmationHandler(confirmSessionRequest);
+    options.manager.setSessionRequestConfirmationHandler(prompt => options.host.services.pairing.confirmSessionRequest(prompt));
 
     // 自动启动是显式开关（webcodeGateway.autoStart，默认 false）：默认不在激活时
     // 占用端口；开启后也只启动网关，不会自动打开浏览器，且无工作区时不启动。
-    const autoStart = vscode.workspace.getConfiguration('webcodeGateway').get<boolean>('autoStart');
-    if (shouldAutoStart(autoStart, (vscode.workspace.workspaceFolders?.length ?? 0) > 0)) {
+    const autoStart = options.host.services.config.get<boolean>('autoStart');
+    if (shouldAutoStart(autoStart, options.host.services.workspace.getWorkspaceRoots().length > 0)) {
         void options.serviceController.start();
     }
-}
-
-/**
- * 配对确认弹窗。文案带上请求来源 origin 与工作区名，让用户能判断是谁在请求；
- * 关闭弹窗（Esc / 点叉）返回 undefined，按拒绝处理。
- */
-async function confirmSessionRequest(request: SessionRequestPrompt): Promise<boolean> {
-    const allow = t('session_request_allow');
-    const choice = await vscode.window.showInformationMessage(
-        t('session_request_prompt', {
-            origin: request.requestOrigin,
-            site: request.siteName,
-            workspace: request.workspaceName
-        }),
-        { modal: true },
-        allow,
-        t('session_request_deny')
-    );
-    return choice === allow;
 }
 
 /**
@@ -122,13 +103,14 @@ let resumeSession: {
 function prepareResumeSession(
     context: vscode.ExtensionContext,
     manager: GatewayManager,
-    logger: PersistentLogger
+    logger: PersistentLogger,
+    host: VscodeHost,
+    workspaceRoot: string | null
 ): void {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
     const workspaceId = createWorkspaceId(workspaceRoot);
     const storageDir = context.globalStorageUri.fsPath;
     const snapshotPath = shutdownSnapshotPath(path.join(storageDir, 'state'), workspaceId);
-    const sessionStore = createWorkspaceSessionStore({ memento: context.workspaceState, workspaceId });
+    const sessionStore = host.createSessionStore(workspaceId);
     const interrupted = readShutdownSnapshot(snapshotPath);
     const lastInterrupted = interrupted && interrupted.inFlight.length > 0
         ? { count: interrupted.inFlight.length, savedAt: interrupted.savedAt }
@@ -138,8 +120,8 @@ function prepareResumeSession(
     }
 
     manager.setResumeState({
-        sessionStore,
-        legacySecrets: context.secrets,
+        sessionStore: toBridgeSessionPersistence(sessionStore),
+        legacySecrets: toLegacySecrets(sessionStore),
         workspaceId,
         lastInterrupted
     });
@@ -159,15 +141,16 @@ function prepareResumeSession(
  */
 function registerDisconnectBrowsersCommand(
     context: vscode.ExtensionContext,
-    serviceController: GatewayServiceController
+    serviceController: GatewayServiceController,
+    host: VscodeHost
 ): void {
     context.subscriptions.push(vscode.commands.registerCommand(GATEWAY_DISCONNECT_BROWSERS_COMMAND, () => {
         if (!serviceController.getState().isRunning) {
-            void vscode.window.showInformationMessage(t('disconnect_browsers_not_running'));
+            host.services.pairing.notify(t('disconnect_browsers_not_running'));
             return;
         }
         const revoked = serviceController.disconnectAllBrowsers();
-        void vscode.window.showInformationMessage(t('disconnect_browsers_done', { count: revoked }));
+        host.services.pairing.notify(t('disconnect_browsers_done', { count: revoked }));
     }));
 }
 
@@ -233,6 +216,10 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     // outputChannel.show(true); // 静默启动，不自动弹出面板
     outputChannel.appendLine("🚀 MCP Gateway Extension Activating...");
 
+    // 宿主抽象层（路线 A · A0）：网关核心经 host.* 访问 VS Code 能力，
+    // 具体实现与平移来源见 host/vscodeHost.ts、host/types.ts。
+    const host = createVscodeHost(context, outputChannel);
+
     // GatewayManager 构造时需要传入自动停止回调；但 serviceController 要等
     // manager 创建后才能创建。这个 holder 用来打破初始化顺序上的循环引用，
     // 让自动停止回调触发时仍然能通知 VS Code 状态栏和内部运行状态。
@@ -241,7 +228,9 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     // 创建本地网关管理器。它持有 Express 服务、MCP server 连接、本地工具、
     // 技能缓存、终端会话等核心运行时能力；extension.ts 只保留它的实例引用，
     // 具体启动参数由 serviceController 在用户点击启动或配置变更重启时组装。
-    const manager = createGatewayManager(context, outputChannel, runtime);
+    const manager = createGatewayManager(context, host, runtime);
+    const workspaceRoot = host.services.workspace.getPrimaryWorkspaceRoot();
+    const workspaceId = createWorkspaceId(workspaceRoot);
 
     // 创建技能目录监听控制器，并在激活时立即按当前 workspace/config 扫一遍。
     // watcher 只负责在 SKILL.md 或技能目录内容变化时通知 manager 失效缓存，
@@ -267,7 +256,10 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     // 都通过这个对象控制服务，避免各处直接修改 currentPort/isRunning。
     const serviceController = createGatewayServiceController({
         manager,
-        context,
+        config: host.services.config,
+        pairing: host.services.pairing,
+        sessionStore: host.createSessionStore(workspaceId),
+        workspace: host.services.workspace,
         outputChannel,
         statusBarItem,
         persistentLogger
@@ -278,7 +270,7 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     runtime.serviceController = serviceController;
 
     // 重启可续：持久化 token 源 + 上次中断的调用清单（只告知不重放）。
-    prepareResumeSession(context, manager, persistentLogger);
+    prepareResumeSession(context, manager, persistentLogger, host, workspaceRoot);
 
     // bundled bridge 会先复制到版本无关的用户数据目录。准备过程不阻塞扩展激活；
     // 真正启动隔离浏览器时仍会等待同一个任务完成，并在需要时提示重启旧进程。
@@ -289,7 +281,7 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     // 该命令和网关服务本身没有运行依赖，所以激活时直接注册。
     registerCopyContextCommand(context);
     registerIsolatedProfileCleanupCommand(context);
-    registerDisconnectBrowsersCommand(context, serviceController);
+    registerDisconnectBrowsersCommand(context, serviceController, host);
 
     // 注册状态栏点击后的主菜单命令。菜单会根据 serviceController 当前状态切换：
     // starting 时显示日志，offline 时提供启动/日志/设置，online 时提供打开站点、
@@ -316,7 +308,7 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
         skillWatcherController
     });
 
-    applyActivationBehavior({ manager, serviceController, statusBarItem });
+    applyActivationBehavior({ manager, serviceController, statusBarItem, host });
 
     const api: GatewayExtensionApi = {
         getGatewayState() {
@@ -328,9 +320,7 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
     if (process.env.WEBCODE_EVAL_MODE === '1') {
         api.evaluation = {
             getSiteConfiguration(siteId: string): ResolvedAiSiteConfig {
-                const configured = vscode.workspace
-                    .getConfiguration('webcodeGateway')
-                    .get<AISiteConfig[]>('aiSites');
+                const configured = host.services.config.get<AISiteConfig[]>('aiSites');
                 const site = findAiSiteById(getConfiguredAiSites(configured), siteId);
                 if (!site) {
                     throw new Error(`Evaluation site is not configured: ${siteId}`);
@@ -362,17 +352,20 @@ export function activate(context: vscode.ExtensionContext): GatewayExtensionApi 
  */
 function createGatewayManager(
     context: vscode.ExtensionContext,
-    outputChannel: vscode.OutputChannel,
+    host: VscodeHost,
     runtime: RuntimeHolder
 ): GatewayManager {
     const manager = new GatewayManager(
-        outputChannel,
+        host.logger,
         context.extensionPath,
         context,
-        idleTimeoutMs => {
-            runtime.serviceController?.markAutoStopped(idleTimeoutMs);
-        },
-        createGatewayRuntimeTraceSinkFromEnvironment()
+        {
+            onAutoStop: idleTimeoutMs => {
+                runtime.serviceController?.markAutoStopped(idleTimeoutMs);
+            },
+            traceSink: createGatewayRuntimeTraceSinkFromEnvironment(),
+            host: host.services
+        }
     );
     const auditLog = createApprovalAuditLog(context.globalStorageUri.fsPath);
     manager.setApprovalAuditSink(event => auditLog.append(event));

@@ -51,6 +51,7 @@ suite('portListener dynamic port (port 0)', () => {
                 config: createConfig({ port: 0 }),
                 log: () => undefined,
                 trace: () => undefined,
+                setStatusBarMessage: () => undefined,
                 onBound: (port, bound) => { boundPort = port; server = bound; }
             });
 
@@ -72,6 +73,7 @@ suite('portListener dynamic port (port 0)', () => {
                 config: createConfig({ port: 0 }),
                 log: () => undefined,
                 trace: () => undefined,
+                setStatusBarMessage: () => undefined,
                 onBound: (_port, bound) => { server = bound; }
             });
             port = result.port;

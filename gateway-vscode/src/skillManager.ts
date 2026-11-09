@@ -1,12 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type * as vscode from 'vscode';
 import {
   BUILTIN_SKILL_VIRTUAL_ROOT,
   getBuiltinSkillsRoot,
   resolveBuiltinSkillVirtualFile,
   type BuiltinSkillVirtualFileResult
 } from './builtinSkills';
+import type { Logger } from './host/types';
 
 const DEFAULT_SKILL_DIRECTORIES = [
   '.agents/skills',
@@ -39,13 +39,23 @@ interface SkillCacheRecord {
   lastScanAt: number;
 }
 
-export type WorkspaceFoldersProvider = () => readonly vscode.WorkspaceFolder[] | undefined;
+/**
+ * SkillManager 需要的工作区文件夹最小视图：内部 id 用 display name，
+ * 路径解析用 fsPath。与 host/types.ts 的 WorkspaceFolderInfo 同形
+ * （这里自持定义，保持本模块自包含）。
+ */
+export interface SkillWorkspaceFolder {
+  readonly name: string;
+  readonly fsPath: string;
+}
+
+export type WorkspaceFoldersProvider = () => readonly SkillWorkspaceFolder[] | undefined;
 
 export class SkillManager {
   private readonly caches = new Map<string, SkillCacheRecord>();
 
   constructor(
-    private readonly outputChannel: vscode.OutputChannel,
+    private readonly logger: Logger,
     private readonly extensionPath: string,
     private readonly workspaceFoldersProvider: WorkspaceFoldersProvider = () => undefined
   ) {}
@@ -106,7 +116,7 @@ export class SkillManager {
 
     for (const folder of workspaceFolders) {
       for (const relativeDir of searchRoots) {
-        const absoluteDir = await this.resolveSkillSearchRoot(folder.uri.fsPath, relativeDir);
+        const absoluteDir = await this.resolveSkillSearchRoot(folder.fsPath, relativeDir);
         if (!absoluteDir) {
           continue;
         }
@@ -164,7 +174,7 @@ export class SkillManager {
   }
 
   private async collectSkillsFromDirectory(
-    workspaceFolder: vscode.WorkspaceFolder,
+    workspaceFolder: SkillWorkspaceFolder,
     sourceDir: string,
     rootDir: string,
     found: Map<string, SkillEntry>
@@ -206,15 +216,15 @@ export class SkillManager {
   }
 
   private async buildSkillEntry(
-    workspaceFolder: vscode.WorkspaceFolder,
+    workspaceFolder: SkillWorkspaceFolder,
     sourceDir: string,
     rootPath: string,
     skillFilePath: string
   ): Promise<SkillEntry> {
     const raw = await fs.readFile(skillFilePath, 'utf8');
     const parsed = this.parseSkillFile(raw, rootPath);
-    const relativePath = this.normalizeRelativePath(path.relative(workspaceFolder.uri.fsPath, rootPath));
-    const relativeSkillFilePath = this.normalizeRelativePath(path.relative(workspaceFolder.uri.fsPath, skillFilePath));
+    const relativePath = this.normalizeRelativePath(path.relative(workspaceFolder.fsPath, rootPath));
+    const relativeSkillFilePath = this.normalizeRelativePath(path.relative(workspaceFolder.fsPath, skillFilePath));
     const sourceDirNormalized = this.normalizeRelativePath(sourceDir);
     const id = `${workspaceFolder.name}:${relativePath}`;
 
@@ -424,6 +434,6 @@ export class SkillManager {
   }
 
   private log(message: string) {
-    this.outputChannel.appendLine(`[SkillManager] ${message}`);
+    this.logger.info(`[SkillManager] ${message}`);
   }
 }

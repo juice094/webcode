@@ -4,15 +4,18 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import type * as vscode from 'vscode';
 
 import { searchCodeTool } from '../tools/searchCodeTool';
 import { searchFilesTool } from '../tools/searchFilesTool';
 import type { ToolExecutionContext, ToolResult } from '../tools';
 
 function createContext(workspaceRoot: string): ToolExecutionContext {
-    const outputChannel = { appendLine: () => undefined } as unknown as vscode.OutputChannel;
-    return { workspaceRoot, outputChannel } as unknown as ToolExecutionContext;
+    const logger = {
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined
+    };
+    return { workspaceRoot, logger } as unknown as ToolExecutionContext;
 }
 
 async function makeWorkspace(): Promise<string> {

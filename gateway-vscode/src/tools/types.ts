@@ -1,7 +1,7 @@
-import type * as vscode from 'vscode';
 import type { SkillManager } from '../skillManager';
 import type { TerminalSessionManager } from '../terminalSessionManager';
 import type { CommandRiskAssessment } from '../servers/commandRisk';
+import type { ConfigStore, Logger } from '../host/types';
 
 export type ToolContent = {
     type: string;
@@ -25,7 +25,12 @@ export type ToolExecutionContext = {
     workspaceRoot: string | null;
     /** All VS Code workspace folders; path resolution accepts any of them. */
     workspaceRoots?: readonly string[];
-    outputChannel: vscode.OutputChannel;
+    /** Line-oriented log sink (host Logger); messages arrive fully formatted. */
+    logger: Logger;
+    /** webcodeGateway-section configuration, injected by the gateway host. */
+    configStore?: ConfigStore;
+    /** Host application root used to locate the host-bundled ripgrep. */
+    editorAppRoot?: string;
     skillManager: SkillManager;
     terminalSessionManager: TerminalSessionManager;
     skillDirectories: string[];

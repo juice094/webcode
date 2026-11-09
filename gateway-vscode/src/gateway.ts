@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import express from 'express';
 import type { Server as HttpServer } from 'http';
-import * as vscode from 'vscode';
 import { BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { getErrorMessage, formatLogLine } from './gateway/errorUtils';
@@ -10,6 +9,7 @@ import { resolveCommandConfig } from './gateway/commandConfig';
 import { SkillManager } from './skillManager';
 import { TerminalSessionManager } from './terminalSessionManager';
 import { GatewayWatchdog } from './gateway/watchdog';
+import { createDefaultGatewayHostServices, type ExtensionVersionSource, type GatewayHostServices, type Logger } from './host/types';
 import {
     createLocalToolMap,
     type LocalTool,
@@ -24,7 +24,6 @@ import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/brid
 import { registerConfigRoutes } from './gateway/initRoutes';
 import type { InFlightToolCall } from './extension/shutdownSnapshot';
 import { SessionMaintenance, type SessionPersistenceState } from './gateway/sessionMaintenance';
-import { getPrimaryWorkspaceRoot, getWorkspaceRoots } from './extension/workspaceRoots';
 import { InFlightCallRegistry } from './gateway/inFlightCalls';
 import { DEFAULT_MAX_CONCURRENT_TOOL_CALLS, ToolConcurrencyGate } from './gateway/toolConcurrency';
 import { DEFAULT_IDLE_TIMEOUT_MINUTES, resolveSessionIdleTimeoutMinutes } from './gateway/idleTimeout';
@@ -49,6 +48,8 @@ import {
 import type {
     ConnectedClient,
     GatewayConfig,
+    GatewayLifecycleOptions,
+    GatewayManagerHooks,
     RemoteToolRoute,
     StartResult
 } from './gateway/types';
@@ -60,20 +61,7 @@ import { readBrowserBridgeBuild, resolveExtensionVersion } from './gateway/build
 import { listenOnAvailablePort } from './gateway/portListener';
 import { readToolResultCompressionPolicy } from './gateway/compressionPolicy';
 
-export interface GatewayLifecycleOptions {
-    /**
-     * Deactivate path only: skip the MCP client shutdown handshake so the whole
-     * stop stays inside the extension-host teardown budget.
-     */
-    fast?: boolean;
-    /**
-     * Keep the browser bridge sessions (and pending launch codes) across this
-     * stop/start cycle. Used by hot configuration reloads so connected browser
-     * tabs keep working with the tokens they already hold. Cold starts and cold
-     * configuration changes always revoke the sessions.
-     */
-    preserveBridgeSession?: boolean;
-}
+export type { GatewayLifecycleOptions, GatewayManagerHooks } from './gateway/types';
 
 export class GatewayManager {
     private app: express.Express | null = null;
@@ -81,9 +69,10 @@ export class GatewayManager {
     private toolRouter = new Map<string, RemoteToolRoute>();
     private connectedClients: ConnectedClient[] = [];
     private localTools: Map<string, LocalTool> = createLocalToolMap();
-    private outputChannel: vscode.OutputChannel;
+    private logger: Logger;
     private extensionPath: string;
-    private context: vscode.ExtensionContext;
+    private context: ExtensionVersionSource;
+    private readonly host: GatewayHostServices;
     private idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MINUTES * 60 * 1000;
     private inFlightRequestCount = 0;
     private onAutoStop: ((idleTimeoutMs: number) => void) | null = null;
@@ -133,19 +122,19 @@ export class GatewayManager {
     });
 
     constructor(
-        outputChannel: vscode.OutputChannel,
+        logger: Logger,
         extensionPath: string,
-        context: vscode.ExtensionContext,
-        onAutoStop?: (idleTimeoutMs: number) => void,
-        traceSink?: GatewayRuntimeTraceSink
+        context: ExtensionVersionSource,
+        hooks: GatewayManagerHooks = {}
     ) {
-        this.outputChannel = outputChannel;
+        this.logger = logger;
         this.extensionPath = extensionPath;
         this.context = context;
-        this.onAutoStop = onAutoStop ?? null;
-        this.traceSink = traceSink;
-        this.skillManager = new SkillManager(outputChannel, extensionPath, () => vscode.workspace.workspaceFolders);
-        this.terminalSessionManager = new TerminalSessionManager(outputChannel);
+        this.onAutoStop = hooks.onAutoStop ?? null;
+        this.traceSink = hooks.traceSink;
+        this.host = hooks.host ?? createDefaultGatewayHostServices();
+        this.skillManager = new SkillManager(logger, extensionPath, () => this.host.workspace.getWorkspaceFolders());
+        this.terminalSessionManager = new TerminalSessionManager(logger, this.host.terminal);
     }
 
     /** Extension hook: a browser tab redeemed a launch code and is now live. */
@@ -225,11 +214,11 @@ export class GatewayManager {
     }
 
     private log(message: string) {
-        this.outputChannel.appendLine(formatLogLine(message));
+        this.logger.info(formatLogLine(message));
     }
 
     private error(message: string, err?: unknown) {
-        this.outputChannel.appendLine(formatLogLine(`❌ ${message} ${getErrorMessage(err)}`));
+        this.logger.error(formatLogLine(`❌ ${message} ${getErrorMessage(err)}`));
     }
 
     private trace(event: Parameters<GatewayRuntimeTraceSink>[0]): void {
@@ -242,9 +231,11 @@ export class GatewayManager {
 
     private createToolExecutionContext(): ToolExecutionContext {
         return {
-            workspaceRoot: getPrimaryWorkspaceRoot(),
-            workspaceRoots: getWorkspaceRoots(),
-            outputChannel: this.outputChannel,
+            workspaceRoot: this.host.workspace.getPrimaryWorkspaceRoot(),
+            workspaceRoots: this.host.workspace.getWorkspaceRoots(),
+            logger: this.logger,
+            configStore: this.host.config,
+            editorAppRoot: this.host.appRoot,
             skillManager: this.skillManager,
             terminalSessionManager: this.terminalSessionManager,
             skillDirectories: this.skillDirectories,
@@ -282,11 +273,11 @@ export class GatewayManager {
             consumeBridgeCode: code => this.bridgeSessionManager.consumeBridgeCode(code),
             getBridgeLaunch: code => this.bridgeSessionManager.getBridgeLaunch(code),
             getAiSites: () => config.aiSites ?? [],
-            getExtensionVersion: () => this.getExtensionVersion(),
+            getExtensionVersion: () => resolveExtensionVersion(this.context),
             getGatewayInstanceId: () => this.gatewayInstanceId,
             getIdleTimeoutMs: () => this.idleTimeoutMs,
             getBridgeRequestMs: () => this.bridgeRequestMs,
-            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => this.host.workspace.getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
             recordActivity: () => this.watchdog.reset(),
             onSessionActivated: () => {
@@ -302,7 +293,7 @@ export class GatewayManager {
             getAiSites: () => this.currentAiSites,
             getBridgeCodeTtlMs: () => this.bridgeSessionManager.getBridgeCodeTtlMs(),
             getPort: () => this.currentPort,
-            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => this.host.workspace.getPrimaryWorkspaceRoot(),
             hasActiveSession: () => this.bridgeSessionManager.hasActiveSession(),
             getSessionCount: () => this.bridgeSessionManager.getSessionCount(),
             issueBridgeCode: (siteId, targetUrl) => this.issueBridgeCode(siteId, targetUrl),
@@ -322,7 +313,7 @@ export class GatewayManager {
         this.app.use(createGatewayActivityMiddleware(() => this.watchdog.reset()));
 
         registerConfigRoutes(this.app, config, this.log.bind(this), {
-            extensionVersion: this.getExtensionVersion(),
+            extensionVersion: resolveExtensionVersion(this.context),
             buildHash: readBrowserBridgeBuild(this.extensionPath)?.buildHash ?? null,
             bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION,
             startedAt: this.startedAt,
@@ -337,9 +328,9 @@ export class GatewayManager {
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
             getToolCallTimeoutMs: () => this.toolCallMs,
-            getCompressionPolicy: () => readToolResultCompressionPolicy(),
+            getCompressionPolicy: () => readToolResultCompressionPolicy(this.host.config),
             getToolDefinition: (name: string) => this.getToolDefinition(name),
-            getWorkspaceRoot: () => getPrimaryWorkspaceRoot(),
+            getWorkspaceRoot: () => this.host.workspace.getPrimaryWorkspaceRoot(),
             localTools: this.localTools,
             log: this.log.bind(this),
             onToolCallEnd: callId => this.inFlightCalls.end(callId),
@@ -354,10 +345,6 @@ export class GatewayManager {
             commandApprovalManager: this.commandApprovalManager,
             toolCallOptions
         });
-    }
-
-    private getExtensionVersion(): string {
-        return resolveExtensionVersion(this.context);
     }
 
     async start(config: GatewayConfig, options?: GatewayLifecycleOptions): Promise<StartResult> {
@@ -425,12 +412,12 @@ export class GatewayManager {
         this.connectedClients = await connectToConfiguredServers({
             connectedClients: this.connectedClients,
             extensionPath: this.extensionPath,
-            clientVersion: this.getExtensionVersion(),
+            clientVersion: resolveExtensionVersion(this.context),
             log: this.log.bind(this),
             error: this.error.bind(this),
             servers: config.mcpServers,
             toolRouter: this.toolRouter,
-            workspaceRoot: getPrimaryWorkspaceRoot()
+            workspaceRoot: this.host.workspace.getPrimaryWorkspaceRoot()
         });
 
         // Start Watchdog
@@ -450,6 +437,7 @@ export class GatewayManager {
             config,
             log: this.log.bind(this),
             trace: this.trace.bind(this),
+            setStatusBarMessage: (message, timeoutMs) => this.host.pairing.showStatusBarMessage(message, timeoutMs),
             onBound: (port, server) => {
                 this.currentPort = port;
                 this.server = server;
