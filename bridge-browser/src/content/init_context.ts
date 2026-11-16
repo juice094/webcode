@@ -20,7 +20,7 @@ export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions =
     : buildInitToolResultHeader();
   finalPrompt += await buildBasePrompt(options.siteId);
 
-  Logger.log(`Initializing ${BRANDING.productName} with prompt, project rules, project context, tool list, and skill list`, "action");
+  Logger.log(`Initializing ${BRANDING.productName} with prompt, project rules, and project context`, "action");
 
   try {
     const projectRules = (await executeInitToolCall("get_project_rules")).trim();
@@ -40,30 +40,6 @@ export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions =
     Logger.log(`Project context fetch failed: ${getErrorMessage(error)}`, "error");
   }
 
-  try {
-    const [toolsResult, skillsResult] = await Promise.all([
-      executeInitToolCall("list_tools"),
-      executeInitToolCall("list_skills"),
-    ]);
-
-    // Deliberately no product name in these headers: the injected context is
-    // visible to the web AI platform, and naming the bridge is a free
-    // automation signal. The JSON blocks stay (they are the machine-readable
-    // tool/skill index the model reads on every round), but each gets one
-    // spoken line first so the dump reads as an answer, not a payload.
-    const toolsIntro = i18n.lang === "zh"
-      ? "你现在能用的工具都在下面（JSON，按 server 分组）；调用时照每个条目的 schema 填参数。"
-      : "Here are the tools you can call right now (JSON, grouped by server); fill arguments per each entry's schema.";
-    const skillsIntro = i18n.lang === "zh"
-      ? "下面是当前可用的技能清单（JSON）；要用哪个技能，直接读它的 skillFilePath。"
-      : "Here are the available skills (JSON); to use one, read its skillFilePath directly.";
-    finalPrompt += `\n\n# Available Tools\n${toolsIntro}\n\`\`\`json\n${escapeInlineNewlines(toolsResult)}\n\`\`\``;
-    finalPrompt += `\n\n# Available Skills\n${skillsIntro}\n\`\`\`json\n${escapeInlineNewlines(skillsResult)}\n\`\`\``;
-  } catch (error) {
-    Logger.log(`Initialization data fetch failed: ${getErrorMessage(error)}`, "error");
-    finalPrompt += `\n\n# Initialization Note\nFailed to fetch the tool or skill list. Re-run \`${PROTOCOL.initToolName}\` if needed.`;
-  }
-
   return finalPrompt;
 }
 
@@ -75,8 +51,8 @@ async function buildBasePrompt(siteId?: string | null): Promise<string> {
 
 function buildInitToolResultHeader(): string {
   return i18n.lang === "zh"
-    ? `初始化内容已就位——项目规则、项目上下文、工具清单和技能清单都在下面，直接开始任务即可，不要再发送 ${PROTOCOL.initToolName}。\n\n`
-    : `The initialization payload is below — project rules, project context, the tool list and the skill list. Start the task directly; do not send ${PROTOCOL.initToolName} again.\n\n`;
+    ? `初始化内容已就位——控制流契约、项目规则和项目上下文都在下面。开始任务前，先调用 list_tools 获取当前可用工具列表，并按需调用 list_skills 获取技能清单；此后不要再发送 ${PROTOCOL.initToolName}。\n\n`
+    : `The initialization payload is below — the control flow contract, project rules, and project context. Before starting the task, call list_tools for the current tool list and list_skills for the skill list as needed; do not send ${PROTOCOL.initToolName} again.\n\n`;
 }
 
 function executeInitToolCall(name: string): Promise<string> {
@@ -98,22 +74,10 @@ function executeInitToolCall(name: string): Promise<string> {
           return;
         }
 
-        resolve(formatToolOutput(result.data, getInitToolFallback(name)));
+        resolve(stringifyToolData(result.data, ""));
       }
     );
   });
-}
-
-function escapeInlineNewlines(value: string): string {
-  return value.replace(/\r/g, "\\r").replace(/\n/g, "\\n");
-}
-
-function formatToolOutput(data: unknown, fallback: string): string {
-  return stringifyToolData(data, fallback);
-}
-
-function getInitToolFallback(toolName: string): string {
-  return toolName === "get_project_rules" || toolName === "get_project_context" ? "" : "[]";
 }
 
 function normalizeToolResponse(response: unknown): ToolExecutionResponse {

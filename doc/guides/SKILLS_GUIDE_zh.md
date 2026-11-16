@@ -46,8 +46,8 @@ webcode 可以把当前 VS Code 工作区中的本地 Skills 暴露给网页 AI�
 
 ## 内置 Skills
 
-webcode 也可以随扩展提供内置 Skills。内置 Skills 会和工作区 Skills 一起出现在初始化提示词的
-`webcode Available Skills` 中。工作区 Skill 使用 `source: "workspace"`；内置 Skill 使用 `source: "builtin"`。
+webcode 也可以随扩展提供内置 Skills。内置 Skills 会和工作区 Skills 一起出现在 `list_skills` 返回的
+Available Skills 清单中。工作区 Skill 使用 `source: "workspace"`；内置 Skill 使用 `source: "builtin"`。
 
 内置 Skill 的 `skillFilePath` 是只读虚拟路径，例如：
 
@@ -57,6 +57,6 @@ webcode 也可以随扩展提供内置 Skills。内置 Skills 会和工作区 Sk
 
 这个路径不会真实写入工作区，只能通过 `read_file` 读取。`write_file`、`edit_file`、命令执行和搜索工具不会把它当作可写或可执行文件。
 
-当前随扩展提供的开发 Skills 包括 `create-skills`、`debug`、`verify`、`code-review`、`security-review`、`frontend-design` 和 `mcp-tool-selection`。它们和工作区 Skills 一样出现在 `webcode Available Skills` 中。
+当前随扩展提供的开发 Skills 包括 `create-skills`、`debug`、`verify`、`code-review`、`security-review`、`frontend-design` 和 `mcp-tool-selection`。它们和工作区 Skills 一样出现在 Available Skills 清单中。
 
 本机 Copilot 或其他 agent 的用户级 Skill 不会自动导入。确认来源、许可和内容安全后，可以将需要的 Skill 复制或改写到工作区 `.agents/skills`、`.codex/skills`，或配置 `webcodeGateway.skillDirectories` 指向工作区内的目录。不要把个人路径、凭据、内部地址或用户数据打包进官方内置 Skill。工作区同名 Skill 会覆盖内置 Skill。

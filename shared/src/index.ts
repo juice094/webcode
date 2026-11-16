@@ -136,6 +136,23 @@ export function isBootstrapOnlyToolName(name: string): name is BootstrapOnlyTool
   return (BOOTSTRAP_ONLY_TOOL_NAMES as readonly string[]).includes(name);
 }
 
+/**
+ * Bootstrap tools whose results are assembled into the initialization payload
+ * itself. The bridge rejects direct model calls for them because the payload
+ * already carries their content; the remaining bootstrap tools (list_tools,
+ * list_skills) stay model-callable so the model fetches those lists lazily.
+ */
+export const INIT_ASSEMBLY_TOOL_NAMES = [
+  'get_project_rules',
+  'get_project_context',
+] as const;
+
+export type InitAssemblyToolName = typeof INIT_ASSEMBLY_TOOL_NAMES[number];
+
+export function isInitAssemblyToolName(name: string): name is InitAssemblyToolName {
+  return (INIT_ASSEMBLY_TOOL_NAMES as readonly string[]).includes(name);
+}
+
 function normalizePromptSiteId(siteId: string | null | undefined): string {
   return String(siteId ?? '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
 }

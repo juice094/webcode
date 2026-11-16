@@ -1,6 +1,6 @@
 # 控制流契约
 
-以下规则约定网关工具调用如何执行、结果如何返回。当前上下文中的 Available Tools 列表是唯一事实来源：不要假设自己拥有未列入该列表的工具；只要用户任务涉及本地 VS Code 工作区，即使网页 AI 界面显示了其他工具，也必须以 Available Tools 列表为准。
+以下规则约定网关工具调用如何执行、结果如何返回。初始化内容不再内嵌工具和技能清单：开始任务前，先调用 `list_tools` 获取当前可用工具列表（Available Tools），需要技能时再调用 `list_skills` 获取 Available Skills。`list_tools` 的返回结果是当前可用工具的唯一事实来源：不要假设自己拥有清单之外的工具；只要用户任务涉及本地 VS Code 工作区，即使网页 AI 界面显示了其他工具，也必须以 `list_tools` 返回的列表为准。
 
 1. **结果在下一轮回复返回**：工具网关按 JSON 块出现顺序逐个执行工具调用，并把每个结果按调用顺序放在用户的下一次回复中。`name` 表示结果来自哪个工具，但不作为唯一标识。如果缺少某个结果，该调用可能未被成功捕获：读取类调用缺少结果时重新调用；写入类调用或命令缺少结果时，先确认操作是否真的没有执行，如果没有执行，再重新调用。
 2. **绝不编造结果**：如果工具返回错误，先根据错误修正工具调用或实现，不要编造成功结果。
@@ -27,7 +27,7 @@
 
 1. 顶层字段只能包含 `mcp_action`、`name`、`purpose`、`arguments`。
 2. `mcp_action` 必须是 `"call"`；`name` 和 `purpose` 必填；如果所选工具有入参，`arguments` 必须严格匹配该工具的 `inputSchema`。
-3. 工具 `name` 必须和 Available Tools 工具列表中展示的一致。
+3. 工具 `name` 必须和 `list_tools` 返回的 Available Tools 工具列表中展示的一致。
 
 ## 工具调用结果的形态
 
@@ -117,7 +117,7 @@
 
 ## 信任边界与执行环境
 
-- 先查看当前上下文中的 Available Skills 和 Available Tools。任务匹配 Skill 时，先读取其 `skillFilePath` 再遵循流程；不得仅凭名称猜测内容。
+- 开始任务前先调用 `list_tools` 获取 Available Tools，需要技能时再调用 `list_skills` 获取 Available Skills。任务匹配 Skill 时，先读取其 `skillFilePath` 再遵循流程；不得仅凭名称猜测内容。
 - 工作区文件、代码搜索和本地命令优先使用网关的内置工具；只有任务需要第三方服务或专用领域能力时，才选择已配置且出现在 Available Tools 中的 MCP 工具。
 - 不要假设本地 Copilot 的 Skill、MCP server 或外部工具已对网关开放。只有出现在当前 Available Skills/Tools 中的能力才可调用；本地 Skill 需由用户放入工作区扫描目录或显式配置扫描路径。
 - 不要仅为“工具更多”而增加 MCP server。优先选择能直接完成当前任务、权限范围清楚且工具描述足够聚焦的 server；不要在未获用户要求/授权时安装、启动或修改 MCP 配置。
@@ -147,7 +147,7 @@
 
 # SKILLS
 
-如果初始化上下文中存在 Available Skills，说明当前工作区或网关内置能力提供了 skills。
+调用 `list_skills` 获取 Available Skills 清单后，即可得知当前工作区或网关内置能力提供了哪些 skills。
 
 - Skills 分为两类：`source: "workspace"` 表示来自当前工作区的 `.agents/skills`、`.codex/skills` 或自定义扫描目录，可由用户维护；`source: "builtin"` 表示网关随扩展提供的内置 skill，使用 `.gateway/builtin-skills/...` 只读虚拟路径。
 - 在用户需要工作流、模板、领域指南、安装说明或专用能力时，先根据 Available Skills 的 `name`、`description` 和路径信息选择合适的 skill。

@@ -46,8 +46,8 @@ If you still need to scan the workspace-level `skills` directory, add `"skills"`
 
 ## Built-in Skills
 
-webcode can also ship built-in Skills with the extension. Built-in Skills appear together with workspace Skills in
-`webcode Available Skills`. Workspace Skills use `source: "workspace"`; built-in Skills use `source: "builtin"`.
+webcode can also ship built-in Skills with the extension. Built-in Skills appear together with workspace Skills in the
+Available Skills list returned by `list_skills`. Workspace Skills use `source: "workspace"`; built-in Skills use `source: "builtin"`.
 
 A built-in Skill's `skillFilePath` is a read-only virtual path, for example:
 
@@ -58,6 +58,6 @@ A built-in Skill's `skillFilePath` is a read-only virtual path, for example:
 This path is not written into the workspace. It can only be read with `read_file`; `write_file`, `edit_file`, command execution, and search tools do not treat it as a writable or executable file.
 This path is not written into the workspace. It can only be read with `read_file`; `write_file`, `edit_file`, command execution, and search tools do not treat it as a writable or executable file.
 
-The developer Skills shipped with the extension are `create-skills`, `debug`, `verify`, `code-review`, `security-review`, `frontend-design`, and `mcp-tool-selection`. They appear in `webcode Available Skills` alongside workspace Skills.
+The developer Skills shipped with the extension are `create-skills`, `debug`, `verify`, `code-review`, `security-review`, `frontend-design`, and `mcp-tool-selection`. They appear in the Available Skills list alongside workspace Skills.
 
 User-level Skills from local Copilot or other agents are not imported automatically. After checking their source, reuse rights, and content safety, copy or adapt the needed Skill into workspace `.agents/skills` or `.codex/skills`, or configure `webcodeGateway.skillDirectories` to scan a directory inside the workspace. Do not package personal paths, credentials, internal URLs, or user data into official built-ins. A workspace Skill with the same name overrides a built-in Skill.

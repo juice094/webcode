@@ -137,7 +137,7 @@ webcode 会把第三方 MCP 工具名加上 server 前缀，避免和内置工�
 }
 ```
 
-初始化后，Available Tools 中 `chrome-devtools` 分组里的工具会显示为：
+初始化后，`list_tools` 返回的 Available Tools 中 `chrome-devtools` 分组里的工具会显示为：
 
 ```text
 chrome-devtools:<toolName>

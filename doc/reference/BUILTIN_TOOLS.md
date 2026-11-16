@@ -9,7 +9,7 @@ Runtime sources:
 
 ## 1. Gateway Local Tools
 
-These tools are implemented directly in `gateway-vscode/src/tools/` and injected into the Available Tools list in the initialization prompt. File capabilities no longer start through `@modelcontextprotocol/server-filesystem`.
+These tools are implemented directly in `gateway-vscode/src/tools/` and appear in the Available Tools list returned by `list_tools`. File capabilities no longer start through `@modelcontextprotocol/server-filesystem`.
 
 Bare tool names only belong to these local tools. Tools exposed by third-party MCP servers appear in the tool list as `serverId:toolName`.
 
@@ -29,14 +29,14 @@ Local tool `path` arguments consistently use workspace-relative paths with `/` s
 
 ## 2. Bootstrap-only Tools
 
-These tools are only used by the VS Code gateway and browser extension when initializing a session. They do not appear in Available Tools, and direct model calls are rejected by the browser extension.
+These tools never appear in the advertised Available Tools list. `get_project_rules` and `get_project_context` are reserved for the browser extension's initialization assembly, and direct model calls to them are rejected by the browser extension. `list_tools` and `list_skills` are no longer injected into the initialization payload; the model calls them directly in the conversation to fetch the tool and skill lists on demand.
 
 | Tool | Purpose |
 | --- | --- |
 | `get_project_rules` | Reads `USER_RULES.md`, `AGENTS.md`, or `CLAUDE.md` from the workspace root to assemble the initialization prompt. |
 | `get_project_context` | Summarizes the current workspace folder name, Git repository status, current Git branch, a project structure skeleton, and 5 recent commits for the initialization prompt. The skeleton lists the root plus one level inside folders that get expanded (at most 80 entries); VCS, dependency, build, cache and archive folders collapse to a single summary line instead of being expanded, and a `.gatewayignore` file at the workspace root (`.gitignore` syntax, `!` re-includes) overrides every default rule. |
-| `list_tools` | Returns the model-available tool list grouped by server. Each tool includes its full schema for the initialization prompt. |
-| `list_skills` | Lists local skills discovered in the current workspace and webcode built-in skills for the Available Skills section of the initialization prompt. Each item includes `source` and a `skillFilePath` that can be passed directly to `read_file`; local skills use `source: "workspace"` and workspace-relative `/`-separated paths, while built-in skills use `source: "builtin"` and read-only virtual paths under `.gateway/builtin-skills/...`. |
+| `list_tools` | Returns the model-available tool list grouped by server, each tool with its full schema. No longer injected into the initialization payload; the model calls it directly before starting a task to get the current Available Tools. |
+| `list_skills` | Lists local skills discovered in the current workspace and webcode built-in skills. No longer injected into the initialization payload; the model calls it directly on demand to get Available Skills. Each item includes `source` and a `skillFilePath` that can be passed directly to `read_file`; local skills use `source: "workspace"` and workspace-relative `/`-separated paths, while built-in skills use `source: "builtin"` and read-only virtual paths under `.gateway/builtin-skills/...`. |
 
 ## 3. Browser Client Virtual Tools
 
@@ -44,7 +44,7 @@ These capabilities do not come from an MCP server. They are recognized by `bridg
 
 | Tool | Purpose |
 | --- | --- |
-| `webcode_init` | Initializes virtual tools and remains available for manually pasted initialization prompts and older flows. After the browser captures it, the browser calls bootstrap-only tools and writes the system prompt, tool list, and skill list back into the chat box. `/webcode` and `@webcode` triggers now generate the same initialization result directly. The actual name comes from `PROTOCOL.initToolName` in `shared/src/index.ts`. |
+| `webcode_init` | Initializes virtual tools and remains available for manually pasted initialization prompts and older flows. After the browser captures it, the browser writes the system prompt, project rules, and project context back into the chat box; the tool and skill lists are no longer embedded — the model fetches them on demand through `list_tools` and `list_skills`. `/webcode` and `@webcode` triggers now generate the same initialization result directly. The actual name comes from `PROTOCOL.initToolName` in `shared/src/index.ts`. |
 
 ## 4. Outside This Document
 
@@ -52,4 +52,4 @@ These capabilities do not come from an MCP server. They are recognized by `bridg
 - Git, database, browser automation, remote API, or other tools provided by third-party MCP servers. Call them as `serverId:toolName`, for example `github:search_repositories`.
 - VS Code command palette commands, status bar actions, and browser extension UI actions.
 
-The current runtime tool list available to the model is determined by Available Tools in the initialization prompt.
+The current runtime tool list available to the model is determined by the Available Tools list returned by `list_tools`.

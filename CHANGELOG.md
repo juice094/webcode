@@ -7,6 +7,8 @@
 
 最新版本：
 
+- [v1.8.0（中文）](changelogs/zh/v1.8.0.md) · [v1.8.0 (English)](changelogs/en/v1.8.0.md)
+
 - [v1.7.5（中文）](changelogs/zh/v1.7.5.md) · [v1.7.5 (English)](changelogs/en/v1.7.5.md)
 
 - [v1.7.4（中文）](changelogs/zh/v1.7.4.md) · [v1.7.4 (English)](changelogs/en/v1.7.4.md)

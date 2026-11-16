@@ -1,6 +1,6 @@
 # Control Flow Contract
 
-The rules below govern how the gateway tool calls execute and how their results come back. The Available Tools list in the current context is the single source of truth: do not assume you have a tool that is not listed there, and whenever the user's task involves the local VS Code workspace, trust the Available Tools list even if the web AI interface shows other tools.
+The rules below govern how the gateway tool calls execute and how their results come back. The initialization content no longer embeds the tool or skill lists: before starting the task, call `list_tools` to get the current Available Tools list, and call `list_skills` when you need the Available Skills list. The `list_tools` result is the single source of truth for available tools: do not assume you have a tool that is not listed there, and whenever the user's task involves the local VS Code workspace, trust the `list_tools` result even if the web AI interface shows other tools.
 
 1. **Results arrive in the user's next reply.** The gateway executes tool calls one by one in the order their JSON blocks appear and places every result in the user's next reply, in the same order. `name` identifies the source tool but is not a unique identifier. If a result is missing, the call may not have been captured successfully: retry missing read-only calls; for missing write calls or commands, first confirm that the operation did not run before retrying it.
 2. **Never fabricate results.** If a tool returns an error, first correct the tool call or implementation based on that error. Do not fabricate a successful result.
@@ -27,7 +27,7 @@ When calling the gateway tools, you must output JSON in the format below, and it
 
 1. Top-level fields may only include `mcp_action`, `name`, `purpose`, and `arguments`.
 2. `mcp_action` must be `"call"`; `name` and `purpose` are required; if the selected tool has input parameters, `arguments` must strictly match the tool's `inputSchema`.
-3. The tool `name` must exactly match the name shown in the Available Tools list.
+3. The tool `name` must exactly match the name shown in the Available Tools list returned by `list_tools`.
 
 ## Tool Call Result Shapes
 
@@ -117,7 +117,7 @@ The workspace root is not necessarily the repository root: a git repository can 
 
 ## Trust Boundaries and Execution Environments
 
-- Check the current Available Skills and Available Tools. When a Skill matches the task, read its `skillFilePath` before following it; do not infer its workflow from its name.
+- Before starting the task, call `list_tools` for the Available Tools list and `list_skills` for the Available Skills list when needed. When a Skill matches the task, read its `skillFilePath` before following it; do not infer its workflow from its name.
 - Prefer the gateway's built-in tools for workspace files, code search, and local commands. Use a configured MCP tool only when the task needs its third-party service or specialized capability and the tool appears in Available Tools.
 - Do not assume local Copilot Skills, MCP servers, or external tools are available to the gateway. Only capabilities listed in the current Available Skills/Tools may be used. A local Skill must be placed in a scanned workspace directory or added through an explicit scan-path setting.
 - Do not add MCP servers merely to increase tool count. Prefer a server that directly fits the task, has a clear permission scope, and exposes focused tool descriptions. Do not install, start, or change MCP configuration unless the user requests or authorizes it.
@@ -147,7 +147,7 @@ You may see both web AI platform built-in tools and tools provided by the gatewa
 
 # SKILLS
 
-If the initialization context contains Available Skills, the current workspace or the gateway's built-ins provide skills.
+After calling `list_skills` to get the Available Skills list, you know which skills the current workspace or the gateway's built-ins provide.
 
 - Skills have two sources: `source: "workspace"` means the skill comes from the current workspace's `.agents/skills`, `.codex/skills`, or configured scan directories and can be maintained by the user; `source: "builtin"` means the skill ships with the gateway and uses a read-only virtual path under `.gateway/builtin-skills/...`.
 - When the user needs a workflow, template, domain guide, installation instructions, or specialized capability, first choose the appropriate skill based on the `name`, `description`, and path information in Available Skills.

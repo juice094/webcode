@@ -1,4 +1,4 @@
-import { BRANDING, isBootstrapOnlyToolName, PROTOCOL } from "@webcode/shared";
+import { isInitAssemblyToolName, PROTOCOL } from "@webcode/shared";
 import type { SiteSelectors } from "../modules/config";
 import * as UI from "../modules/ui";
 import { i18n, t } from "../modules/i18n";
@@ -156,7 +156,7 @@ export class ToolExecutor {
       return;
     }
 
-    if (isBootstrapOnlyToolName(request.payload.name)) {
+    if (isInitAssemblyToolName(request.payload.name)) {
       this.rejectBootstrapOnlyTool(request);
       return;
     }
@@ -223,7 +223,7 @@ export class ToolExecutor {
   /**
    * 执行客户端侧的初始化虚拟工具，并在结果准备好后调度主循环回填。
    *
-   * 初始化工具不会走远端普通工具的完整回调链，它会在这里聚合项目规则、工具列表和技能列表，
+   * 初始化工具不会走远端普通工具的完整回调链，它会在这里聚合项目规则和项目上下文，
    * 然后直接写入 request registry。由于 registry 状态变化本身不会触发页面 DOM 变化，必须在
    * 状态写完后调用 scheduleMainLoop，让主循环发现该 requestKey 已完成并把初始化内容写回输入框。
    */
@@ -318,14 +318,8 @@ export class ToolExecutor {
 
   private rejectBootstrapOnlyTool(request: ToolExecutionRequest): void {
     const message = i18n.lang === "zh"
-      ? [
-        `工具 ${request.payload.name} 仅供 ${BRANDING.productName} 初始化使用，不能由模型直接调用。`,
-        "请根据已初始化的工具和技能列表继续。",
-      ].join("")
-      : [
-        `Tool ${request.payload.name} is reserved for ${BRANDING.productName} initialization and cannot be called directly by the model.`,
-        " Continue with the initialized tool and skill lists.",
-      ].join("");
+      ? `工具 ${request.payload.name} 仅供初始化组装使用，不能由模型直接调用。项目规则和项目上下文已包含在初始化内容中，直接继续任务即可。`
+      : `Tool ${request.payload.name} is reserved for initialization assembly and cannot be called directly by the model. Project rules and project context are already included in the initialization content; continue with the task.`;
 
     this.options.requestRegistry.markSettled(request.identity.requestKey);
     this.options.onActivityStatusChange(request.identity, "failed", message);

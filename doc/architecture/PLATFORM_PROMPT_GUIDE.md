@@ -4,7 +4,7 @@
 
 ## 为什么需要平台差异化提示词
 
-webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具调用格式、Available Tools 和 Available Skills。
+webcode 的公共初始化提示词已经说明了本地 VS Code 工具、工具调用格式，以及如何通过 `list_tools` / `list_skills` 获取 Available Tools 和 Available Skills。
 
 但不同 AI 网站会暴露不同的平台内置能力。例如 ChatGPT 可能会显示平台自带的 Python、canvas、`python_user_visible` 等可见工具。这些工具运行在 ChatGPT 平台环境里，不是用户本地 VS Code 工作区。模型如果在 webcode 任务中误用它们，可能会出现：
 
@@ -139,8 +139,8 @@ selectors 和可选 capture 配置。
 2. 当前站点 prompt。
 3. 项目规则。
 4. 项目上下文。
-5. Available Tools。
-6. Available Skills。
+
+Available Tools 和 Available Skills 不再内嵌在初始化内容中，由模型按需调用 `list_tools` / `list_skills` 获取。
 
 ## prompt 存储位置
 
@@ -184,7 +184,7 @@ Gateway `/v1/init` 返回的数据形如：
 行为是：
 
 - 继续拼接公共 `prompt_zh` 或 `prompt_en`。
-- 继续拼接项目规则、项目上下文、Available Tools 和 Available Skills。
+- 继续拼接项目规则和项目上下文。
 - 不追加站点专属提示词。
 
 平台 prompt 是可选增强，不是必需依赖。

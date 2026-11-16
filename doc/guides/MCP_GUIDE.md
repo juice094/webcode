@@ -137,7 +137,7 @@ For example, with this config:
 }
 ```
 
-After initialization, tools in the `chrome-devtools` group appear in Available Tools as:
+After initialization, tools in the `chrome-devtools` group appear in the Available Tools list returned by `list_tools` as:
 
 ```text
 chrome-devtools:<toolName>
