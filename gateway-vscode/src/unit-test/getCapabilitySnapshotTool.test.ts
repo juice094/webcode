@@ -24,11 +24,51 @@ suite('Capability snapshot tool', () => {
                             name: 'edit_file',
                             description: 'Edit an existing file.',
                             inputSchema: {
-                                type: 'object',
-                                properties: { path: {}, diff: {} },
-                                required: ['path', 'diff']
+                                oneOf: [
+                                    {
+                                        type: 'object',
+                                        properties: { path: {}, edits: {}, dryRun: {} },
+                                        required: ['path', 'edits']
+                                    },
+                                    {
+                                        type: 'object',
+                                        properties: { path: {}, patch: {}, dryRun: {} },
+                                        required: ['path', 'patch']
+                                    }
+                                ]
                             },
                             annotations: { destructiveHint: true }
+                        },
+                        {
+                            name: 'terminal_session',
+                            description: 'Manage terminal sessions.',
+                            inputSchema: {
+                                oneOf: [
+                                    {
+                                        type: 'object',
+                                        properties: { action: { enum: ['list'] } },
+                                        required: ['action']
+                                    },
+                                    {
+                                        type: 'object',
+                                        properties: {
+                                            action: { enum: ['read'] },
+                                            session_id: {},
+                                            tail_lines: {},
+                                            delay_seconds: {}
+                                        },
+                                        required: ['action', 'session_id']
+                                    },
+                                    {
+                                        type: 'object',
+                                        properties: {
+                                            action: { enum: ['stop', 'close'] },
+                                            session_id: {}
+                                        },
+                                        required: ['action', 'session_id']
+                                    }
+                                ]
+                            }
                         }
                     ]
                 },
@@ -61,7 +101,10 @@ suite('Capability snapshot tool', () => {
         assert.ok(text.includes('# Available Tools'));
         assert.ok(text.includes('## internal'));
         assert.ok(text.includes('- read_file(path, start_line?, end_line?) [read-only] — Read a text file.'));
-        assert.ok(text.includes('- edit_file(path, diff) [destructive] — Edit an existing file.'));
+        assert.ok(text.includes('- edit_file(path, edits | patch, dryRun?) [destructive] — Edit an existing file.'));
+        assert.ok(text.includes(
+            '- terminal_session(action: list|read|stop|close, session_id, tail_lines?, delay_seconds?) — Manage terminal sessions.'
+        ));
         assert.ok(text.includes('## files-mcp'));
         assert.ok(text.includes('- fetch_url(url) — Fetch a URL.'));
         assert.ok(text.includes('`list_tools`'), 'snapshot must point at list_tools for full schemas');
