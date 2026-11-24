@@ -3,7 +3,6 @@ interface I18nState {
   resources: {
     prompt: string | null;
     train: string | null;
-    error: string | null;
     init: string | null;
     oversize: string | null;
   };
@@ -14,7 +13,6 @@ export const i18n: I18nState = {
   resources: {
     prompt: null,
     train: null,
-    error: null,
     init: null,
     oversize: null,
   },

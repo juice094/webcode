@@ -48,8 +48,11 @@ async function main(): Promise<void> {
   const executedCalls: ExecutedToolCall[] = [];
   installBrowserGlobals(executedCalls, true);
   const { buildWebcodeInitPrompt } = await import("../src/content/init_context");
+  const { isGatewayInitCompleted } = await import("../src/content/init_state");
 
   const prompt = await buildWebcodeInitPrompt();
+
+  assert(isGatewayInitCompleted(), "init payload assembly did not mark the gateway init as completed");
 
   assert(prompt.includes("CAPABILITY-SNAPSHOT-MARKER"), "init payload lost the capability snapshot");
   assert(prompt.includes("PROJECT-RULES-MARKER"), "init payload lost the project rules");

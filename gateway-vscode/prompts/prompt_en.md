@@ -2,7 +2,7 @@
 
 The rules below govern how the gateway tool calls execute and how their results come back. The **Available Tools / Available Skills snapshot** in the initialization content is the source of truth for currently available tools and skills: pick the best-matching tool for the task and call it directly — do not treat capability inventory as a pre-task step. Do not assume you have a tool that is not in the snapshot, and whenever the user's task involves the local VS Code workspace, trust the snapshot even if the web AI interface shows other tools.
 
-1. **Results arrive in the user's next reply.** The gateway executes tool calls one by one in the order their JSON blocks appear and places every result in the user's next reply, in the same order. `name` identifies the source tool but is not a unique identifier. If a result is missing, the call may not have been captured successfully: retry missing read-only calls; for missing write calls or commands, first confirm that the operation did not run before retrying, retry the same target at most once, and beyond that report the unknown state to the user.
+1. **Results arrive in the user's next reply.** The gateway executes tool calls one by one in the order their JSON blocks appear and places every result, as plain text, in the user's next reply in the same order (see "Tool Call Result Shapes" below). If a result is missing, the call may not have been captured successfully: retry missing read-only calls; for missing write calls or commands, first confirm that the operation did not run before retrying, retry the same target at most once, and beyond that report the unknown state to the user.
 2. **Never fabricate results.** If a tool returns an error, first correct the tool call or implementation based on that error. Do not fabricate a successful result, and do not continue with assumed return values.
 3. **Batch only independent calls.** You may output multiple JSON blocks in the same reply; the gateway executes them one by one in the order they appear. Only do this when the calls are independent, or when a later call depends only on the execution order of an earlier call and does not need to read its returned result. Read operations may run concurrently; write operations (edit_file, write_file) may also be batched — the gateway still executes them one by one in JSON block order, and each write's result arrives in the same order in the user's next reply; one failed write does not stop later writes in the same batch (the failure is reported in its own result). Only true data dependencies must wait: a call whose arguments need an earlier call's returned result (file content, search results, a generated path, a session ID, command output), or a read of a file written earlier in the same batch. Do not mix a long-running command with several fast calls in one batch — the batch is delivered only after the slowest call finishes. Commands estimated to take more than 10 seconds (builds, tests, dependency installation) must be sent individually; fast commands estimated under 2 seconds may be batched. For multi-file changes, place the writes in one reply in block order; only split across rounds when one file's content depends on an earlier write in the same batch (e.g. create a config, then read it).
 
@@ -36,27 +36,32 @@ When calling the gateway tools, you must output JSON in the format below, and it
 
 ## Tool Call Result Shapes
 
-A successful result usually looks like this:
+Results are not JSON wrappers; they are plain text: each result starts with the tool name, and multiple results are separated by blank lines in call order.
 
-```json
-{
-  "mcp_action": "result",
-  "name": "tool_name",
-  "status": "success",
-  "output": "file content or command execution result goes here..."
-}
+Success (short single-line result, inlined):
+
+```text
+read_file done — result: <single-line content>
 ```
 
-An error result usually looks like this, and may not include `output`:
+Success (multi-line or longer result, payload inside a fenced block whose fence adapts to the content, so embedded code blocks cannot terminate it early):
 
-```json
-{
-  "mcp_action": "result",
-  "name": "tool_name",
-  "status": "error",
-  "error": "error message goes here..."
-}
+````text
+read_file done — result:
+```text
+<multi-line content>
 ```
+````
+
+Success with no output: `read_file finished with no output.`
+
+Failure: `read_file failed: <error message>`. Correct the call or the implementation based on the error; never fabricate a successful result.
+
+Other result shapes you may encounter:
+
+- The last result of some batches carries a trailing protocol-format reminder (a periodic system note); it is not tool output — just follow it for subsequent calls.
+- A result that exceeds the input box character limit arrives as a txt attachment with a one-line notice.
+- Match results to your calls by the tool name at the start of each result; do not expect an `mcp_action: "result"` JSON wrapper.
 
 ## Multiple Calls in One Reply
 

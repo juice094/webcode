@@ -5,8 +5,9 @@ async function main(): Promise<void> {
     import("../src/content/tool_request_registry"),
     import("../src/modules/toolCallProtocol"),
   ]);
+  const registry = new ToolRequestRegistry();
   const tracker = new ToolCallTracker({
-    requestRegistry: new ToolRequestRegistry(),
+    requestRegistry: registry,
     scheduleMainLoop: () => undefined,
   });
   const parseCall = () => parseToolCall(JSON.stringify({
@@ -87,6 +88,31 @@ async function main(): Promise<void> {
     assertEqual(repeated.requestKey, first.requestKey, "repeated network capture changed the call key");
     assert(first.requestKey !== nextConversation.requestKey, "network conversations reused an internal call key");
   });
+
+  const { markGatewayInitCompleted } = await import("../src/content/init_state");
+
+  await runTest("pre-init protocol error feedback includes the init call format", () => {
+    const identity = tracker.handleNetworkProtocolError("not json", "turn-pre-init", 0, new Error("parse failed"));
+    const batch = registry.buildBufferedResultBatch([identity.requestKey]);
+    assert(
+      batch.output.includes("Initialization tool format"),
+      "pre-init feedback lost the init call format"
+    );
+  });
+
+  await runTest("post-init protocol error feedback drops the init call format", () => {
+    markGatewayInitCompleted();
+    const identity = tracker.handleNetworkProtocolError("not json", "turn-post-init", 0, new Error("parse failed"));
+    const batch = registry.buildBufferedResultBatch([identity.requestKey]);
+    assert(
+      !batch.output.includes("Initialization tool format"),
+      "post-init feedback still invites a redundant re-init"
+    );
+    assert(
+      batch.output.includes("Standard tool format"),
+      "post-init feedback lost the standard call format"
+    );
+  });
 }
 
 function fakeCodeElement(): HTMLElement {
@@ -104,6 +130,17 @@ function installBrowserGlobals(): void {
       value: { language: "en-US" },
     });
   }
+  Object.defineProperty(globalThis, "chrome", {
+    configurable: true,
+    value: {
+      runtime: {
+        lastError: undefined,
+        sendMessage: (_message: unknown, callback?: (response: unknown) => void) => {
+          callback?.({ success: true });
+        },
+      },
+    },
+  });
 }
 
 async function runTest(name: string, test: () => void | Promise<void>): Promise<void> {

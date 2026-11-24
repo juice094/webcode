@@ -1,6 +1,7 @@
 import { BRANDING, joinPromptSections, PROTOCOL } from "@webcode/shared";
 import { i18n } from "../modules/i18n";
 import { Logger } from "../modules/logger";
+import { markGatewayInitCompleted } from "./init_state";
 import { readPlatformPromptFromStorage } from "./prompt_resources";
 
 interface ToolExecutionResponse {
@@ -51,6 +52,7 @@ export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions =
     Logger.log(`Project context fetch failed: ${getErrorMessage(error)}`, "error");
   }
 
+  markGatewayInitCompleted();
   return finalPrompt;
 }
 

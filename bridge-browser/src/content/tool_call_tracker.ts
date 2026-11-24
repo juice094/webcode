@@ -5,6 +5,7 @@ import * as UI from "../modules/ui";
 import { ToolCallProtocolError, type ParsedToolCallPayload } from "../modules/toolCallProtocol";
 import { showUserAttentionNotification } from "../modules/user_attention";
 import type { ToolExecutionPayload } from "../types";
+import { isGatewayInitCompleted } from "./init_state";
 import { type ToolRequestIdentity, type ToolRequestRegistry } from "./tool_request_registry";
 
 interface BlockState {
@@ -282,7 +283,7 @@ function buildProtocolErrorMessage(error: unknown): string {
 }
 
 function getDefaultProtocolErrorHint(): string {
-  return `Standard tool format:
+  const standardHint = `Standard tool format:
 \`\`\`json
 {
   "mcp_action": "call",
@@ -292,9 +293,15 @@ function getDefaultProtocolErrorHint(): string {
     "key": "value"
   }
 }
-\`\`\`
+\`\`\``;
 
-Initialization tool format:
+  if (isGatewayInitCompleted()) {
+    return standardHint;
+  }
+
+  return `${standardHint}
+
+Initialization tool format (only if this conversation has not been initialized yet; never re-send it after a successful initialization):
 \`\`\`json
 {
   "mcp_action": "call",
