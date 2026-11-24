@@ -2,11 +2,18 @@ import * as assert from 'assert';
 import express from 'express';
 import type { Server as HttpServer } from 'http';
 import type { AddressInfo } from 'net';
-import { BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
+import { BRIDGE_MIN_EXTENSION_VERSION, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
 import { isAllowedBridgeRedemptionOrigin, registerBridgeRoute } from '../gateway/bridgeRoute';
 import { BridgeSessionManager } from '../gateway/bridgeSession';
 import type { ResolvedAiSiteConfig } from '../platforms';
+
+const TEST_BRIDGE_VERSION = requireDeclared(BRIDGE_MIN_EXTENSION_VERSION, 'minExtensionVersion');
+
+function requireDeclared(value: string | undefined, name: string): string {
+    assert.ok(value, `bridgeProtocol.json must declare ${name}`);
+    return value;
+}
 
 const CHROME_WEB_STORE_BRIDGE_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
 // Fixture only: the redemption route forwards whatever the gateway resolved.
@@ -45,14 +52,20 @@ suite('Bridge route security', () => {
                 targetUrl: TEST_SITE.address
             });
 
-            const missingOriginResponse = await redeemBridgeCode(server.baseUrl, bridgeCode, '1.8.0', BRIDGE_PROTOCOL_VERSION, null);
+            const missingOriginResponse = await redeemBridgeCode(
+                server.baseUrl,
+                bridgeCode,
+                TEST_BRIDGE_VERSION,
+                BRIDGE_PROTOCOL_VERSION,
+                null
+            );
             assert.strictEqual(missingOriginResponse.status, 403);
             assert.ok(sessions.getBridgeLaunch(bridgeCode));
 
             const foreignExtensionResponse = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION,
                 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
             );
@@ -62,7 +75,7 @@ suite('Bridge route security', () => {
             const bridgeResponse = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION,
                 CHROME_WEB_STORE_BRIDGE_ORIGIN
             );
@@ -99,7 +112,7 @@ suite('Bridge route security', () => {
             const protocolMismatchResponse = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION - 1,
                 CHROME_WEB_STORE_BRIDGE_ORIGIN
             );
@@ -119,7 +132,7 @@ suite('Bridge route security', () => {
             const redeemResponse = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION,
                 CHROME_WEB_STORE_BRIDGE_ORIGIN
             );
@@ -140,7 +153,7 @@ suite('Bridge route security', () => {
             const reusedResponse = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION,
                 CHROME_WEB_STORE_BRIDGE_ORIGIN
             );
@@ -200,14 +213,14 @@ suite('Bridge route security', () => {
                 targetUrl: TEST_SITE.address
             });
 
-            const rejected = await redeemBridgeCode(server.baseUrl, bridgeCode, '1.8.0', BRIDGE_PROTOCOL_VERSION, null);
+            const rejected = await redeemBridgeCode(server.baseUrl, bridgeCode, TEST_BRIDGE_VERSION, BRIDGE_PROTOCOL_VERSION, null);
             assert.strictEqual(rejected.status, 403);
             assert.strictEqual(activated, 0, 'a rejected redemption must not report a connection');
 
             const accepted = await redeemBridgeCode(
                 server.baseUrl,
                 bridgeCode,
-                '1.8.0',
+                TEST_BRIDGE_VERSION,
                 BRIDGE_PROTOCOL_VERSION,
                 CHROME_WEB_STORE_BRIDGE_ORIGIN
             );
@@ -260,7 +273,7 @@ async function startBridgeServer(
         consumeBridgeCode: code => sessions.consumeBridgeCode(code),
         getBridgeLaunch: code => sessions.getBridgeLaunch(code),
         getAiSites: () => [TEST_SITE],
-        getExtensionVersion: () => '1.8.0',
+        getExtensionVersion: () => TEST_BRIDGE_VERSION,
         getGatewayInstanceId: () => 'test-gateway-instance',
         getIdleTimeoutMs: () => 30 * 60 * 1000,
         getBridgeRequestMs: () => bridgeRequestMs,
@@ -288,7 +301,7 @@ async function redeemOnce(baseUrl: string, sessions: BridgeSessionManager): Prom
     const response = await redeemBridgeCode(
         baseUrl,
         bridgeCode,
-        '1.8.0',
+        TEST_BRIDGE_VERSION,
         BRIDGE_PROTOCOL_VERSION,
         CHROME_WEB_STORE_BRIDGE_ORIGIN
     );

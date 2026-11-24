@@ -1,7 +1,7 @@
 import './vscodeStub';
 
 import * as assert from 'assert';
-import { BRIDGE_PROTOCOL_VERSION, PROTOCOL } from '@webcode/shared';
+import { BRIDGE_MIN_EXTENSION_VERSION, BRIDGE_PROTOCOL_VERSION, PROTOCOL } from '@webcode/shared';
 import type * as vscode from 'vscode';
 
 import { GatewayManager } from '../gateway';
@@ -10,7 +10,12 @@ import type { Logger } from '../host/types';
 import type { ResolvedAiSiteConfig } from '../platforms';
 
 const BRIDGE_EXTENSION_ORIGIN = 'chrome-extension://kghhldphcmpiimophipabdhldfipgiio';
-const TEST_EXTENSION_VERSION = '1.8.0';
+const TEST_EXTENSION_VERSION = requireDeclaredVersion(BRIDGE_MIN_EXTENSION_VERSION);
+
+function requireDeclaredVersion(value: string | undefined): string {
+    assert.ok(value, 'bridgeProtocol.json must declare minExtensionVersion');
+    return value;
+}
 const IDLE_TIMEOUT_NEVER_MS = 60 * 60 * 1000;
 
 const TEST_SITE: ResolvedAiSiteConfig = {
