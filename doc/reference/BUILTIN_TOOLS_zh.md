@@ -34,13 +34,14 @@
 
 ## 2. Bootstrap-only tools
 
-这些工具不会出现在 Available Tools 广告清单中。其中 `get_project_rules` 和 `get_project_context` 只供浏览器扩展组装初始化内容使用，模型直接调用时会被浏览器扩展拒绝；`list_tools` 和 `list_skills` 在初始化时不再自动注入 payload，模型可在会话中直接调用以按需获取工具与技能清单。
+这些工具不会出现在 Available Tools 广告清单中。其中 `get_project_rules`、`get_project_context` 和 `get_capability_snapshot` 只供浏览器扩展组装初始化内容使用，模型直接调用时会被浏览器扩展拒绝；`list_tools` 和 `list_skills` 保持模型可直接调用，用于按需获取完整 schema 或在能力变动后刷新清单。
 
 | 工具名 | 作用 |
 | --- | --- |
 | `get_project_rules` | 读取 workspace 根目录中的 `USER_RULES.md`、`AGENTS.md` 或 `CLAUDE.md`，用于组装初始化提示词。 |
 | `get_project_context` | 汇总当前 workspace 文件夹名、是否为 Git 仓库、当前 Git 分支、项目结构骨架和最近 5 条提交，用于组装初始化提示词。骨架只列根目录，再对部分目录展开一层（最多 80 项）；VCS、依赖、构建、缓存和归档目录折叠成一行摘要而不展开；workspace 根目录的 `.gatewayignore`（`.gitignore` 语法，可用 `!` 反选）优先于所有默认规则。 |
-| `list_tools` | 返回模型可用工具列表，按 server 分组，每个工具都包含完整 schema。初始化时不再自动注入 payload；模型在开始任务前直接调用它获取当前 Available Tools。 |
+| `get_capability_snapshot` | 渲染紧凑能力快照（`# Available Tools` 带调用签名与 read-only/destructive 标注、`# Available Skills` 带 `skillFilePath`），由浏览器扩展内嵌进初始化内容，签名由 inputSchema 生成。 |
+| `list_tools` | 返回模型可用工具列表，按 server 分组，每个工具都包含完整 schema。初始化内容已内嵌紧凑快照；模型在需要完整 inputSchema 或能力变动后按需调用它刷新。 |
 | `list_skills` | 列出当前 workspace 中发现的本地 skills 和 webcode 内置 skills。初始化时不再自动注入 payload；模型按需直接调用它获取 Available Skills。每项包含 `source` 和可直接交给 `read_file` 的 `skillFilePath`。本地 skill 使用 `source: "workspace"` 和 workspace-relative、`/` 分隔路径；内置 skill 使用 `source: "builtin"` 和 `.gateway/builtin-skills/...` 只读虚拟路径。 |
 
 ## 3. Browser client virtual tools
@@ -49,7 +50,7 @@
 
 | 工具名 | 作用 |
 | --- | --- |
-| `webcode_init` | 初始化虚拟工具，保留给手动初始化提示词和旧流程兼容。浏览器捕获后会把系统提示、项目规则和项目上下文回填到对话框；工具列表和技能清单不再内嵌，模型经 `list_tools` / `list_skills` 按需获取。`/webcode` 和 `@webcode` 触发词会直接生成同样的初始化结果。实际名称来自 `shared/src/index.ts` 的 `PROTOCOL.initToolName`。 |
+| `webcode_init` | 初始化虚拟工具，保留给手动初始化提示词和旧流程兼容。浏览器捕获后会把系统提示、能力快照、项目规则和项目上下文回填到对话框；快照含工具调用签名与技能清单，完整 schema 经 `list_tools` 按需获取。`/webcode` 和 `@webcode` 触发词会直接生成同样的初始化结果。实际名称来自 `shared/src/index.ts` 的 `PROTOCOL.initToolName`。 |
 
 ## 4. 不在本文档统计范围内的工具
 

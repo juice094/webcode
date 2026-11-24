@@ -84,7 +84,7 @@ src/
 
 ### `tools/`（本地工具实现）
 
-`tools/index.ts` 中的 `LOCAL_TOOLS` 是唯一的工具注册表，注册 13 个工具：`list_tools`、`get_project_rules`、`get_project_context`、`attach_file`、`read_file`、`write_file`、`edit_file`、`search_files`、`search_code`、`execute_command`、`run_in_terminal`、`terminal_session`、`list_skills`。
+`tools/index.ts` 中的 `LOCAL_TOOLS` 是唯一的工具注册表，注册 14 个工具：`list_tools`、`get_project_rules`、`get_project_context`、`get_capability_snapshot`、`attach_file`、`read_file`、`write_file`、`edit_file`、`search_files`、`search_code`、`execute_command`、`run_in_terminal`、`terminal_session`、`list_skills`。
 
 每个工具一个文件，共享 `types.ts` 的 `LocalTool` / `ToolResult` 契约。搜索类工具按职责拆分：`searchCodeRipgrepArgs.ts`、`searchCodeRipgrepOutput.ts`、`searchCodeFallback.ts`、`searchCodeGitFiles.ts` 等。
 

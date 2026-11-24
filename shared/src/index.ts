@@ -126,6 +126,7 @@ export function joinPromptSections(...sections: Array<string | null | undefined>
 export const BOOTSTRAP_ONLY_TOOL_NAMES = [
   'get_project_rules',
   'get_project_context',
+  'get_capability_snapshot',
   'list_tools',
   'list_skills',
 ] as const;
@@ -145,6 +146,7 @@ export function isBootstrapOnlyToolName(name: string): name is BootstrapOnlyTool
 export const INIT_ASSEMBLY_TOOL_NAMES = [
   'get_project_rules',
   'get_project_context',
+  'get_capability_snapshot',
 ] as const;
 
 export type InitAssemblyToolName = typeof INIT_ASSEMBLY_TOOL_NAMES[number];

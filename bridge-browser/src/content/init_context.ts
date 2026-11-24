@@ -15,12 +15,23 @@ interface WebcodeInitPromptOptions {
 }
 
 export async function buildWebcodeInitPrompt(options: WebcodeInitPromptOptions = {}): Promise<string> {
+  let capabilitySnapshot = "";
+  try {
+    capabilitySnapshot = (await executeInitToolCall("get_capability_snapshot")).trim();
+  } catch (error) {
+    Logger.log(`Capability snapshot fetch failed: ${getErrorMessage(error)}`, "error");
+  }
+
   let finalPrompt = options.includeInitToolResultHeader === false
     ? ""
-    : buildInitToolResultHeader();
+    : buildInitToolResultHeader(capabilitySnapshot.length > 0);
   finalPrompt += await buildBasePrompt(options.siteId);
 
-  Logger.log(`Initializing ${BRANDING.productName} with prompt, project rules, and project context`, "action");
+  Logger.log(`Initializing ${BRANDING.productName} with prompt, capability snapshot, project rules, and project context`, "action");
+
+  if (capabilitySnapshot) {
+    finalPrompt += `\n\n${capabilitySnapshot}`;
+  }
 
   try {
     const projectRules = (await executeInitToolCall("get_project_rules")).trim();
@@ -49,7 +60,13 @@ async function buildBasePrompt(siteId?: string | null): Promise<string> {
   return joinPromptSections(i18n.resources.prompt, platformPrompt);
 }
 
-function buildInitToolResultHeader(): string {
+function buildInitToolResultHeader(hasCapabilitySnapshot: boolean): string {
+  if (hasCapabilitySnapshot) {
+    return i18n.lang === "zh"
+      ? `初始化内容已就位——控制流契约、能力快照、项目规则和项目上下文都在下面。能力快照即当前可用工具与技能的事实来源：按任务意图直接调用工具，不要把清点能力当作任务前置；需要某工具的完整 inputSchema，或快照之后能力有变动时，再按需调用 list_tools / list_skills。此后不要再发送 ${PROTOCOL.initToolName}。\n\n`
+      : `The initialization payload is below — the control flow contract, the capability snapshot, project rules, and project context. The snapshot is the source of truth for the currently available tools and skills: call tools directly as the task requires instead of inventorying first; call list_tools / list_skills only when you need a tool's full inputSchema or capabilities changed after the snapshot. Do not send ${PROTOCOL.initToolName} again.\n\n`;
+  }
+
   return i18n.lang === "zh"
     ? `初始化内容已就位——控制流契约、项目规则和项目上下文都在下面。开始任务前，先调用 list_tools 获取当前可用工具列表，并按需调用 list_skills 获取技能清单；此后不要再发送 ${PROTOCOL.initToolName}。\n\n`
     : `The initialization payload is below — the control flow contract, project rules, and project context. Before starting the task, call list_tools for the current tool list and list_skills for the skill list as needed; do not send ${PROTOCOL.initToolName} again.\n\n`;

@@ -27,8 +27,8 @@
 | `BRIDGE_MIN_EXTENSION_VERSION` / `BRIDGE_MIN_GATEWAY_VERSION` | 可选的最低版本约束；缺省时退化为严格等值匹配。 |
 | `compareExtensionVersions` | 点分数字版本比较，非法格式返回 0。 |
 | `BRIDGE_PORT_RANGE_START` / `BRIDGE_PORT_RANGE_END` | 34567–34576；Gateway 必须落在此区间，否则浏览器桥不注入。 |
-| `BOOTSTRAP_ONLY_TOOL_NAMES` | `get_project_rules`、`get_project_context`、`list_tools`、`list_skills`。 |
-| `INIT_ASSEMBLY_TOOL_NAMES` | `get_project_rules`、`get_project_context`：结果已内嵌在初始化内容中，桥侧拒绝模型直接调用。 |
+| `BOOTSTRAP_ONLY_TOOL_NAMES` | `get_project_rules`、`get_project_context`、`get_capability_snapshot`、`list_tools`、`list_skills`。 |
+| `INIT_ASSEMBLY_TOOL_NAMES` | `get_project_rules`、`get_project_context`、`get_capability_snapshot`：结果已内嵌在初始化内容中，桥侧拒绝模型直接调用。 |
 | `PLATFORM_PROMPT_KEY_PREFIX` / `getPlatformPromptStorageKey` | 平台提示词在浏览器存储中的键。 |
 | `Session` / `ToolExecutionPayload` / `McpResponse` | 跨端传输类型。 |
 

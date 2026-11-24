@@ -4,6 +4,7 @@ import { editFileTool } from './editFileTool';
 import { executeCommandTool } from './executeCommandTool';
 import { getProjectContextTool } from './getProjectContextTool';
 import { getProjectRulesTool } from './getProjectRulesTool';
+import { getCapabilitySnapshotTool } from './getCapabilitySnapshotTool';
 import { listSkillsTool } from './listSkillsTool';
 import { listToolsTool } from './listToolsTool';
 import { readFileTool } from './readFileTool';
@@ -18,6 +19,7 @@ const LOCAL_TOOLS: LocalTool[] = [
     listToolsTool,
     getProjectRulesTool,
     getProjectContextTool,
+    getCapabilitySnapshotTool,
     attachFileTool,
     readFileTool,
     readFilesTool,
