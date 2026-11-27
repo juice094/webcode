@@ -10,16 +10,8 @@ import { SkillManager } from './skillManager';
 import { TerminalSessionManager } from './terminalSessionManager';
 import { GatewayWatchdog } from './gateway/watchdog';
 import { createDefaultGatewayHostServices, type ExtensionVersionSource, type GatewayHostServices, type Logger } from './host/types';
-import {
-    createLocalToolMap,
-    type LocalTool,
-    type ToolDefinition,
-    type ToolExecutionContext
-} from './tools';
-import {
-    registerBridgeRoute,
-    issueBridgeCodeForLaunch
-} from './gateway/bridgeRoute';
+import { createLocalToolMap, type LocalTool, type ToolDefinition, type ToolExecutionContext } from './tools';
+import { registerBridgeRoute, issueBridgeCodeForLaunch } from './gateway/bridgeRoute';
 import { BridgeSessionManager, DEFAULT_BRIDGE_CODE_TTL_MS } from './gateway/bridgeSession';
 import { registerConfigRoutes } from './gateway/initRoutes';
 import type { InFlightToolCall } from './extension/shutdownSnapshot';
@@ -30,29 +22,21 @@ import { DEFAULT_IDLE_TIMEOUT_MINUTES, resolveSessionIdleTimeoutMinutes } from '
 import * as timeouts from './gateway/timeouts';
 import { WriteLock } from './gateway/writeLock';
 import {
-    createAuthMiddleware,
-    createCorsMiddleware,
-    createGatewayActivityMiddleware,
-    createInFlightRequestMiddleware,
-    createRequestLoggerMiddleware,
-    createShutdownGuardMiddleware
+    createAuthMiddleware, createCorsMiddleware, createGatewayActivityMiddleware,
+    createInFlightRequestMiddleware, createRequestLoggerMiddleware, createShutdownGuardMiddleware
 } from './gateway/middleware';
 import { connectToConfiguredServers } from './gateway/serverConnector';
 import { registerToolRoutes } from './gateway/toolRoutes';
-import type { ToolCallHandlerOptions } from './gateway/toolCallRoute';
+import { createToolCallOptions } from './gateway/toolCallWiring';
 import {
     findToolDefinition,
     listToolDefinitions,
     type ToolDefinitionSources
 } from './gateway/toolDefinitions';
 import type {
-    ConnectedClient,
-    GatewayConfig,
-    GatewayLifecycleOptions,
-    GatewayManagerHooks,
-    RemoteToolRoute,
-    StartResult
+    ConnectedClient, GatewayConfig, GatewayLifecycleOptions, GatewayManagerHooks, RemoteToolRoute, StartResult
 } from './gateway/types';
+import { createGatewayEventWiring, type GatewayEventWiring } from './gateway/eventWiring';
 import type { GatewayRuntimeTraceSink } from './gateway/runtimeTrace';
 import { CommandApprovalManager, DEFAULT_APPROVAL_TTL_MS } from './gateway/commandApproval';
 import type { ApprovalAuditSink } from './gateway/approvalAudit';
@@ -97,11 +81,15 @@ export class GatewayManager {
     private onSessionRequestConfirmation: ((prompt: SessionRequestPrompt) => Promise<boolean>) | null = null;
     private currentPort: number | null = null;
     private startedAt: string | null = null;
-    private gatewayInstanceId = randomUUID();
+    private gatewayInstanceId: string = randomUUID();
+    /** dsh headless：实例 id 由装配层固定，保证事件流与网关同 id（VS Code 不传，每次 start 新生成）。 */
+    private readonly fixedGatewayInstanceId: string | null;
     private browserLaunchWaitMs = timeouts.DEFAULT_BROWSER_LAUNCH_WAIT_MS;
     private shuttingDown = false;
     private lastInterrupted: { count: number; savedAt: string } | null = null;
     private readonly inFlightCalls = new InFlightCallRegistry(toolName => this.toolRouter.get(toolName)?.serverId);
+    /** S4 事件接线（仅 dsh 宿主注入 stream；VS Code 宿主全 no-op）。 */
+    private readonly events: GatewayEventWiring;
     private readonly toolConcurrencyGate = new ToolConcurrencyGate(DEFAULT_MAX_CONCURRENT_TOOL_CALLS);
     private readonly writeLock = new WriteLock({
         timeoutMs: timeouts.DEFAULT_WRITE_LOCK_TIMEOUT_MS,
@@ -109,13 +97,14 @@ export class GatewayManager {
     });
     private readonly sessionMaintenance = new SessionMaintenance(this.bridgeSessionManager, this.writeLock, {
         log: message => this.log(message),
-        error: (message, err) => this.error(message, err)
+        error: (message, err) => this.error(message, err),
+        onRevoked: (tokens, reason) => this.events.sessionRevoked(tokens, reason)
     });
     private readonly watchdog = new GatewayWatchdog({
         idleTimeoutMs: () => this.idleTimeoutMs,
         inFlightCount: () => this.inFlightRequestCount,
         onIdle: idleTimeoutMs => {
-            void this.stop();
+            void this.stop({ reason: 'idle' });
             this.onAutoStop?.(idleTimeoutMs);
         },
         log: message => this.log(message)
@@ -132,6 +121,8 @@ export class GatewayManager {
         this.context = context;
         this.onAutoStop = hooks.onAutoStop ?? null;
         this.traceSink = hooks.traceSink;
+        this.events = createGatewayEventWiring(hooks.eventStream, (message, error) => this.error(message, error));
+        this.fixedGatewayInstanceId = hooks.gatewayInstanceId ?? null;
         this.host = hooks.host ?? createDefaultGatewayHostServices();
         this.skillManager = new SkillManager(logger, extensionPath, () => this.host.workspace.getWorkspaceFolders());
         this.terminalSessionManager = new TerminalSessionManager(logger, this.host.terminal);
@@ -280,9 +271,10 @@ export class GatewayManager {
             getWorkspaceRoot: () => this.host.workspace.getPrimaryWorkspaceRoot(),
             log: this.log.bind(this),
             recordActivity: () => this.watchdog.reset(),
-            onSessionActivated: () => {
+            onSessionActivated: session => {
                 this.onBridgeSessionActivated?.();
                 this.sessionMaintenance.persist();
+                this.events.sessionActivated(session);
             }
         });
         // Discovery and pairing are the only unauthenticated surface: a browser
@@ -300,6 +292,8 @@ export class GatewayManager {
             requestUserConfirmation: prompt => this.onSessionRequestConfirmation
                 ? this.onSessionRequestConfirmation(prompt)
                 : Promise.resolve(false),
+            onPairingRequest: event => this.events.pairingRequested(event),
+            onPairingResolved: event => this.events.pairingResolved(event),
             log: this.log.bind(this)
         });
         this.app.use(createAuthMiddleware(
@@ -321,24 +315,25 @@ export class GatewayManager {
             lastInterrupted: this.lastInterrupted
         });
 
-        const toolCallOptions: ToolCallHandlerOptions = {
+        const toolCallOptions = createToolCallOptions({
             audit: this.approvalAuditSink,
-            concurrencyGate: this.toolConcurrencyGate,
             commandApprovalManager: this.commandApprovalManager,
+            concurrencyGate: this.toolConcurrencyGate,
             createToolExecutionContext: () => this.createToolExecutionContext(),
             error: this.error.bind(this),
-            getToolCallTimeoutMs: () => this.toolCallMs,
             getCompressionPolicy: () => readToolResultCompressionPolicy(this.host.config),
+            getToolCallTimeoutMs: () => this.toolCallMs,
             getToolDefinition: (name: string) => this.getToolDefinition(name),
             getWorkspaceRoot: () => this.host.workspace.getPrimaryWorkspaceRoot(),
             localTools: this.localTools,
             log: this.log.bind(this),
-            onToolCallEnd: callId => this.inFlightCalls.end(callId),
-            onToolCallStart: info => this.inFlightCalls.start(info),
+            onToolCallEnd: callId => { this.inFlightCalls.end(callId); this.events.toolCallEnd(callId); },
+            onToolCallResult: info => this.events.toolResult(info),
+            onToolCallStart: info => { this.inFlightCalls.start(info); this.events.toolCallStart(info); },
             trace: this.trace.bind(this),
             toolRouter: this.toolRouter,
             writeLock: this.writeLock
-        };
+        });
         registerToolRoutes({
             app: this.app,
             approvalAuditSink: this.approvalAuditSink,
@@ -353,7 +348,7 @@ export class GatewayManager {
             await this.stop({ preserveBridgeSession });
         }
         this.shuttingDown = false;
-        this.gatewayInstanceId = randomUUID();
+        this.gatewayInstanceId = this.fixedGatewayInstanceId ?? randomUUID();
         this.skillDirectories = config.skillDirectories ?? [];
         Object.assign(this, resolveCommandConfig(config));
         this.currentAiSites = config.aiSites ?? [];
@@ -428,7 +423,10 @@ export class GatewayManager {
         this.registerRoutes(config);
 
         const bound = await this.listenOnAvailablePort(config);
-        return { ...bound, instanceId: this.gatewayInstanceId, startedAt: this.startedAt ?? undefined };
+        const result: StartResult = { ...bound, instanceId: this.gatewayInstanceId, startedAt: this.startedAt ?? undefined };
+        const version = resolveExtensionVersion(this.context);
+        this.events.gatewayStarted({ port: result.port, pid: process.pid, startedAt: result.startedAt, version });
+        return result;
     }
 
     private listenOnAvailablePort(config: GatewayConfig): Promise<StartResult> {
@@ -447,6 +445,8 @@ export class GatewayManager {
 
     // eslint-disable-next-line @typescript-eslint/require-await
     async stop(options?: GatewayLifecycleOptions) {
+        const uptimeMs = this.startedAt ? Math.max(0, Date.now() - Date.parse(this.startedAt)) : 0;
+        const revokedSessions = options?.preserveBridgeSession === true ? [] : this.bridgeSessionManager.listSessions();
         this.watchdog.stop();
         this.sessionMaintenance.stopSweep();
         this.startedAt = null;
@@ -471,7 +471,9 @@ export class GatewayManager {
         this.commandApprovalManager.clear();
         if (!options?.preserveBridgeSession) {
             this.bridgeSessionManager.clear();
+            this.events.sessionRevoked(revokedSessions.map(session => session.token), 'shutdown');
         }
         this.currentAiSites = [];
+        this.events.gatewayStopped({ reason: options?.reason ?? 'unknown', uptimeMs });
     }
 }

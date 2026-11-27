@@ -25,6 +25,10 @@
  *   WEBCODE_COMMAND_SHELL           execute_command 的 POSIX shell 路径
  *                                   （Windows 上应为 Git Bash bash.exe）
  *   WEBCODE_LOG                     日志文件路径；缺省只写 stderr
+ *   WEBCODE_EVENT_SINK              （S4）事件流桥端点（dsh 插件的 loopback /v1/events）；
+ *                                   缺省只写本地 spool，不投递
+ *   WEBCODE_EVENT_SINK_TOKEN        （S4）事件写入令牌，随插件激活生成；只用于请求头
+ *   WEBCODE_EVENT_SPOOL_DIR         （S4）事件 spool 目录，缺省 <主根>/.webcode/events
  *
  * 退出行为：空闲超时自动停止后进程以 0 退出（看护方应重启）；
  * SIGINT/SIGTERM 先 markShuttingDown 再 stop，然后退出。
@@ -35,11 +39,13 @@ import './host/markdownLoader';
 
 import { appendFileSync, existsSync, readFileSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { dirname, isAbsolute, join } from 'path';
 
 import { GatewayManager } from './gateway';
 import { createWorkspaceId } from './gateway/bridgeRoute';
+import { createGatewayEventStream } from './gateway/eventStream';
 import type { GatewayConfig } from './gateway/types';
 import { createDshHostServices, createDshPairingUI, PAIRING_BRIDGE_DEFAULTS, type LogSink, type PairingBridgeOptions, type PairingPolicy } from './host/dshHost';
 import { createWorkspaceSessionStore, type MementoLike } from './extension/sessionToken';
@@ -100,6 +106,11 @@ const port = numberFrom(env.WEBCODE_PORT, 34567);
 const idleTimeoutMinutes = numberFrom(env.WEBCODE_IDLE_TIMEOUT_MINUTES, 30);
 const commandShellPath = env.WEBCODE_COMMAND_SHELL;
 
+// S4 事件流：桥端点/令牌/ spool 目录都由 dsh 插件注入；全空 = 完全静默（可回滚）。
+const eventSinkUrl = env.WEBCODE_EVENT_SINK?.trim() ?? '';
+const eventSinkToken = env.WEBCODE_EVENT_SINK_TOKEN?.trim() ?? '';
+const eventSpoolDir = env.WEBCODE_EVENT_SPOOL_DIR?.trim() ?? '';
+
 // 站点注册表与 CORS 白名单：与 extension/serviceController 同一条路径——
 // 配置为空时回退到内置平台注册表（gateway 本身不做这个回退，
 // config.aiSites 缺省即空表，配对会全部 unknown-site）。
@@ -156,6 +167,21 @@ async function main(): Promise<void> {
     const sessionStore = createWorkspaceSessionStore({ memento, workspaceId });
     const lastPort = memento.get('mcp.lastPort');
 
+    // S4：事件流与网关同实例 id；spool 是回放真源，桥端点投递失败不影响网关功能。
+    const gatewayInstanceId = randomUUID();
+    const spoolDir = eventSpoolDir
+        || (primaryRoot ? join(primaryRoot, '.webcode', 'events') : join(homedir(), '.webcode', 'events'));
+    const eventStream = createGatewayEventStream({
+        gatewayInstanceId,
+        workspaceId,
+        spoolDir,
+        sinkUrl: eventSinkUrl,
+        sinkToken: eventSinkToken,
+        log: sink
+    });
+    sink(`📝 S4 事件流：instance=${gatewayInstanceId} spool=${spoolDir}`
+        + ` 投递=${eventSinkUrl || '(关，只落 spool)'}`);
+
     const host = createDshHostServices({
         workspaceRoots: roots,
         configValues,
@@ -175,9 +201,12 @@ async function main(): Promise<void> {
 
     const manager = new GatewayManager(logger, extensionPath, versionSource, {
         host,
+        gatewayInstanceId,
+        eventStream,
         onAutoStop: (idleTimeoutMs) => {
             sink(`🛑 空闲 ${Math.round(idleTimeoutMs / 60000)} 分钟，网关自动停止；进程退出，由看护方决定重启。`);
-            process.exit(0);
+            // 先排空事件流再退出（spool 已同步落盘；这里只等已入队批次投递）。
+            void eventStream.dispose().finally(() => process.exit(0));
         }
     });
     manager.setSessionRequestConfirmationHandler(prompt => pairing.confirmSessionRequest(prompt));
@@ -208,7 +237,9 @@ async function main(): Promise<void> {
         closing = true;
         sink(`🛑 收到 ${signal}，正在停止网关…`);
         manager.markShuttingDown();
-        void manager.stop().finally(() => process.exit(0));
+        void manager.stop({ reason: 'signal' })
+            .finally(() => eventStream.dispose())
+            .finally(() => process.exit(0));
     };
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -3,6 +3,7 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { GatewayHostServices } from '../host/types';
 import type { ResolvedAiSiteConfig } from '../platforms';
 import type { ToolDefinition } from '../tools';
+import type { GatewayEventStream } from './eventStream';
 import type { GatewayRuntimeTraceSink } from './runtimeTrace';
 
 export interface ServerConfig {
@@ -116,7 +117,15 @@ export interface GatewayLifecycleOptions {
      * configuration changes always revoke the sessions.
      */
     preserveBridgeSession?: boolean;
+    /**
+     * Why this stop happened; recorded in the `gateway/stopped` event stream
+     * entry so the dsh-side store can distinguish idle auto-stop from a
+     * deliberate shutdown.
+     */
+    reason?: GatewayStopReason;
 }
+
+export type GatewayStopReason = 'idle' | 'signal' | 'deactivate' | 'reload' | 'unknown';
 
 /**
  * Optional GatewayManager constructor wiring. `host` carries the host
@@ -128,4 +137,15 @@ export interface GatewayManagerHooks {
     onAutoStop?: (idleTimeoutMs: number) => void;
     traceSink?: GatewayRuntimeTraceSink;
     host?: GatewayHostServices;
+    /**
+     * S4 event stream (dsh host only): tool/pairing/session lifecycle events are
+     * emitted here. Omitted in the VS Code host, which keeps its audit log.
+     */
+    eventStream?: GatewayEventStream;
+    /**
+     * Fix this process's gateway instance id instead of minting one per start.
+     * The dsh headless assembly passes it so the S4 event stream and the gateway
+     * share one id; the VS Code host leaves it unset (a start is a new instance).
+     */
+    gatewayInstanceId?: string;
 }

@@ -38,7 +38,7 @@ type BridgeRouteOptions = {
     log: GatewayLogger;
     recordActivity: () => void;
     /** Fired only after a launch code was successfully redeemed. */
-    onSessionActivated?: () => void;
+    onSessionActivated?: (session: { token: string; siteId: string }) => void;
 };
 
 export function createWorkspaceId(workspaceRoot: string | null): string {
@@ -128,7 +128,7 @@ export function registerBridgeRoute(app: express.Express, options: BridgeRouteOp
         const token = options.activateSession({ siteId: resolvedLaunch.site.id });
         const workspaceId = createWorkspaceId(options.getWorkspaceRoot());
         options.recordActivity();
-        options.onSessionActivated?.();
+        options.onSessionActivated?.({ token, siteId: resolvedLaunch.site.id });
         options.log(`🔐 Bridge code redeemed for ${resolvedLaunch.site.id} in workspace [${workspaceId}].`);
 
         res.json(createRedemptionPayload(options, resolvedLaunch, token, workspaceId));

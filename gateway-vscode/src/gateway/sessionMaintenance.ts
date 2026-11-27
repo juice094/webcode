@@ -15,6 +15,8 @@ export interface SessionMaintenanceDeps {
     error: GatewayErrorLogger;
     /** Fired after the session table changed outside a redemption. */
     onChanged?: () => void;
+    /** S4 event stream: tokens actually revoked, with the sweep/rotation reason. */
+    onRevoked?: (tokens: readonly string[], reason: 'idle' | 'disconnect-all') => void;
 }
 
 export interface SessionPersistenceState {
@@ -124,6 +126,7 @@ export class SessionMaintenance {
         const revoked = this.sessions.rotateAllSessions();
         this.writeLock.releaseForTokens(revoked);
         this.persist();
+        this.deps.onRevoked?.(revoked, 'disconnect-all');
         this.deps.log(`🔌 Disconnected ${revoked.length} browser session(s); every tab must re-pair.`);
         this.deps.onChanged?.();
         return revoked.length;
@@ -136,6 +139,7 @@ export class SessionMaintenance {
         }
         this.writeLock.releaseForTokens(revoked);
         this.persist();
+        this.deps.onRevoked?.(revoked, 'idle');
         this.deps.log(`🧹 Swept ${revoked.length} idle browser session(s).`);
         this.deps.onChanged?.();
         return revoked;

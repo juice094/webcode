@@ -30,8 +30,10 @@ import {
 import type { BridgeSessionRequest } from './middleware';
 import {
     executeWithTelemetry,
+    rejectToolCallResult,
     sendToolError,
     type ParsedToolCallRequest,
+    type ToolCallResultInfo,
     type ToolExecutionDeps
 } from './toolCallExecution';
 
@@ -53,12 +55,16 @@ export type ToolCallHandlerOptions = {
     getCompressionPolicy?: () => CompressionPolicy;
     localTools: Map<string, LocalTool>;
     log: GatewayLogger;
+    /** S4 event stream sink for a call's terminal state (success/error/rejected/cancelled). */
+    onToolCallResult?: (info: ToolCallResultInfo) => void;
     /** Reports a tool call that is now executing (used by the shutdown snapshot). */
     onToolCallStart?: (info: {
         callId: string;
         toolName: string;
         args: Record<string, unknown>;
         controller: AbortController;
+        /** Bearer token of the calling session; the event stream namespaces on its digest. */
+        sessionToken?: string;
     }) => void;
     /** Reports that a previously started call finished or was abandoned. */
     onToolCallEnd?: (callId: string) => void;
@@ -92,7 +98,8 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
         // an in-flight snapshot key.
         const callId = parsed.internalCallId ?? randomUUID();
         const controller = new AbortController();
-        options.onToolCallStart?.({ callId, toolName: parsed.name, args: parsed.args, controller });
+        const sessionToken = (req as BridgeSessionRequest).bridgeSession?.token;
+        options.onToolCallStart?.({ callId, toolName: parsed.name, args: parsed.args, controller, sessionToken });
 
         // A disconnected client can no longer receive a result, so the work must
         // stop instead of running to completion for nobody. The unit tests use a
@@ -105,15 +112,17 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
         const deps = createExecutionDeps(options, compressionPolicy);
 
         try {
-            const sessionToken = (req as BridgeSessionRequest).bridgeSession?.token;
             const localTool = options.localTools.get(parsed.name);
             if (localTool) {
-                await executeLocalTool({ controller, deps, localTool, options, request: parsed, res, sessionToken, toolStart });
+                await executeLocalTool({
+                    callId, controller, deps, localTool, options, request: parsed, res, sessionToken, toolStart
+                });
                 return;
             }
 
             const route = options.toolRouter.get(parsed.name);
             if (!route) {
+                rejectToolCallResult(options.onToolCallResult, { callId, toolName: parsed.name, toolStart }, 'rejected', 'unknown-tool');
                 sendToolError(
                     res,
                     404,
@@ -127,14 +136,16 @@ export function createToolCallHandler(options: ToolCallHandlerOptions): express.
             } catch (error: unknown) {
                 const errorText = getErrorMessage(error);
                 options.log(`   ⛔ Rejected unsafe local path arguments for ${parsed.name}: ${errorText}`);
+                rejectToolCallResult(options.onToolCallResult, { callId, toolName: parsed.name, toolStart }, 'rejected', 'unsafe-path');
                 sendToolError(res, 400, errorText);
                 return;
             }
 
             await runGated(options, controller, () => runWriteLocked(
-                { controller, options, request: parsed, res, sessionToken },
+                { callId, controller, options, request: parsed, res, sessionToken, toolStart },
                 () => executeWithTelemetry({
                     backend: { kind: 'remote', route },
+                    callId,
                     contextFactory: options.createToolExecutionContext,
                     controller,
                     deps,
@@ -161,9 +172,12 @@ function createExecutionDeps(
         error: options.error,
         getToolCallTimeoutMs: options.getToolCallTimeoutMs,
         log: options.log,
+        onToolCallResult: options.onToolCallResult,
         trace: options.trace
     };
 }
+
+/** S4：策略拒绝路径也要收尾 tool/call，保证每个调用都有对应结果事件。 */
 
 export function createToolPreflightHandler(options: ToolCallHandlerOptions): express.RequestHandler {
     return async (req, res) => {
@@ -229,6 +243,7 @@ export function createToolApprovalHandler(
 }
 
 type LocalToolExecutionInput = {
+    callId: string;
     controller: AbortController;
     deps: ToolExecutionDeps;
     localTool: LocalTool;
@@ -240,17 +255,20 @@ type LocalToolExecutionInput = {
 };
 
 async function executeLocalTool(input: LocalToolExecutionInput): Promise<void> {
-    const { controller, deps, localTool, options, request, res, sessionToken, toolStart } = input;
+    const { callId, controller, deps, localTool, options, request, res, sessionToken, toolStart } = input;
     const context = options.createToolExecutionContext();
-    const authorized = await authorizeLocalTool(localTool, request, context, res, options);
+    const authorized = await authorizeLocalTool(options, {
+        localTool, request, context, res, call: { callId, toolStart }
+    });
     if (!authorized) {
         return;
     }
 
     await runGated(options, controller, () => runWriteLocked(
-        { controller, options, request, res, sessionToken },
+        { callId, controller, options, request, res, sessionToken, toolStart },
         () => executeWithTelemetry({
             backend: { kind: 'local', tool: localTool },
+            callId,
             contextFactory: () => context,
             controller,
             deps,
@@ -262,11 +280,13 @@ async function executeLocalTool(input: LocalToolExecutionInput): Promise<void> {
 }
 
 type WriteLockedRunInput = {
+    callId: string;
     controller: AbortController;
     options: ToolCallHandlerOptions;
     request: ParsedToolCallRequest;
     res: Response;
     sessionToken: string | undefined;
+    toolStart: number;
 };
 
 /**
@@ -279,7 +299,7 @@ type WriteLockedRunInput = {
  * while queued is cancelled without executing.
  */
 async function runWriteLocked(input: WriteLockedRunInput, execute: () => Promise<void>): Promise<void> {
-    const { controller, options, request, res, sessionToken } = input;
+    const { callId, controller, options, request, res, sessionToken, toolStart } = input;
     const lock = options.writeLock;
     if (!lock || !isWriteLockedTool(request.name) || !sessionToken) {
         await execute();
@@ -287,19 +307,23 @@ async function runWriteLocked(input: WriteLockedRunInput, execute: () => Promise
     }
 
     const result = await lock.acquire(sessionToken, controller.signal);
+    const call = { callId, toolName: request.name, toolStart };
     if (result.status === 'timeout') {
         options.log(
             `   ⏳ Write lock wait timed out for ${request.name} ` +
             `(holder=${result.holderRef ?? 'none'}, waited ${result.waitMs}ms).`
         );
+        rejectToolCallResult(options.onToolCallResult, call, 'rejected', 'write-lock-timeout');
         sendToolError(res, 423, WRITE_LOCK_TIMEOUT_TEXT);
         return;
     }
     if (result.status === 'revoked') {
+        rejectToolCallResult(options.onToolCallResult, call, 'rejected', 'write-lock-revoked');
         sendToolError(res, 403, WRITE_LOCK_REVOKED_TEXT);
         return;
     }
     if (result.status === 'cancelled') {
+        rejectToolCallResult(options.onToolCallResult, call, 'cancelled');
         return;
     }
 
@@ -373,22 +397,30 @@ function parseToolCallRequest(
 }
 
 async function authorizeLocalTool(
-    localTool: LocalTool,
-    request: ParsedToolCallRequest,
-    context: ToolExecutionContext,
-    res: Response,
-    options: ToolCallHandlerOptions
+    options: ToolCallHandlerOptions,
+    input: {
+        localTool: LocalTool;
+        request: ParsedToolCallRequest;
+        context: ToolExecutionContext;
+        res: Response;
+        call: { callId: string; toolStart: number };
+    }
 ): Promise<boolean> {
+    const { localTool, request, context, res, call } = input;
     if (!localTool.assessRisk) {
         return true;
     }
 
     const preflight = await localTool.assessRisk(request.args, context);
+    const rejectWith = (error: string): void => {
+        rejectToolCallResult(options.onToolCallResult, { callId: call.callId, toolName: request.name, toolStart: call.toolStart }, 'rejected', error);
+    };
     if (preflight.assessment.level === 'blocked') {
         options.audit?.(auditEvent('blocked', request, {
             level: 'blocked',
             reasons: preflight.assessment.reasons
         }));
+        rejectWith('blocked');
         sendToolError(res, 400, `Security Error: ${preflight.assessment.reasons.join(' ')}`);
         return false;
     }
@@ -405,6 +437,7 @@ async function authorizeLocalTool(
             level: 'requires_confirmation',
             reasons: preflight.assessment.reasons
         }));
+        rejectWith('approval-required');
         if (res.headersSent !== true && res.writableEnded !== true && res.destroyed !== true) {
             res.status(409).json({
                 isError: true,

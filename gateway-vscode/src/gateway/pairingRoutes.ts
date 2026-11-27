@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
 import type express from 'express';
 import { BRANDING, BRIDGE_PROTOCOL_VERSION } from '@webcode/shared';
 
@@ -47,6 +48,24 @@ export type SessionRequestPrompt = {
     workspaceName: string;
 };
 
+/** S4 事件流：一次配对询问（人工确认前）。 */
+export type PairingRequestEvent = {
+    requestId: string;
+    siteId: string;
+    siteName: string;
+    requestOrigin: string;
+    workspaceName: string;
+};
+
+/** S4 事件流：同一 requestId 的判定结果（批准/拒绝/异常都发）。 */
+export type PairingResolvedEvent = {
+    requestId: string;
+    siteId: string;
+    siteName: string;
+    approved: boolean;
+    reason?: string;
+};
+
 export type PairingRoutesOptions = {
     getAiSites: () => readonly ResolvedAiSiteConfig[];
     getBridgeCodeTtlMs: () => number;
@@ -62,6 +81,10 @@ export type PairingRoutesOptions = {
      * the route declines, so the default is deny.
      */
     requestUserConfirmation: (prompt: SessionRequestPrompt) => Promise<boolean>;
+    /** S4 event stream: the request about to be shown to the user (no decision yet). */
+    onPairingRequest?: (event: PairingRequestEvent) => void;
+    /** S4 event stream: the decision for the same requestId, including refusals. */
+    onPairingResolved?: (event: PairingResolvedEvent) => void;
     log: GatewayLogger;
 };
 
@@ -131,12 +154,31 @@ async function handleSessionRequest(
     }
 
     const workspaceName = path.basename(workspaceRoot);
+    const requestId = randomUUID();
+    options.onPairingRequest?.({
+        requestId,
+        siteId: prepared.site.id,
+        siteName: prepared.site.name,
+        requestOrigin: prepared.requestOrigin,
+        workspaceName
+    });
+    let declinedReason: string | undefined;
     const approved = await options.requestUserConfirmation({
         requestOrigin: prepared.requestOrigin,
         siteName: prepared.site.name,
         workspaceName
-    }).catch(() => false);
+    }).catch((error: unknown) => {
+        declinedReason = error instanceof Error ? error.message : String(error);
+        return false;
+    });
     if (!approved) {
+        options.onPairingResolved?.({
+            requestId,
+            siteId: prepared.site.id,
+            siteName: prepared.site.name,
+            approved: false,
+            ...(declinedReason ? { reason: declinedReason } : {})
+        });
         return reject(res, options, {
             status: 403,
             error: 'declined',
@@ -150,6 +192,13 @@ async function handleSessionRequest(
     } catch {
         // Never leave the caller hanging: the express version here does not route
         // rejected async handlers, so the failure is answered explicitly.
+        options.onPairingResolved?.({
+            requestId,
+            siteId: prepared.site.id,
+            siteName: prepared.site.name,
+            approved: false,
+            reason: 'launch-code-failed'
+        });
         return reject(res, options, {
             status: 503,
             error: 'unavailable',
@@ -157,6 +206,12 @@ async function handleSessionRequest(
         });
     }
 
+    options.onPairingResolved?.({
+        requestId,
+        siteId: prepared.site.id,
+        siteName: prepared.site.name,
+        approved: true
+    });
     options.log(`🔐 Pairing request approved for ${prepared.site.id} in workspace [${workspaceName}].`);
     res.json({ bridgeCode, targetUrl: prepared.targetUrl, expiresInMs: options.getBridgeCodeTtlMs() });
 }

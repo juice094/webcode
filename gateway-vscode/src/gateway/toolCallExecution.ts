@@ -24,6 +24,19 @@ export type ParsedToolCallRequest = {
     internalCallId?: string;
 };
 
+/**
+ * S4 事件流：一次工具调用的终态（与 tool/call 按 callId 配对）。
+ * status 四态覆盖成功/失败/策略拒绝/客户端取消，保证每个 tool/call 都有对应 result。
+ */
+export type ToolCallResultInfo = {
+    callId: string;
+    toolName: string;
+    status: 'success' | 'error' | 'rejected' | 'cancelled';
+    durationMs: number;
+    error?: string;
+    result?: unknown;
+};
+
 export type ToolExecutionDeps = {
     audit?: ApprovalAuditSink;
     /** Compresses tool-result text per the configured policy; absent or never called means identity. */
@@ -31,6 +44,8 @@ export type ToolExecutionDeps = {
     error: GatewayErrorLogger;
     getToolCallTimeoutMs?: () => number;
     log: GatewayLogger;
+    /** S4 event stream sink; omitted by the VS Code host. */
+    onToolCallResult?: (info: ToolCallResultInfo) => void;
     trace?: GatewayRuntimeTraceSink;
 };
 
@@ -40,6 +55,8 @@ export type ToolBackend =
 
 export type ToolExecutionInput = {
     backend: ToolBackend;
+    /** Stable id of this call inside the gateway (the event stream correlates on it). */
+    callId: string;
     contextFactory: () => ToolExecutionContext;
     controller: AbortController;
     deps: ToolExecutionDeps;
@@ -59,7 +76,7 @@ const TRACE_EVIDENCE_ARGUMENTS = new Set(['path', 'customerId']);
  * copying this sequence.
  */
 export async function executeWithTelemetry(input: ToolExecutionInput): Promise<void> {
-    const { backend, contextFactory, controller, deps, request, res, toolStart } = input;
+    const { backend, callId, contextFactory, controller, deps, request, res, toolStart } = input;
     const label = backend.kind === 'local' ? 'local tool' : 'MCP tool';
     deps.log(`   🚀 Executing ${label}: ${request.name} ${previewArgs(request.args, backend.kind === 'local' ? 80 : 50)}`);
     deps.trace?.({
@@ -78,6 +95,13 @@ export async function executeWithTelemetry(input: ToolExecutionInput): Promise<v
         );
         const durationMs = Date.now() - toolStart;
         deps.audit?.(auditEvent('execution_finished', request, { status: 'success', durationMs }));
+        deps.onToolCallResult?.({
+            callId,
+            toolName: request.name,
+            status: 'success',
+            durationMs,
+            result
+        });
         deps.log(`   ✅ Finished: ${request.name} (${durationMs}ms)`);
         deps.trace?.({
             event: 'tool_call_finished',
@@ -96,7 +120,7 @@ export async function executeWithTelemetry(input: ToolExecutionInput): Promise<v
             res.json(compressor ? compressResultPayload(result, compressor) : result);
         }
     } catch (error: unknown) {
-        handleExecutionError({ backend, deps, error, request, res, toolStart });
+        handleExecutionError({ backend, callId, deps, error, request, res, toolStart });
     }
 }
 
@@ -119,6 +143,7 @@ function invokeBackend(
 
 type ExecutionErrorInput = {
     backend: ToolBackend;
+    callId: string;
     deps: ToolExecutionDeps;
     error: unknown;
     request: ParsedToolCallRequest;
@@ -127,10 +152,17 @@ type ExecutionErrorInput = {
 };
 
 function handleExecutionError(input: ExecutionErrorInput): void {
-    const { backend, deps, error, request, res, toolStart } = input;
+    const { backend, callId, deps, error, request, res, toolStart } = input;
 
     if (error instanceof ToolCallTimeoutError) {
         deps.audit?.(auditEvent('execution_finished', request, { status: 'error', error: 'timeout' }));
+        deps.onToolCallResult?.({
+            callId,
+            toolName: request.name,
+            status: 'error',
+            durationMs: Date.now() - toolStart,
+            error: 'timeout'
+        });
         sendToolTimeout(res, request, error.deadlineMs, {
             scope: backend.kind === 'local' ? 'local' : 'mcp',
             toolStart
@@ -141,6 +173,13 @@ function handleExecutionError(input: ExecutionErrorInput): void {
     if (backend.kind === 'remote' && isMcpRequestTimeout(error)) {
         // The MCP SDK enforces its own tools/call deadline; report it with the
         // same wording as the gateway deadline instead of a raw SDK error.
+        deps.onToolCallResult?.({
+            callId,
+            toolName: request.name,
+            status: 'error',
+            durationMs: Date.now() - toolStart,
+            error: 'mcp-request-timeout'
+        });
         sendToolTimeout(res, request, backend.route.toolTimeoutMs ?? DEFAULT_MCP_TOOL_TIMEOUT_MS, {
             scope: 'mcp-request',
             toolStart
@@ -148,7 +187,15 @@ function handleExecutionError(input: ExecutionErrorInput): void {
         return;
     }
 
-    deps.audit?.(auditEvent('execution_finished', request, { status: 'error', error: getErrorMessage(error) }));
+    const errorText = getErrorMessage(error);
+    deps.audit?.(auditEvent('execution_finished', request, { status: 'error', error: errorText }));
+    deps.onToolCallResult?.({
+        callId,
+        toolName: request.name,
+        status: 'error',
+        durationMs: Date.now() - toolStart,
+        error: errorText
+    });
     deps.error(`Tool execution failed: ${request.name}`, error);
     deps.trace?.({
         event: 'tool_call_finished',
@@ -159,6 +206,25 @@ function handleExecutionError(input: ExecutionErrorInput): void {
         details: { error: getErrorMessage(error) }
     });
     sendToolError(res, 500, `Error: ${getErrorMessage(error)}`);
+}
+
+/**
+ * S4 事件流：策略拒绝/取消路径的收尾。调用方已经发过 tool/call，这里补一条
+ * tool/result，保证每个调用都有配对结果（成功/失败/拒绝/取消四态闭合）。
+ */
+export function rejectToolCallResult(
+    onResult: ((info: ToolCallResultInfo) => void) | undefined,
+    call: { callId: string; toolName: string; toolStart: number },
+    status: 'rejected' | 'cancelled',
+    error?: string
+): void {
+    onResult?.({
+        callId: call.callId,
+        toolName: call.toolName,
+        status,
+        durationMs: Date.now() - call.toolStart,
+        ...(error === undefined ? {} : { error })
+    });
 }
 
 export function sendToolError(res: Response, status: number, text: string): void {
