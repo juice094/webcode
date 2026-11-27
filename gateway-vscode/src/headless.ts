@@ -15,7 +15,11 @@
  *   WEBCODE_SESSION_STORE           会话表 JSON 文件路径，
  *                                   默认 <主根>/.webcode/bridge-sessions.json，
  *                                   无工作区时 ~/.webcode/bridge-sessions.json
- *   WEBCODE_PAIRING                 配对策略：reject（默认）| approve（仅调试）
+ *   WEBCODE_PAIRING                 配对策略：reject（默认）| approve（仅调试）；
+ *                                   设置了 WEBCODE_PAIRING_BRIDGE 时本项不生效
+ *   WEBCODE_PAIRING_BRIDGE          配对审批桥端点（S3）：dsh 插件的 loopback URL，
+ *                                   设置后批准权收归 dsh 侧；桥不可达/超时 = 拒绝
+ *   WEBCODE_PAIRING_BRIDGE_TIMEOUT_MS 桥询问等待上限，默认 120000
  *   WEBCODE_IDLE_TIMEOUT_MINUTES    空闲自动停止分钟数，默认 30
  *   WEBCODE_ALLOWED_ORIGINS         额外允许的 Origin，',' 分隔
  *   WEBCODE_COMMAND_SHELL           execute_command 的 POSIX shell 路径
@@ -37,7 +41,7 @@ import { dirname, isAbsolute, join } from 'path';
 import { GatewayManager } from './gateway';
 import { createWorkspaceId } from './gateway/bridgeRoute';
 import type { GatewayConfig } from './gateway/types';
-import { createDshHostServices, createDshPairingUI, type LogSink, type PairingPolicy } from './host/dshHost';
+import { createDshHostServices, createDshPairingUI, PAIRING_BRIDGE_DEFAULTS, type LogSink, type PairingBridgeOptions, type PairingPolicy } from './host/dshHost';
 import { createWorkspaceSessionStore, type MementoLike } from './extension/sessionToken';
 import { getConfiguredAiSites, type AISiteConfig } from './platforms';
 
@@ -85,6 +89,13 @@ if (configPath && existsSync(configPath)) {
 }
 
 const pairingPolicy: PairingPolicy = env.WEBCODE_PAIRING === 'approve' ? 'approve' : 'reject';
+// S3 审批桥：设置后端点即批准权真源，env 策略不再生效（S3-D1）。
+const pairingBridge: PairingBridgeOptions | undefined = env.WEBCODE_PAIRING_BRIDGE
+    ? {
+        url: env.WEBCODE_PAIRING_BRIDGE,
+        timeoutMs: numberFrom(env.WEBCODE_PAIRING_BRIDGE_TIMEOUT_MS, PAIRING_BRIDGE_DEFAULTS.timeoutMs)
+    }
+    : undefined;
 const port = numberFrom(env.WEBCODE_PORT, 34567);
 const idleTimeoutMinutes = numberFrom(env.WEBCODE_IDLE_TIMEOUT_MINUTES, 30);
 const commandShellPath = env.WEBCODE_COMMAND_SHELL;
@@ -149,9 +160,10 @@ async function main(): Promise<void> {
         workspaceRoots: roots,
         configValues,
         pairingPolicy,
+        pairingBridge,
         sink
     });
-    const pairing = createDshPairingUI(pairingPolicy, sink);
+    const pairing = createDshPairingUI(pairingPolicy, sink, pairingBridge);
     const logger = { info: sink, warn: sink, error: sink };
 
     // extensionPath 供 SkillManager 扫描 skills/：编译产物在 out/，包根是其上一级。
@@ -185,7 +197,7 @@ async function main(): Promise<void> {
     const started = await manager.start(config);
     sink(`🌐 webcode 网关（headless/DSH 宿主）已启动：http://127.0.0.1:${started.port}`
         + ` workspace=${primaryRoot ?? '(无)'} workspaceId=${workspaceId}`
-        + ` 配对=${pairingPolicy} 会话表=${storePath}`);
+        + ` 配对=${pairingBridge ? `桥→${pairingBridge.url}` : pairingPolicy} 会话表=${storePath}`);
     await memento.update('mcp.lastPort', started.port);
 
     let closing = false;
