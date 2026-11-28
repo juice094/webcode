@@ -45,12 +45,14 @@ export function createVscodeWorkspaceProvider(): WorkspaceProvider {
     return { getWorkspaceRoots, getPrimaryWorkspaceRoot, getWorkspaceFolders: getWorkspaceFolderInfos };
 }
 
-/** ConfigStore：委托 vscode.workspace.getConfiguration(section)。 */
+/** ConfigStore：委托 vscode.workspace.getConfiguration(section)。
+ *  每次读写都重新获取 Configuration：VS Code 返回的是不可变快照，
+ *  持有旧快照会看不到之后的 config.update 写入（如 E2E 先写 aiSites 再启动网关）。 */
 export function createVscodeConfigStore(section: string): ConfigStore {
-    const config = vscode.workspace.getConfiguration(section);
     return {
-        get: <T>(key: string, defaultValue?: T): T | undefined => config.get(key, defaultValue as T),
-        update: (key, value) => config.update(key, value)
+        get: <T>(key: string, defaultValue?: T): T | undefined =>
+            vscode.workspace.getConfiguration(section).get(key, defaultValue as T),
+        update: (key, value) => vscode.workspace.getConfiguration(section).update(key, value)
     };
 }
 
