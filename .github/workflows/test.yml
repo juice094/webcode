@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload audit artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-audit
           path: audit-full.json
@@ -84,7 +84,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve VS Code version
         id: vscode-version
@@ -105,13 +105,13 @@ jobs:
           echo "version=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache VS Code test runtime
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: gateway-vscode/.vscode-test/vscode-*
           key: vscode-test-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.vscode-version.outputs.version }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
